@@ -55,8 +55,8 @@ _Focus: Opiate Dependence in Human Brain (GSE225158)_
 ## Interferon Response
 | **Gene** | **Function** | **Rationale** |
 |---------|--------------|---------------|
-| `IFNG`, `IFNGR1`, `IFNGR2` | Th1 cytokine and receptors | Induced via CD46 and key in brain inflammation |
-| `STAT1`, `IRF1`, `IRF7` | Transcription factors in IFN signaling | Complement–IFN cross-regulation suspected |
-| `IFNB1`, `IFNA1` (etc.) | Type I IFNs | Reflect viral/inflammatory response overlaps |
-| `IL6` | Acute-phase cytokine induced by C5a, TNF | Reliable marker of systemic inflammation |
-| `IL10` | Regulatory cytokine; induced via CD46 | Marker of anti-inflammatory feedback in Th1 contraction |
+| `IFNG`, `IFNGR1`, `IFNGR2` | Th1 cytokine and receptors | Induced via CD46 and key in brain inflammation. Modulates immune responses and neuronal inflammation. |
+| `STAT1`, `IRF1`, `IRF7` | Transcription factors in IFN signaling | Involved in IFN-induced gene transcription. Complement–IFN cross-regulation suspected. |
+| `IFNA2`, `IFNA6`, `IFNA13`, `IFNA5`, `IFNA21`, `IFNW1` | Type I IFNs (alpha subtypes and omega) | Alternative type I interferons to replace missing IFNA1 and IFNB1. Reflect viral/inflammatory response overlaps. |
+| `IL6` | Acute-phase cytokine induced by C5a, TNF | Reliable marker of systemic inflammation and immune activation. Important for inflammatory responses in the brain. |
+| `IL10` | Regulatory cytokine; induced via CD46 | Marker of anti-inflammatory feedback during Th1 contraction. Modulates immune responses in inflammation and tissue repair. |
