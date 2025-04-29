@@ -1,6 +1,15 @@
 import pandas as pd
 import scanpy as sc
+'''
+This script filters a gene list to keep only those genes that are present in an AnnData object.
 
+Inputs:
+    adata: AnnData object containing gene expression data
+Outputs:
+    - .csv file with the following columns:
+        - Gene Name
+        - Ensembl ID
+'''
 # Load the Ensembl-mapped gene list
 gene_df = pd.read_csv("init_gene_dictionary.csv")
 
