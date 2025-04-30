@@ -110,7 +110,7 @@ g = sns.clustermap(
     figsize=(14, 11),
     xticklabels=False,
     yticklabels=True,
-    dendrogram_ratio=(0.1, 0.2)  # Adjust this to control the size of the dendrograms (row, column)
+    dendrogram_ratio=(0.2, 0.2)  # Adjust this to control the size of the dendrograms (row, column)
 )
 
 # Adjust tick labels
