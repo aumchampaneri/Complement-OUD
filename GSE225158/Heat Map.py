@@ -5,7 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Patch
 from sklearn.preprocessing import StandardScaler
-
+'''
+The heatmap shows how each group's average expression of a gene deviates from the overall mean 
+'''
 # Load the data
 adata = sc.read_h5ad("/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE233279/GSE225158_BU_OUD_Striatum_refined_all_SeuratObj_N22.h5ad")
 
@@ -126,7 +128,7 @@ leg1 = g.figure.legend(
     handles=legend_patches_diag + legend_patches_sex,  # Specifies the handles (the items to be shown in the legend)
     title="Group Annotations",  # Title for this legend
     loc='upper right',  # Specifies the position of the legend. 'upper right' places it at the top right corner of the plot
-    bbox_to_anchor=(1.02, 1),  # Adjusts the exact position of the legend.
+    bbox_to_anchor=(1.00, 0.92),  # Adjusts the exact position of the legend.
                                # The first value (1.02) shifts the legend slightly right from the plot area (1.0 is the edge),
                                # The second value (1) places it at the top (1 is the top edge, 0 is the bottom).
                                # You can change these values to move the legend further or closer.
@@ -138,7 +140,7 @@ leg2 = g.figure.legend(
     handles=legend_patches_cell,  # Specifies the handles (the items to be shown in the legend)
     title="Cell Types",  # Title for this legend
     loc='center',  # Specifies the position of the legend. 'center' places it in the center of the plot area.
-    bbox_to_anchor=(0.5, 1.0),  # Adjusts the exact position of the legend.
+    bbox_to_anchor=(0.52, 0.87),  # Adjusts the exact position of the legend.
                                # The first value (0.3) positions the legend closer to the left (1 would be fully to the right).
                                # The second value (1.0) keeps it at the top of the plot.
                                # Adjust these to fine-tune the top-center positioning.
@@ -150,7 +152,7 @@ leg2 = g.figure.legend(
 cbar = g.ax_heatmap.collections[0].colorbar  # Access the colorbar for the heatmap
 cbar.set_label('Z-Score Expression', rotation=270, labelpad=20)  # Adds a label to the colorbar, rotates it 270° (vertical), and adds padding
 cbar.ax.tick_params(labelsize=8)  # Adjust the size of the colorbar ticks for better readability
-cbar.ax.set_position([1.03, 0.2, 0.03, 0.3])  # Manually adjusts the colorbar's position:
+cbar.ax.set_position([0.1, 0.8, 0.03, 0.15])  # Manually adjusts the colorbar's position:
                                                 # [1.03] - x position of the colorbar (shift to the right)
                                                 # [0.2] - y position of the colorbar (higher is closer to the top)
                                                 # [0.03] - width of the colorbar
