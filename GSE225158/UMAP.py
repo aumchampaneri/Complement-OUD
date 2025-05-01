@@ -27,8 +27,8 @@ rename_dict = {
 adata.obs['celltype3_renamed'] = adata.obs['celltype3'].map(rename_dict)
 
 # Visualize broad cell type structure
-sc.pl.umap(adata, color='celltype3_renamed', legend_loc='on data', legend_fontsize='xx-small', legend_fontweight='light', title='Cell Types', save='broad_cell_types.png')
-sc.pl.umap(adata, color='celltype3_renamed', title='Cell Types', save='broad_cell_types_side_legend.png')
+sc.pl.umap(adata, color='celltype3_renamed', legend_loc='on data', legend_fontsize='xx-small', legend_fontweight='light', title='Cell Types', save='broad_cell_types.pdf')
+sc.pl.umap(adata, color='celltype3_renamed', title='Cell Types', save='broad_cell_types_side_legend.pdf')
 
 # Check for sex-related structure or batch effects
 sc.pl.umap(adata, color='Sex', title='Sex', save='sex.png')
