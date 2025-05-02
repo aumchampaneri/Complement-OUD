@@ -31,13 +31,24 @@ rename_dict = {
 }
 adata.obs['celltype3_renamed'] = adata.obs['celltype3'].map(rename_dict)
 
+# List of cell types to plot (use the renamed labels)
+celltypes_to_plot = [
+    "Oligodendrocytes",
+    "Astrocytes",
+    "OPCs",
+    "Microglia"
+]
+
+# Subset AnnData
+adata_subset = adata[adata.obs['celltype3_renamed'].isin(celltypes_to_plot), :].copy()
+
 # Load gene list
 gene_list = pd.read_csv("/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 Gene Library/gene_names.csv")
 gene_names = gene_list['Gene Name'].tolist()
 genes_present = [gene for gene in gene_names if gene in adata.var_names]
 
 # Subset data
-adata_subset = adata[:, genes_present].copy()
+adata_subset = adata_subset[:, genes_present].copy()
 
 # Create group label
 adata_subset.obs['group'] = (
