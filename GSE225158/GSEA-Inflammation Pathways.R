@@ -1,24 +1,46 @@
-# Load required library
 library(dplyr)
+library(stringr)
+library(org.Hs.eg.db)
+library(AnnotationDbi)
+library(readr)
 
 # Read GSEA results
-gsea_res <- read.csv('GSE225158/gsea_results_M_OUD_vs_M_None.csv', stringsAsFactors = FALSE)
+gsea_res <- read_csv('GSE225158/gsea_results_M_OUD_vs_M_None.csv')
 
-# Read gene names from the CSV file
-gene_list <- read.csv('GSE225158 Gene Library/gene_names.csv', stringsAsFactors = FALSE)$Gene.Name
+# Read gene names and check column names
+gene_df <- read_csv('GSE225158 Gene Library/gene_names.csv')
+print(colnames(gene_df))  # Check actual column names
 
-# Define keywords for inflammatory and complement pathways
+# Use the correct column name (adjust as needed)
+gene_list <- gene_df$`Gene Name`
+
+# Continue as before
+entrez_ids <- AnnotationDbi::mapIds(
+  org.Hs.eg.db,
+  keys = gene_list,
+  column = "ENTREZID",
+  keytype = "SYMBOL",
+  multiVals = "first"
+)
+entrez_ids <- na.omit(entrez_ids) %>% as.character()
+
+# Define keywords
 keywords <- c(
-  "INFLAM", "INTERLEUKIN", "CYTOKINE", "TNF", "NF_KB", "IL", "TOLL_LIKE", "INTERFERON",
-  "COMPLEMENT", "C3", "C4", "C5", "C1Q", "C1R", "C1S", "C2", "C6", "C7", "C8", "C9"
+  "INFLAM", "INTERLEUKIN", "CYTOKINE", "TNF", "NF_KB", "IL", "TOLL_LIKE", "INTERFERON"
 )
 
-# Filter for pathways containing any keyword (case-insensitive)
+# Function to check gene overlap
+has_gene_overlap <- function(core_enrichment, entrez_ids) {
+  pathway_ids <- unlist(str_split(as.character(core_enrichment), "/"))
+  any(pathway_ids %in% entrez_ids)
+}
+
+# Filter for pathways matching keywords or gene overlap
 focus_res <- gsea_res %>%
-  dplyr::filter(grepl(paste(keywords, collapse = "|"), ID, ignore.case = TRUE))
+  filter(
+    # grepl(paste(keywords, collapse = "|"), ID, ignore.case = TRUE) | # Uncoment this line to filter by keywords
+      mapply(has_gene_overlap, core_enrichment, MoreArgs = list(entrez_ids = entrez_ids))
+  )
 
-# View top results
-print(head(focus_res))
-
-# Save filtered results to a new CSV
-write.csv(focus_res, 'GSE225158/gsea_inflammatory_complement_pathways.csv', row.names = FALSE)
+# Save results
+write_csv(focus_res, 'GSE225158/gsea_pathways_with_keywords_or_genes.csv')
