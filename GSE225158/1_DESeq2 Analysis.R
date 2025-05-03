@@ -38,3 +38,7 @@ for (i in seq_along(contrasts)) {
   out_path <- paste0('/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DESeq2 outputs/deseq2_results_', contrast_names[i], '.csv')
   write.csv(res_df, file=out_path, row.names=FALSE)
 }
+
+# Export normalized counts for GSVA
+norm_counts <- counts(dds, normalized=TRUE)
+write.csv(norm_counts, file='/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DESeq2 outputs/normalized_counts.csv')
