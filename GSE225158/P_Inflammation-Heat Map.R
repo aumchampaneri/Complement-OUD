@@ -8,134 +8,118 @@ library(tidyr)
 library(circlize)
 library(viridis)
 
+selected_pathway <- NULL # e.g., "TNF signaling pathway" or set via commandArgs
+
+# Possible pathway options (from kegg_inflammatory_pathways.csv):
+# "TNF signaling pathway"
+# "IL-17 signaling pathway"
+# "NF-kappa B signaling pathway"
+# "NOD-like receptor signaling pathway"
+# "Toll-like receptor signaling pathway"
+# "Chemokine signaling pathway"
+# "Cytokine-cytokine receptor interaction"
+# "Jak-STAT signaling pathway"
+# "MAPK signaling pathway"
+# (Add or update this list based on the actual unique values in your CSV)
+
 # 1. Load gene list
 gene_list <- read_csv('GSE225158/KEGG outputs/kegg_unique_genes.csv', col_names = "gene")
 selected_genes <- gene_list$gene
 
-# 1a. Load pathway annotation (columns: gene, pathway)
-pathway_annot <- read_csv('GSE225158/KEGG outputs/kegg_inflammatory_pathways.csv')
+# Load pathway mapping
+pathway_map <- read_csv('GSE225158/KEGG outputs/kegg_inflammatory_pathways.csv') # columns: gene, pathway
+
+# Subset by pathway if argument is provided
+if (!is.null(selected_pathway)) {
+  pathway_genes <- pathway_map %>%
+    filter(pathway == selected_pathway) %>%
+    pull(gene)
+  selected_genes <- intersect(selected_genes, pathway_genes)
+  cat("Subsetting to pathway:", selected_pathway, "with", length(selected_genes), "genes\n")
+}
 
 # 2. Load expression matrix
 expr <- read_csv('GSE225158/counts.csv') %>% column_to_rownames('gene')
+cat("Genes in expression matrix:", nrow(expr), "\n")
 expr_subset <- expr[rownames(expr) %in% selected_genes, ]
+cat("Genes after subsetting:", nrow(expr_subset), "\n")
 
 # 3. Load sample metadata
 meta <- read_csv('GSE225158/meta.csv')
 meta <- meta %>%
   filter(`...1` %in% colnames(expr_subset))
+cat("Samples in meta after filtering:", nrow(meta), "\n")
 
-# 4. Simplify cell types
-meta$celltype_simplified <- recode(meta$celltype3,
-  'Astrocytes' = 'Astrocytes',
-  'D1-Matrix' = 'Medium Spiny Neurons',
-  'D1-Striosome' = 'Medium Spiny Neurons',
-  'D1/D2-Hybrid' = 'Medium Spiny Neurons',
-  'D2-Matrix' = 'Medium Spiny Neurons',
-  'D2-Striosome' = 'Medium Spiny Neurons',
-  'Int-CCK' = 'Interneurons',
-  'Int-PTHLH' = 'Interneurons',
-  'Int-SST' = 'Interneurons',
-  'Int-TH' = 'Interneurons',
-  'Oligos' = 'Oligodendrocytes',
-  'Oligos_Pre' = 'Oligodendrocytes',
-  'Endothelial' = 'Endothelial',
-  'Microglia' = 'Microglia',
-  'Mural' = 'Mural'
-)
-
-# 5. Color palettes
-celltypes_simple <- unique(meta$celltype_simplified)
-palette_func_simple <- colorRampPalette(c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00"))
-celltype_colors_simple <- setNames(palette_func_simple(length(celltypes_simple)), celltypes_simple)
+# 4. Color palettes for annotation
 diagnosis_col <- setNames(c('#a6cee3', '#b2df8a'), c('OUD', 'None'))
 sex_col <- setNames(c('black', 'grey'), c('F', 'M'))
+celltypes <- unique(meta$celltype3)
+palette_func <- colorRampPalette(c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00"))
+celltype_colors <- setNames(palette_func(length(celltypes)), celltypes)
 
-# 6. Z-score normalization (row-wise) with optional log transform
-use_log_transform <- FALSE  # Set to TRUE for log2 transform before scaling
+# 5. Z-score normalization (row-wise)
+use_log_transform <- TRUE
 
-expr_subset <- expr_subset[, meta$`...1`]
+expr_subset <- expr_subset[, meta$`...1`, drop = FALSE]
+cat("expr_subset dim after column filter:", dim(expr_subset), "\n")
 if (use_log_transform) {
   expr_scaled <- t(scale(t(log2(as.matrix(expr_subset) + 1))))
 } else {
   expr_scaled <- t(scale(t(as.matrix(expr_subset))))
 }
+cat("expr_scaled dim:", dim(expr_scaled), "\n")
 
-# 7. Aggregate by group and cell type
-meta$Group <- paste(meta$Sex, meta$Dx_OUD, sep = "_")
-agg_expr <- meta %>%
-  mutate(CellType = celltype_simplified) %>%
-  select(Sample = `...1`, Group, CellType) %>%
-  left_join(
-    as.data.frame(t(expr_scaled)) %>% rownames_to_column("Sample"),
-    by = "Sample"
-  ) %>%
-  group_by(Group, CellType) %>%
-  summarise(across(where(is.numeric), mean), .groups = "drop")
+# 6. Prepare column annotation and grouping
+anno_df <- meta %>%
+  arrange(match(`...1`, colnames(expr_scaled))) %>%
+  select(Sex, Dx_OUD, celltype3)
 
-# 8. Reshape to matrix: rows=genes, columns=Group_CellType
-agg_expr_long <- agg_expr %>%
-  pivot_longer(-c(Group, CellType), names_to = "Gene", values_to = "Value") %>%
-  unite("Group_CellType", Group, CellType, sep = "_") %>%
-  pivot_wider(names_from = Group_CellType, values_from = Value)
-
-agg_expr_mat <- as.matrix(agg_expr_long[,-1])
-rownames(agg_expr_mat) <- agg_expr_long$Gene
-
-# 9. Count frequencies for proportional barplot
-freqs <- meta %>%
-  count(Group, celltype_simplified) %>%
-  unite("Group_CellType", Group, celltype_simplified, sep = "_")
-col_freqs <- freqs$n[match(colnames(agg_expr_mat), freqs$Group_CellType)]
-col_props <- col_freqs / sum(col_freqs)
-
-# 10. Prepare annotation for columns
-col_anno <- strsplit(colnames(agg_expr_mat), "_")
-anno_df <- data.frame(
-  Group = sapply(col_anno, `[`, 1),
-  Dx = sapply(col_anno, `[`, 2),
-  CellType = sapply(col_anno, `[`, 3)
-)
+# Grouping factor: first by Sex, then by Dx_OUD
+column_group <- paste(anno_df$Sex, anno_df$Dx_OUD, sep = "_")
+# Ensure correct order of levels: all F_None, F_OUD, M_None, M_OUD, etc.
+sex_levels <- unique(anno_df$Sex)
+dx_levels <- unique(anno_df$Dx_OUD)
+group_levels <- as.vector(outer(sex_levels, dx_levels, paste, sep = "_"))
+column_group <- factor(column_group, levels = group_levels)
 
 column_ha <- HeatmapAnnotation(
-  Proportion = anno_barplot(col_props, border = FALSE, gp = gpar(fill = "grey")),
-  Group = anno_df$Group,
-  Dx = anno_df$Dx,
-  CellType = anno_df$CellType,
+  Sex = anno_df$Sex,
+  Dx = anno_df$Dx_OUD,
+  CellType = anno_df$celltype3,
   col = list(
-    Group = sex_col,
+    Sex = sex_col,
     Dx = diagnosis_col,
-    CellType = celltype_colors_simple
+    CellType = celltype_colors
   )
 )
 
-# 11. Prepare pathway row annotation (text, handles overlap)
-gene_pathways <- pathway_annot %>%
-  group_by(gene) %>%
-  summarise(pathways = paste(unique(pathway), collapse = "; "))
+# 7. Remove rows with all NA/NaN/Inf
+expr_scaled <- expr_scaled[apply(expr_scaled, 1, function(x) all(is.finite(x))), , drop = FALSE]
+cat("expr_scaled dim after filtering:", dim(expr_scaled), "\n")
 
-row_annot_vec <- gene_pathways$pathways
-names(row_annot_vec) <- gene_pathways$gene
+# 8. Plot heatmap with column_split
+# R
 
-# Only annotate genes present in the heatmap
-row_ha <- rowAnnotation(
-  Pathway = anno_text(row_annot_vec[rownames(agg_expr_mat)], gp = gpar(fontsize = 8))
-)
+# Calculate dynamic sizes
+heatmap_height <- unit(nrow(expr_scaled) * 0.3, "cm")
+heatmap_width <- unit(ncol(expr_scaled) * 0.3, "cm")
 
-# 12. Plot heatmap
-pdf('GSE225158/figures/heatmap_output.pdf', width = 15, height = 15)
+pdf('GSE225158/figures/heatmap_output.pdf',
+    width = as.numeric(heatmap_width, "cm") + 2,
+    height = as.numeric(heatmap_height, "cm") + 2)
 
 Heatmap(
-  agg_expr_mat,
+  expr_scaled,
   name = "Z-score",
   top_annotation = column_ha,
-  left_annotation = row_ha,
   col = colorRamp2(seq(-4, 4, length.out = 100), colorRampPalette(c("#50c878", "white", "#FF69B4"))(100)),
   show_row_names = TRUE,
   show_column_names = FALSE,
-  cluster_columns = FALSE,
+  cluster_columns = TRUE,
   cluster_rows = TRUE,
-  heatmap_width = unit(14, "cm"),
-  heatmap_height = unit(32, "cm")
+  column_split = column_group,
+  heatmap_width = heatmap_width,
+  heatmap_height = heatmap_height,
+  row_names_gp = gpar(fontsize = 6) # adjust as needed
 )
-
 dev.off()
