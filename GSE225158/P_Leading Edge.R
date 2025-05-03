@@ -8,7 +8,7 @@ library(AnnotationDbi)
 library(ggplot2)
 
 # 1. Read GSEA results
-gsea <- read_csv('GSE225158/gsea_results_M_OUD_vs_M_None.csv')
+gsea <- read_csv('GSEA outputs/gsea_results_M_OUD_vs_M_None.csv')
 
 # 2. Choose pathway of interest
 pathway_id <- "LAKE_ADULT_KIDNEY_C19_COLLECTING_DUCT_INTERCALATED_CELLS_TYPE_A_MEDULLA"
@@ -46,7 +46,7 @@ if (length(gene_symbols) == 0) {
 }
 
 # 6. Read DESeq2 results
-expr <- read_csv('GSE225158/deseq2_results_M_OUD_vs_M_None.csv')
+expr <- read_csv('DESeq2 outputs/deseq2_results_M_OUD_vs_M_None.csv')
 
 # 7. Filter for leading edge genes (now using gene symbols)
 barplot_data <- expr %>%

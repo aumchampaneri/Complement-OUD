@@ -35,6 +35,6 @@ for (i in seq_along(contrasts)) {
   res <- results(dds, contrast=contrasts[[i]])
   res_df <- as.data.frame(res)
   res_df$gene <- rownames(res)  # <-- Use rownames from DESeq2 results
-  out_path <- paste0('/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/deseq2_results_', contrast_names[i], '.csv')
+  out_path <- paste0('/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DESeq2 outputs/deseq2_results_', contrast_names[i], '.csv')
   write.csv(res_df, file=out_path, row.names=FALSE)
 }

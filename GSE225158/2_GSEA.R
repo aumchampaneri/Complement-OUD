@@ -7,7 +7,7 @@ library(org.Hs.eg.db)
 library(AnnotationDbi)
 
 # Load DESeq2 results
-res <- read_csv('GSE225158/deseq2_results_M_OUD_vs_M_None.csv')
+res <- read_csv('DESeq2 outputs/deseq2_results_M_OUD_vs_M_None.csv')
 
 # Map gene symbols to Entrez IDs
 res$entrez <- AnnotationDbi::mapIds(
@@ -43,4 +43,4 @@ gsea_res <- GSEA(
 )
 
 # Save results
-write.csv(gsea_res@result, 'GSE225158/gsea_results_M_OUD_vs_M_None.csv', row.names = FALSE)
+write.csv(gsea_res@result, 'GSE225158/GSEA outputs/gsea_results_M_OUD_vs_M_None.csv', row.names = FALSE)

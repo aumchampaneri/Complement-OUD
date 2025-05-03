@@ -46,13 +46,13 @@ for name, kegg_id in brain_inflammation_pathways.items():
         print(f"Error fetching {name}: {e}")
 
 # Export full pathway-gene mapping to CSV
-with open("kegg_inflammatory_pathways.csv", "w", newline="") as f:
+with open("KEGG exports/kegg_inflammatory_pathways.csv", "w", newline="") as f:
     writer = csv.DictWriter(f, fieldnames=["pathway", "gene"])
     writer.writeheader()
     writer.writerows(rows)
 
 # Export unique gene list to CSV
-with open("kegg_unique_genes.csv", "w", newline="") as f:
+with open("KEGG exports/kegg_unique_genes.csv", "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow(["gene"])
     for gene in sorted(unique_genes):

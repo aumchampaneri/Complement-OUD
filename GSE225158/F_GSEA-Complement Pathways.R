@@ -5,7 +5,7 @@ library(readr)
 # Read genes of interest and filtered GSEA results
 gene_df <- read_csv('GSE225158/kegg_unique_genes.csv')
 genes_of_interest <- gene_df$`gene`
-gsea_res <- read_csv('GSE225158/gsea_inflammatory_complement_pathways.csv')
+gsea_res <- read_csv('GSEA outputs/gsea_inflammatory_complement_pathways.csv')
 
 # Map gene symbols to Entrez IDs (if needed)
 library(org.Hs.eg.db)
@@ -27,7 +27,7 @@ gsea_res$contains_gene <- sapply(
 focus_pathways <- gsea_res %>% filter(contains_gene)
 
 # Save or view the results
-write_csv(focus_pathways, 'GSE225158/pathways_with_genes_of_interest.csv')
+write_csv(focus_pathways, 'GSE225158/GSEA outputs/pathways_with_genes_of_interest.csv')
 
 # Count overlap for each pathway
 gsea_res$num_genes_of_interest <- sapply(

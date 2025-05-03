@@ -15,7 +15,7 @@ library(readr)
 
 
 # Read and preprocess the data
-df <- read.csv('/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/gsea_inflammatory_complement_pathways.csv',
+df <- read.csv('/GSE225158/GSEA outputs/gsea_inflammatory_complement_pathways.csv',
                header = FALSE, stringsAsFactors = FALSE)
 colnames(df) <- c("Name", "Description", "Size", "ES", "NES", "pval", "padj", "qval", "Rank", "Tags", "Genes")
 df$Name <- str_replace_all(df$Name, '"', '')

@@ -5,7 +5,7 @@ library(AnnotationDbi)
 library(readr)
 
 # Read GSEA results
-gsea_res <- read_csv('GSE225158/gsea_results_M_OUD_vs_M_None.csv')
+gsea_res <- read_csv('GSEA outputs/gsea_results_M_OUD_vs_M_None.csv')
 
 # Read gene names and check column names
 gene_df <- read_csv('GSE225158 Gene Library/gene_names.csv')
@@ -43,4 +43,4 @@ focus_res <- gsea_res %>%
   )
 
 # Save results
-write_csv(focus_res, 'GSE225158/gsea_inflammatory_complement_pathways.csv')
+write_csv(focus_res, 'GSEA outputs/gsea_inflammatory_complement_pathways.csv')
