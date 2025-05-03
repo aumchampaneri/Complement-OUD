@@ -3,8 +3,8 @@ library(stringr)
 library(readr)
 
 # Read genes of interest and filtered GSEA results
-gene_df <- read_csv('GSE225158 Gene Library/gene_names.csv')
-genes_of_interest <- gene_df$`Gene Name`
+gene_df <- read_csv('GSE225158/kegg_unique_genes.csv')
+genes_of_interest <- gene_df$`gene`
 gsea_res <- read_csv('GSE225158/gsea_inflammatory_complement_pathways.csv')
 
 # Map gene symbols to Entrez IDs (if needed)
