@@ -43,4 +43,4 @@ focus_res <- gsea_res %>%
   )
 
 # Save results
-write_csv(focus_res, 'GSE225158/gsea_pathways_with_keywords_or_genes.csv')
+write_csv(focus_res, 'GSE225158/gsea_inflammatory_complement_pathways.csv')

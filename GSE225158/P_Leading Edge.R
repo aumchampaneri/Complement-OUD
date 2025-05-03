@@ -11,7 +11,7 @@ library(ggplot2)
 gsea <- read_csv('GSE225158/gsea_results_M_OUD_vs_M_None.csv')
 
 # 2. Choose pathway of interest
-pathway_id <- "BILANGES_SERUM_AND_RAPAMYCIN_SENSITIVE_GENES"
+pathway_id <- "GSE22886_NEUTROPHIL_VS_MONOCYTE_DN"
 
 # 3. Extract core_enrichment string for the pathway
 core_enrichment_str <- gsea %>%
@@ -58,7 +58,7 @@ if (nrow(barplot_data) == 0) {
 }
 
 # 8. Barplot
-ggplot(barplot_data, aes(x = reorder(gene, log2FoldChange), y = log2FoldChange)) +
+p <- ggplot(barplot_data, aes(x = reorder(gene, log2FoldChange), y = log2FoldChange)) +
   geom_bar(stat = "identity", fill = "steelblue") +
   coord_flip() +
   labs(
@@ -67,3 +67,9 @@ ggplot(barplot_data, aes(x = reorder(gene, log2FoldChange), y = log2FoldChange))
     y = "log2FoldChange"
   ) +
   theme_minimal()
+
+ggsave(
+  '/Users/aumchampaneri/PycharmProjects/Complement-OUD/leading_edge_genes_barplot.png',
+  p + theme(plot.margin = margin(5, 5, 5, 20)), # increase left margin
+  width = 20, height = 10 # increase width
+)
