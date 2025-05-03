@@ -11,7 +11,7 @@ library(ggplot2)
 gsea <- read_csv('GSE225158/gsea_results_M_OUD_vs_M_None.csv')
 
 # 2. Choose pathway of interest
-pathway_id <- "GSE22886_NEUTROPHIL_VS_MONOCYTE_DN"
+pathway_id <- "LAKE_ADULT_KIDNEY_C19_COLLECTING_DUCT_INTERCALATED_CELLS_TYPE_A_MEDULLA"
 
 # 3. Extract core_enrichment string for the pathway
 core_enrichment_str <- gsea %>%
@@ -71,5 +71,5 @@ p <- ggplot(barplot_data, aes(x = reorder(gene, log2FoldChange), y = log2FoldCha
 ggsave(
   '/Users/aumchampaneri/PycharmProjects/Complement-OUD/leading_edge_genes_barplot.png',
   p + theme(plot.margin = margin(5, 5, 5, 20)), # increase left margin
-  width = 20, height = 10 # increase width
+  width = 20, height = 13 # increase width
 )

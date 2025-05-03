@@ -38,7 +38,7 @@ has_gene_overlap <- function(core_enrichment, entrez_ids) {
 # Filter for pathways matching keywords or gene overlap
 focus_res <- gsea_res %>%
   filter(
-    # grepl(paste(keywords, collapse = "|"), ID, ignore.case = TRUE) | # Uncoment this line to filter by keywords
+    grepl(paste(keywords, collapse = "|"), ID, ignore.case = TRUE) | # Uncoment this line to filter by keywords
       mapply(has_gene_overlap, core_enrichment, MoreArgs = list(entrez_ids = entrez_ids))
   )
 
