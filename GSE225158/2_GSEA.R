@@ -36,7 +36,7 @@ msig_all <- msigdbr(species = "Homo sapiens") %>%
 gsea_res <- GSEA(
   geneList = gene_list,
   TERM2GENE = msig_all,
-  pvalueCutoff = 0.1,
+  pvalueCutoff = 0.05,
   minGSSize = 5,
   maxGSSize = 5000,
   nPermSimple = 10000
