@@ -8,6 +8,8 @@ from matplotlib.colors import LinearSegmentedColormap
 import os
 import warnings
 import seaborn as sns
+import math
+from scipy import stats
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -638,10 +640,218 @@ def visualize_network_motifs(G, complement_genes, output_path):
         return None
 
 
+# 18. Shortest Path Analysis
+def analyze_shortest_paths(G, complement_genes, hub_genes, output_path, max_paths=10):
+    """Analyze shortest paths between complement genes and hub genes"""
+    try:
+        print("Analyzing shortest paths between complement and hub genes...")
+
+        # Filter for genes actually in the network
+        complement_in_network = [gene for gene in complement_genes if gene in G.nodes()]
+        hub_in_network = [gene for gene in hub_genes if gene in G.nodes()]
+
+        if not complement_in_network or not hub_in_network:
+            print("No complement genes or hub genes found in network")
+            return None
+
+        # Find all shortest paths between complement and hub genes
+        all_paths = []
+
+        for comp_gene in complement_in_network:
+            for hub_gene in hub_in_network:
+                if comp_gene != hub_gene:
+                    try:
+                        paths = list(nx.all_shortest_paths(G, comp_gene, hub_gene))
+                        for path in paths:
+                            all_paths.append({
+                                'source': comp_gene,
+                                'target': hub_gene,
+                                'path': path,
+                                'length': len(path) - 1  # Subtract 1 to get edge count
+                            })
+                    except nx.NetworkXNoPath:
+                        continue
+
+        if not all_paths:
+            print("No paths found between complement and hub genes")
+            return None
+
+        # Convert to DataFrame
+        paths_df = pd.DataFrame(all_paths)
+
+        # Calculate statistics
+        avg_path_length = paths_df['length'].mean()
+        print(f"Average shortest path length: {avg_path_length:.2f} edges")
+
+        # Get most common intermediary genes
+        intermediaries = []
+        for path in paths_df['path']:
+            if len(path) > 2:  # If there are intermediaries
+                intermediaries.extend(path[1:-1])
+
+        intermediary_counts = pd.Series(intermediaries).value_counts()
+
+        # Visualize most frequent paths
+        sorted_paths = paths_df.sort_values('length')
+        top_paths = sorted_paths.head(max_paths)
+
+        plt.figure(figsize=(12, 10))
+
+        for i, (_, row) in enumerate(top_paths.iterrows()):
+            # Create subgraph for this path
+            path_graph = G.subgraph(row['path'])
+            pos = nx.spring_layout(path_graph, seed=42)
+
+            plt.subplot(min(5, max_paths), max(1, math.ceil(max_paths / 5)), i + 1)
+
+            # Color nodes (red for complement, blue for hub, green for intermediaries)
+            node_colors = []
+            for node in path_graph.nodes():
+                if node == row['source']:
+                    node_colors.append('red')
+                elif node == row['target']:
+                    node_colors.append('blue')
+                else:
+                    node_colors.append('green')
+
+            nx.draw_networkx_nodes(path_graph, pos, node_color=node_colors, node_size=300)
+            nx.draw_networkx_edges(path_graph, pos, width=2)
+            nx.draw_networkx_labels(path_graph, pos, font_size=8)
+
+            plt.title(f"{row['source']} → {row['target']} ({row['length']} steps)")
+            plt.axis('off')
+
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=300)
+        plt.close()
+
+        # Save path data
+        paths_df.to_csv(output_path.replace('.png', '.csv'), index=False)
+        intermediary_counts.head(20).to_csv(output_path.replace('.png', '_intermediaries.csv'))
+
+        return {
+            'paths': paths_df,
+            'avg_length': avg_path_length,
+            'intermediaries': intermediary_counts
+        }
+    except Exception as e:
+        print(f"Error in shortest path analysis: {e}")
+        return None
+
+
+# 19. Random Network Comparison
+def compare_to_random_networks(G, output_path, n_random=100):
+    """Compare network properties with random networks"""
+    try:
+        print("Comparing network to random networks...")
+
+        # Original network metrics
+        original_metrics = {
+            'Clustering': nx.average_clustering(G),
+            'Assortativity': nx.degree_assortativity_coefficient(G),
+            'Avg Shortest Path': nx.average_shortest_path_length(G),
+            'Diameter': nx.diameter(G)
+        }
+
+        print(f"Original network metrics calculated")
+
+        # Generate random networks with same number of nodes and edges
+        n_nodes = G.number_of_nodes()
+        n_edges = G.number_of_edges()
+
+        random_metrics = []
+        for i in range(n_random):
+            if i % 10 == 0:
+                print(f"Generating random network {i}/{n_random}...")
+
+            # Create random graph with same node/edge count
+            random_G = nx.gnm_random_graph(n_nodes, n_edges, seed=i)
+
+            # Calculate metrics
+            metrics = {}
+            try:
+                metrics['Clustering'] = nx.average_clustering(random_G)
+                metrics['Assortativity'] = nx.degree_assortativity_coefficient(random_G)
+
+                # Only calculate these if graph is connected
+                if nx.is_connected(random_G):
+                    metrics['Avg Shortest Path'] = nx.average_shortest_path_length(random_G)
+                    metrics['Diameter'] = nx.diameter(random_G)
+                else:
+                    largest_cc = max(nx.connected_components(random_G), key=len)
+                    largest_cc_graph = random_G.subgraph(largest_cc)
+                    metrics['Avg Shortest Path'] = nx.average_shortest_path_length(largest_cc_graph)
+                    metrics['Diameter'] = nx.diameter(largest_cc_graph)
+            except:
+                continue
+
+            random_metrics.append(metrics)
+
+        # Convert to DataFrame
+        random_df = pd.DataFrame(random_metrics)
+
+        # Calculate z-scores
+        z_scores = {}
+        p_values = {}
+        for metric in original_metrics:
+            mean = random_df[metric].mean()
+            std = random_df[metric].std()
+            z_scores[metric] = (original_metrics[metric] - mean) / std
+
+            # Calculate p-value (two-tailed)
+            if original_metrics[metric] > mean:
+                p_values[metric] = 2 * (1 - stats.norm.cdf(z_scores[metric]))
+            else:
+                p_values[metric] = 2 * stats.norm.cdf(z_scores[metric])
+
+        # Visualize comparison
+        plt.figure(figsize=(14, 8))
+
+        # Create subplots for each metric
+        for i, metric in enumerate(original_metrics):
+            plt.subplot(2, 2, i + 1)
+
+            # Plot histogram of random networks
+            sns.histplot(random_df[metric], kde=True)
+
+            # Add vertical line for original network
+            plt.axvline(original_metrics[metric], color='red', linestyle='--')
+
+            plt.title(f"{metric}\nZ-score: {z_scores[metric]:.2f}, p-value: {p_values[metric]:.3e}")
+            plt.xlabel(metric)
+            plt.ylabel('Frequency')
+
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=300)
+        plt.close()
+
+        # Save comparison data
+        comparison_df = pd.DataFrame({
+            'Metric': list(original_metrics.keys()),
+            'Original': list(original_metrics.values()),
+            'Random_Mean': [random_df[m].mean() for m in original_metrics],
+            'Random_Std': [random_df[m].std() for m in original_metrics],
+            'Z_Score': list(z_scores.values()),
+            'P_Value': list(p_values.values())
+        })
+
+        comparison_df.to_csv(output_path.replace('.png', '.csv'), index=False)
+
+        print("Network comparison completed")
+        return {
+            'original': original_metrics,
+            'random': random_df,
+            'z_scores': z_scores,
+            'p_values': p_values
+        }
+    except Exception as e:
+        print(f"Error in random network comparison: {e}")
+        return None
+
 # Main execution
 def main():
     # Create output directory if it doesn't exist
-    output_dir = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/PPI_outputs"
+    output_dir = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/PPI outputs"
     os.makedirs(output_dir, exist_ok=True)
 
     # 1. Load DESeq2 results
@@ -726,6 +936,15 @@ def main():
     # 17. Analyze network motifs
     print("\nAnalyzing network motifs...")
     network_motifs = visualize_network_motifs(G, complement_genes, f"{output_dir}/network_motifs.png")
+
+    # 18. Analyze shortest paths between complement and hub genes
+    print("\nAnalyzing shortest paths between complement and hub genes...")
+    shortest_paths = analyze_shortest_paths(G, complement_genes, top_hubs['Gene'].tolist()[:20],
+                                            f"{output_dir}/shortest_paths.png")
+
+    # 19. Compare network to random networks
+    print("\nComparing network properties to random networks...")
+    random_comparison = compare_to_random_networks(G, f"{output_dir}/random_network_comparison.png", n_random=50)
 
     print("\nAll analyses completed!")
     print(f"Results saved to: {output_dir}")
