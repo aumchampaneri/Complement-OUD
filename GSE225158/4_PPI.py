@@ -10,9 +10,166 @@ import warnings
 import seaborn as sns
 import math
 from scipy import stats
+import argparse
+import io
+import logging
+import sys
+from datetime import datetime
+
+def setup_logging(output_dir, pathway_name=None):
+    """Set up logging to both console and file"""
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Create a unique log file name with timestamp, using .txt extension
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_filename = f"{pathway_name}_analysis_{timestamp}.txt" if pathway_name else f"ppi_analysis_{timestamp}.txt"
+    log_path = os.path.join(output_dir, log_filename)
+
+    # Configure logging to write to both console and file
+    file_handler = logging.FileHandler(log_path)
+    console_handler = logging.StreamHandler(sys.stdout)
+
+    handlers = [file_handler, console_handler]
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(message)s',
+        handlers=handlers
+    )
+
+    logging.info(f"Logging to: {log_path}")
+    return log_path
+
+
+def setup_output_capture(output_dir, pathway_name=None):
+    """Set up output capture to file using redirection"""
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Create a unique output file name with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{pathway_name}_analysis_{timestamp}.txt" if pathway_name else f"ppi_analysis_{timestamp}.txt"
+    filepath = os.path.join(output_dir, filename)
+
+    # Create and open the file for writing
+    output_file = open(filepath, 'w')
+
+    # Save original stdout/stderr
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+
+    # Create a custom stdout/stderr that writes to both file and console
+    class OutputCapture:
+        def __init__(self, file, original):
+            self.file = file
+            self.original = original
+
+        def write(self, text):
+            self.file.write(text)
+            self.original.write(text)
+
+        def flush(self):
+            self.file.flush()
+            self.original.flush()
+
+    # Replace stdout and stderr with our capturing versions
+    sys.stdout = OutputCapture(output_file, original_stdout)
+    sys.stderr = OutputCapture(output_file, original_stderr)
+
+    print(f"Output capturing started. Saving to: {filepath}")
+    return filepath, original_stdout, original_stderr, output_file
+
+
+def end_output_capture(original_stdout, original_stderr, output_file):
+    """Restore original stdout/stderr and close the output file"""
+    sys.stdout = original_stdout
+    sys.stderr = original_stderr
+    output_file.close()
+    print("Output capture ended.")
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
+
+# STRING API base URLs
+STRING_API_URL = "https://string-db.org/api"
+OUTPUT_FORMAT = "tsv"
+METHOD_GET_STRING_IDS = "get_string_ids"
+METHOD_NETWORK = "network"
+
+
+def get_string_ids(genes, species):
+    params = {
+        "identifiers": "%0d".join(genes),
+        "species": species,
+        "limit": 1,
+        "echo_query": 1
+    }
+    request_url = f"{STRING_API_URL}/{OUTPUT_FORMAT}/{METHOD_GET_STRING_IDS}"
+    try:
+        response = requests.post(request_url, data=params)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error fetching STRING IDs: {e}")
+        return None
+
+    df = pd.read_csv(io.StringIO(response.text), sep="\t")
+    if df.empty:
+        logging.warning("No STRING IDs were found for the provided genes.")
+    return df
+
+
+def get_interactions(string_ids, species, required_score):
+    identifiers = "%0d".join(string_ids)
+    params = {
+        "identifiers": identifiers,
+        "species": species,
+        "required_score": required_score
+    }
+    request_url = f"{STRING_API_URL}/{OUTPUT_FORMAT}/{METHOD_NETWORK}"
+    try:
+        response = requests.post(request_url, data=params)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error fetching interaction network: {e}")
+        return None
+
+    df = pd.read_csv(io.StringIO(response.text), sep="\t")
+    if df.empty:
+        logging.warning("No interactions were retrieved.")
+    return df
+
+
+def plot_score_distribution(df, output_file):
+    plt.hist(df["score"], bins=50, color='skyblue', edgecolor='black')
+    plt.title("STRING Interaction Score Distribution")
+    plt.xlabel("Score")
+    plt.ylabel("Count")
+    plt.tight_layout()
+    plt.savefig(output_file)
+    print(f"Histogram saved to {output_file}")
+
+
+def export_graphml(df, output_file):
+    G = nx.Graph()
+    for _, row in df.iterrows():
+        G.add_edge(row['preferredName_A'], row['preferredName_B'], weight=row['score'])
+    nx.write_graphml(G, output_file)
+    print(f"GraphML network exported to {output_file}")
+
+
+def plot_interaction_network(df, output_file):
+    G = nx.Graph()
+    for _, row in df.iterrows():
+        G.add_edge(row['preferredName_A'], row['preferredName_B'], weight=row['score'])
+
+    plt.figure(figsize=(10, 10))
+    pos = nx.spring_layout(G, k=0.5)
+    nx.draw(G, pos, with_labels=True, node_size=50, font_size=8, edge_color='gray', node_color='skyblue')
+    plt.title("STRING PPI Network")
+    plt.tight_layout()
+    plt.savefig(output_file, dpi=300)
+    print(f"Network plot saved to {output_file}")
 
 # 1. Load DEG results
 def load_deseq_results(file_path):
@@ -517,8 +674,10 @@ def visualize_community_heatmap(G, communities, deg_data, output_path):
         if len(df) > 50:
             top_genes = []
             for comm in community_order:
-                comm_genes = df[df['Community'] == comm].nlargest(5, 'log2FC').append(
-                    df[df['Community'] == comm].nsmallest(5, 'log2FC'))
+                comm_genes = pd.concat([
+                    df[df['Community'] == comm].nlargest(5, 'log2FC'),
+                    df[df['Community'] == comm].nsmallest(5, 'log2FC')
+                ])
                 top_genes.append(comm_genes)
             df = pd.concat(top_genes)
 
@@ -813,7 +972,7 @@ def compare_to_random_networks(G, n_random=100):
         return None
 
 # Main function to run the analysis
-def main():
+def main_pathway_analysis():
     # Set up paths
     base_dir = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158"
     data_dir = os.path.join(base_dir, "DESeq2 outputs")
@@ -832,92 +991,155 @@ def main():
 
     # Load pathway genes - rename this variable to be pathway-agnostic
     pathway_name = "Complement"  # Change this for different pathways
+    log_path = setup_logging(output_dir, pathway_name)
+    output_path, orig_stdout, orig_stderr, output_file = setup_output_capture(output_dir, pathway_name)
     pathway_genes = load_pathway_genes(
         "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/KEGG outputs/kegg_complement_unique_genes.csv")
-    print(f"Loaded {len(pathway_genes)} {pathway_name} genes from file")
-
-    # Combine DEGs and pathway genes for PPI analysis
-    genes_to_analyze = list(set(sig_genes['gene'].tolist() + pathway_genes))
-
-    # If too many genes, prioritize most significant DEGs and pathway genes
-    if len(genes_to_analyze) > 400:
-        # Equal prioritization - balance between DEGs and pathway genes
-        max_pathway_genes = min(100, len(pathway_genes))
-        max_deg_genes = 400 - max_pathway_genes
-
-        sig_genes_subset = sig_genes.sort_values('padj').head(max_deg_genes)
-        genes_to_analyze = list(set(sig_genes_subset['gene'].tolist() + pathway_genes[:max_pathway_genes]))
-
-    print(f"Analyzing PPI network for {len(genes_to_analyze)} genes")
-
-    # Get protein interactions from STRING
     try:
-        ppi_data = get_string_interactions(genes_to_analyze)
-        print(f"Retrieved {len(ppi_data)} interactions from STRING")
+        print(f"Loaded {len(pathway_genes)} {pathway_name} genes from file")
 
-        # Save raw PPI data
-        pd.DataFrame(ppi_data).to_csv(os.path.join(output_dir, "string_ppi_data.csv"), index=False)
-    except Exception as e:
-        print(f"Error fetching STRING data: {e}")
+        # Combine DEGs and pathway genes for PPI analysis
+        genes_to_analyze = list(set(sig_genes['gene'].tolist() + pathway_genes))
+
+        # If too many genes, prioritize most significant DEGs and pathway genes
+        if len(genes_to_analyze) > 400:
+            # Equal prioritization - balance between DEGs and pathway genes
+            max_pathway_genes = min(100, len(pathway_genes))
+            max_deg_genes = 400 - max_pathway_genes
+
+            sig_genes_subset = sig_genes.sort_values('padj').head(max_deg_genes)
+            genes_to_analyze = list(set(sig_genes_subset['gene'].tolist() + pathway_genes[:max_pathway_genes]))
+
+        print(f"Analyzing PPI network for {len(genes_to_analyze)} genes")
+
+        # Get protein interactions from STRING
+        try:
+            ppi_data = get_string_interactions(genes_to_analyze)
+            print(f"Retrieved {len(ppi_data)} interactions from STRING")
+
+            # Save raw PPI data
+            pd.DataFrame(ppi_data).to_csv(os.path.join(output_dir, "string_ppi_data.csv"), index=False)
+        except Exception as e:
+            print(f"Error fetching STRING data: {e}")
+            return
+
+        # Create and analyze network
+        G = create_ppi_network(ppi_data, deg_data=deg_results)
+        print(f"Created network with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
+
+        # Basic network visualization
+        visualize_network(G, os.path.join(output_dir, f"{pathway_name}_ppi_network.png"))
+
+        # Identify hub genes
+        top_hubs = identify_hubs(G, os.path.join(output_dir, f"{pathway_name}_network_metrics.csv"))
+        print(f"Top hub genes: {', '.join(top_hubs['Gene'].head(5).tolist())}")
+
+        # Detect communities
+        communities = detect_communities(G, os.path.join(output_dir, f"{pathway_name}_network_communities.png"))
+
+        # Pathway enrichment
+        enrichment_results = pathway_enrichment(list(G.nodes()),
+                                                os.path.join(output_dir, f"{pathway_name}_pathway_enrichment.csv"))
+
+        # Analyze pathway subnetwork
+        pathway_subgraph = analyze_pathway_subnetwork(G, pathway_genes, pathway_name,
+                                                      os.path.join(output_dir, f"{pathway_name}_subnetwork.png"))
+
+        # Hub gene expression analysis
+        hub_expression = analyze_hub_expression(G, os.path.join(output_dir, f"{pathway_name}_hub_expression.png"))
+
+        # Compare centrality measures
+        visualize_centrality_comparison(G, os.path.join(output_dir, f"{pathway_name}_centrality_comparison.png"))
+
+        # Visualize pathway enrichment
+        if enrichment_results is not None:
+            visualize_pathway_enrichment(enrichment_results,
+                                         os.path.join(output_dir, f"{pathway_name}_top_pathways.png"))
+
+        # Community expression heatmap
+        visualize_community_heatmap(G, communities, deg_results,
+                                    os.path.join(output_dir, f"{pathway_name}_community_heatmap.png"))
+
+        # Volcano plot with hubs
+        visualize_volcano_with_hubs(deg_results, top_hubs['Gene'].tolist(),
+                                    os.path.join(output_dir, f"{pathway_name}_volcano_with_hubs.png"))
+
+        # Network motifs
+        visualize_network_motifs(G, pathway_genes, pathway_name,
+                                 os.path.join(output_dir, f"{pathway_name}_network_motifs.png"))
+
+        # Shortest path analysis
+        shortest_paths = analyze_shortest_paths(G, pathway_genes, top_hubs['Gene'].tolist()[:20],
+                                                os.path.join(output_dir, f"{pathway_name}_shortest_paths.png"))
+
+        # Compare to random networks
+        random_comparison = compare_to_random_networks(G)
+        if random_comparison is not None:
+            random_comparison.to_csv(os.path.join(output_dir, f"{pathway_name}_random_network_comparison.csv"),
+                                     index=False)
+
+        print(f"{pathway_name} network analysis complete!")
+
+        print(f"{pathway_name} network analysis complete!")
+        print(f"Log saved to: {log_path}")
+
+    finally:
+        # Always restore the original stdout/stderr
+        end_output_capture(orig_stdout, orig_stderr, output_file)
+
+def main_cli():
+    parser = argparse.ArgumentParser(description="Run STRING PPI analysis from gene list.")
+    parser.add_argument("--genes", required=True, help="Path to gene list file (one gene per line)")
+    parser.add_argument("--species", default="9606", help="NCBI species ID (default: 9606 for human)")
+    parser.add_argument("--score", type=int, default=400, help="Minimum interaction score (default: 400)")
+    parser.add_argument("--outdir", default="ppi_output", help="Output directory")
+    parser.add_argument("--plot", action="store_true", help="Plot interaction score distribution")
+    parser.add_argument("--graphml", action="store_true", help="Export interaction network as GraphML")
+    parser.add_argument("--networkplot", action="store_true", help="Plot the interaction network using NetworkX")
+    args = parser.parse_args()
+
+    os.makedirs(args.outdir, exist_ok=True)
+
+    # Set up logging
+    log_path = setup_logging(args.outdir)
+
+    with open(args.genes) as f:
+        genes = [line.strip() for line in f if line.strip()]
+    print(f"Loaded {len(genes)} genes from {args.genes}")
+
+    string_ids_df = get_string_ids(genes, args.species)
+    if string_ids_df is None or string_ids_df.empty:
         return
 
-    # Create and analyze network
-    G = create_ppi_network(ppi_data, deg_data=deg_results)
-    print(f"Created network with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
+    mapped_ids = string_ids_df['stringId'].tolist()
+    print(f"Mapped {len(mapped_ids)} genes to STRING IDs")
 
-    # Basic network visualization
-    visualize_network(G, os.path.join(output_dir, f"{pathway_name}_ppi_network.png"))
+    interactions_df = get_interactions(mapped_ids, args.species, args.score)
+    if interactions_df is None or interactions_df.empty:
+        return
 
-    # Identify hub genes
-    top_hubs = identify_hubs(G, os.path.join(output_dir, f"{pathway_name}_network_metrics.csv"))
-    print(f"Top hub genes: {', '.join(top_hubs['Gene'].head(5).tolist())}")
+    output_file = os.path.join(args.outdir, "ppi_interactions.tsv")
+    interactions_df.to_csv(output_file, sep='\t', index=False)
+    print(f"Interactions saved to {output_file}")
 
-    # Detect communities
-    communities = detect_communities(G, os.path.join(output_dir, f"{pathway_name}_network_communities.png"))
+    if args.plot:
+        plot_path = os.path.join(args.outdir, "score_distribution.png")
+        plot_score_distribution(interactions_df, plot_path)
 
-    # Pathway enrichment
-    enrichment_results = pathway_enrichment(list(G.nodes()),
-                                            os.path.join(output_dir, f"{pathway_name}_pathway_enrichment.csv"))
+    if args.graphml:
+        graphml_path = os.path.join(args.outdir, "ppi_network.graphml")
+        export_graphml(interactions_df, graphml_path)
 
-    # Analyze pathway subnetwork
-    pathway_subgraph = analyze_pathway_subnetwork(G, pathway_genes, pathway_name,
-                                                  os.path.join(output_dir, f"{pathway_name}_subnetwork.png"))
+    if args.networkplot:
+        network_plot_path = os.path.join(args.outdir, "ppi_network_plot.png")
+        plot_interaction_network(interactions_df, network_plot_path)
 
-    # Hub gene expression analysis
-    hub_expression = analyze_hub_expression(G, os.path.join(output_dir, f"{pathway_name}_hub_expression.png"))
 
-    # Compare centrality measures
-    visualize_centrality_comparison(G, os.path.join(output_dir, f"{pathway_name}_centrality_comparison.png"))
 
-    # Visualize pathway enrichment
-    if enrichment_results is not None:
-        visualize_pathway_enrichment(enrichment_results,
-                                     os.path.join(output_dir, f"{pathway_name}_top_pathways.png"))
-
-    # Community expression heatmap
-    visualize_community_heatmap(G, communities, deg_results,
-                                os.path.join(output_dir, f"{pathway_name}_community_heatmap.png"))
-
-    # Volcano plot with hubs
-    visualize_volcano_with_hubs(deg_results, top_hubs['Gene'].tolist(),
-                                os.path.join(output_dir, f"{pathway_name}_volcano_with_hubs.png"))
-
-    # Network motifs
-    visualize_network_motifs(G, pathway_genes, pathway_name,
-                             os.path.join(output_dir, f"{pathway_name}_network_motifs.png"))
-
-    # Shortest path analysis
-    shortest_paths = analyze_shortest_paths(G, pathway_genes, top_hubs['Gene'].tolist()[:20],
-                                            os.path.join(output_dir, f"{pathway_name}_shortest_paths.png"))
-
-    # Compare to random networks
-    random_comparison = compare_to_random_networks(G)
-    if random_comparison is not None:
-        random_comparison.to_csv(os.path.join(output_dir, f"{pathway_name}_random_network_comparison.csv"),
-                                 index=False)
-
-    print(f"{pathway_name} network analysis complete!")
-
-    # Execute main function if script is run directly
+# Execute main function if script is run directly
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) == 1:
+        main_pathway_analysis()  # Run the pathway analysis
+    else:
+        main_cli()  # Run the CLI version
