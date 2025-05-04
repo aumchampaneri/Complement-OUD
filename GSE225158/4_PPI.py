@@ -30,24 +30,26 @@ def load_deseq_results(file_path):
     return deg_results
 
 
-# 2. Load complement genes from CSV file
-def load_complement_genes(file_path):
-    """Load complement genes from CSV file"""
-    complement_df = pd.read_csv(file_path)
+# 2. Load pathway genes from CSV file
+def load_pathway_genes(file_path):
+    """Load pathway genes from CSV file"""
+    pathway_df = pd.read_csv(file_path)
 
-    if complement_df.empty:
-        raise ValueError(f"The complement genes file at {file_path} is empty.")
+    if pathway_df.empty:
+        raise ValueError(f"The pathway genes file at {file_path} is empty.")
 
     # If the CSV has a column named 'Gene' or similar
-    if 'Gene' in complement_df.columns:
-        complement_genes = complement_df['Gene'].dropna().tolist()
+    if 'Gene' in pathway_df.columns:
+        pathway_genes = pathway_df['Gene'].dropna().tolist()
+    elif 'gene' in pathway_df.columns:
+        pathway_genes = pathway_df['gene'].dropna().tolist()
     else:
-        complement_genes = complement_df.iloc[:, 0].dropna().tolist()
+        pathway_genes = pathway_df.iloc[:, 0].dropna().tolist()
 
-    if not complement_genes:
-        raise ValueError(f"No valid genes found in the complement genes file at {file_path}.")
+    if not pathway_genes:
+        raise ValueError(f"No valid genes found in the pathway genes file at {file_path}.")
 
-    return complement_genes
+    return pathway_genes
 
 
 # 3. Get protein interactions from STRING
@@ -62,7 +64,7 @@ def get_string_interactions(genes, species=9606, score_threshold=700):
     params = {
         "identifiers": "%0d".join(genes),
         "species": species,
-        "caller_identity": "complement_oud_analysis",
+        "caller_identity": "ppi_network_analysis",
         "required_score": score_threshold
     }
 
@@ -272,28 +274,28 @@ def pathway_enrichment(genes, output_path):
         return None
 
 
-# 9. Analyze complement-specific subnetwork
-def analyze_complement_subnetwork(G, complement_genes, output_path):
-    """Extract and analyze subnetwork of complement genes"""
-    # Get complement genes that exist in the network
-    complement_in_network = [gene for gene in complement_genes if gene in G.nodes()]
+# 9. Analyze pathway-specific subnetwork
+def analyze_pathway_subnetwork(G, pathway_genes, pathway_name, output_path):
+    """Extract and analyze subnetwork of pathway genes"""
+    # Get pathway genes that exist in the network
+    pathway_in_network = [gene for gene in pathway_genes if gene in G.nodes()]
 
-    # Create subgraph of complement genes plus their direct neighbors
-    subgraph_nodes = set(complement_in_network)
-    for gene in complement_in_network:
+    # Create subgraph of pathway genes plus their direct neighbors
+    subgraph_nodes = set(pathway_in_network)
+    for gene in pathway_in_network:
         subgraph_nodes.update(G.neighbors(gene))
 
     subgraph = G.subgraph(subgraph_nodes)
 
-    print(f"Complement subnetwork: {len(complement_in_network)}/{len(complement_genes)} complement genes")
+    print(f"{pathway_name} subnetwork: {len(pathway_in_network)}/{len(pathway_genes)} pathway genes")
     print(f"Total subnetwork size: {subgraph.number_of_nodes()} nodes, {subgraph.number_of_edges()} edges")
 
     # Visualize the subnetwork
     plt.figure(figsize=(12, 12))
     pos = nx.spring_layout(subgraph, seed=42)
 
-    # Color nodes (red for complement genes, blue for others)
-    node_colors = ['red' if node in complement_genes else 'blue' for node in subgraph.nodes()]
+    # Color nodes (red for pathway genes, blue for others)
+    node_colors = ['red' if node in pathway_genes else 'blue' for node in subgraph.nodes()]
 
     # Size nodes by degree
     node_size = [300 * (0.1 + subgraph.degree(n)) for n in subgraph.nodes()]
@@ -302,7 +304,7 @@ def analyze_complement_subnetwork(G, complement_genes, output_path):
     nx.draw_networkx_edges(subgraph, pos, alpha=0.4, edge_color='gray')
     nx.draw_networkx_labels(subgraph, pos, font_size=8)
 
-    plt.title("Complement System Subnetwork")
+    plt.title(f"{pathway_name} Pathway Subnetwork")
     plt.axis('off')
     plt.savefig(output_path, dpi=300)
     plt.close()
@@ -311,7 +313,7 @@ def analyze_complement_subnetwork(G, complement_genes, output_path):
     subgraph_metrics = pd.DataFrame([
         {
             'Gene': node,
-            'InComplement': node in complement_genes,
+            'InPathway': node in pathway_genes,
             'Degree': subgraph.degree(node),
             'log2FC': G.nodes[node].get('log2FC', 0),
             'padj': G.nodes[node].get('padj', 1)
@@ -586,7 +588,7 @@ def visualize_volcano_with_hubs(deg_data, hub_genes, output_path):
 
 
 # 15. Visualize network motifs
-def visualize_network_motifs(G, complement_genes, output_path):
+def visualize_network_motifs(G, pathway_genes, pathway_name, output_path):
     """Identify and visualize common network motifs"""
     try:
         # Find triangles (3-node cliques)
@@ -607,14 +609,14 @@ def visualize_network_motifs(G, complement_genes, output_path):
         plt.figure(figsize=(10, 10))
         pos = nx.spring_layout(motif_graph, seed=42)
 
-        # Color nodes (red for complement genes)
-        node_colors = ['red' if node in complement_genes else 'skyblue' for node in motif_graph.nodes()]
+        # Color nodes (red for pathway genes)
+        node_colors = ['red' if node in pathway_genes else 'skyblue' for node in motif_graph.nodes()]
 
         nx.draw_networkx_nodes(motif_graph, pos, node_color=node_colors, node_size=500)
         nx.draw_networkx_edges(motif_graph, pos, width=2, alpha=0.7)
         nx.draw_networkx_labels(motif_graph, pos, font_size=12)
 
-        plt.title('Key Network Motifs')
+        plt.title(f'Key Network Motifs ({pathway_name})')
         plt.axis('off')
         plt.tight_layout()
         plt.savefig(output_path, dpi=300)
@@ -625,7 +627,7 @@ def visualize_network_motifs(G, complement_genes, output_path):
             {
                 'Gene': node,
                 'TriangleCount': dict(triangles)[node],
-                'IsComplement': node in complement_genes,
+                'IsPathwayGene': node in pathway_genes,
                 'Degree': G.degree(node),
                 'log2FC': G.nodes[node].get('log2FC', 0)
             }
@@ -640,31 +642,31 @@ def visualize_network_motifs(G, complement_genes, output_path):
         return None
 
 
-# 18. Shortest Path Analysis
-def analyze_shortest_paths(G, complement_genes, hub_genes, output_path, max_paths=10):
-    """Analyze shortest paths between complement genes and hub genes"""
+# 16. Shortest Path Analysis
+def analyze_shortest_paths(G, pathway_genes, hub_genes, output_path, max_paths=10):
+    """Analyze shortest paths between pathway genes and hub genes"""
     try:
-        print("Analyzing shortest paths between complement and hub genes...")
+        print("Analyzing shortest paths between pathway and hub genes...")
 
         # Filter for genes actually in the network
-        complement_in_network = [gene for gene in complement_genes if gene in G.nodes()]
+        pathway_in_network = [gene for gene in pathway_genes if gene in G.nodes()]
         hub_in_network = [gene for gene in hub_genes if gene in G.nodes()]
 
-        if not complement_in_network or not hub_in_network:
-            print("No complement genes or hub genes found in network")
+        if not pathway_in_network or not hub_in_network:
+            print("No pathway genes or hub genes found in network")
             return None
 
-        # Find all shortest paths between complement and hub genes
+        # Find all shortest paths between pathway and hub genes
         all_paths = []
 
-        for comp_gene in complement_in_network:
+        for path_gene in pathway_in_network:
             for hub_gene in hub_in_network:
-                if comp_gene != hub_gene:
+                if path_gene != hub_gene:
                     try:
-                        paths = list(nx.all_shortest_paths(G, comp_gene, hub_gene))
+                        paths = list(nx.all_shortest_paths(G, path_gene, hub_gene))
                         for path in paths:
                             all_paths.append({
-                                'source': comp_gene,
+                                'source': path_gene,
                                 'target': hub_gene,
                                 'path': path,
                                 'length': len(path) - 1  # Subtract 1 to get edge count
@@ -673,7 +675,7 @@ def analyze_shortest_paths(G, complement_genes, hub_genes, output_path, max_path
                         continue
 
         if not all_paths:
-            print("No paths found between complement and hub genes")
+            print("No paths found between pathway and hub genes")
             return None
 
         # Convert to DataFrame
@@ -704,7 +706,7 @@ def analyze_shortest_paths(G, complement_genes, hub_genes, output_path, max_path
 
             plt.subplot(min(5, max_paths), max(1, math.ceil(max_paths / 5)), i + 1)
 
-            # Color nodes (red for complement, blue for hub, green for intermediaries)
+            # Color nodes (red for pathway, blue for hub, green for intermediaries)
             node_colors = []
             for node in path_graph.nodes():
                 if node == row['source']:
@@ -727,228 +729,195 @@ def analyze_shortest_paths(G, complement_genes, hub_genes, output_path, max_path
 
         # Save path data
         paths_df.to_csv(output_path.replace('.png', '.csv'), index=False)
-        intermediary_counts.head(20).to_csv(output_path.replace('.png', '_intermediaries.csv'))
 
-        return {
-            'paths': paths_df,
-            'avg_length': avg_path_length,
-            'intermediaries': intermediary_counts
-        }
+        # Save intermediary statistics
+        if not intermediary_counts.empty:
+            pd.DataFrame({'Gene': intermediary_counts.index, 'PathCount': intermediary_counts.values}).to_csv(
+                output_path.replace('.png', '_intermediaries.csv'), index=False)
+
+        return paths_df
     except Exception as e:
         print(f"Error in shortest path analysis: {e}")
         return None
 
-
-# 19. Random Network Comparison
-def compare_to_random_networks(G, output_path, n_random=100):
-    """Compare network properties with random networks"""
+# 17. Compare to random networks
+def compare_to_random_networks(G, n_random=100):
+    """Compare network properties to random networks"""
     try:
-        print("Comparing network to random networks...")
+        print("Comparing network properties to random models...")
 
-        # Original network metrics
-        original_metrics = {
+        # Network properties to compare
+        props = {
             'Clustering': nx.average_clustering(G),
             'Assortativity': nx.degree_assortativity_coefficient(G),
-            'Avg Shortest Path': nx.average_shortest_path_length(G),
-            'Diameter': nx.diameter(G)
+            'Number of Communities': len(list(nx.algorithms.community.greedy_modularity_communities(G)))
         }
 
-        print(f"Original network metrics calculated")
+        # Add avg path length only if connected
+        if nx.is_connected(G):
+            props['Avg Shortest Path'] = nx.average_shortest_path_length(G)
 
-        # Generate random networks with same number of nodes and edges
-        n_nodes = G.number_of_nodes()
-        n_edges = G.number_of_edges()
+        # Generate random networks with same degree sequence
+        random_props = {p: [] for p in props}
+        degree_sequence = [d for _, d in G.degree()]
 
-        random_metrics = []
         for i in range(n_random):
-            if i % 10 == 0:
-                print(f"Generating random network {i}/{n_random}...")
-
-            # Create random graph with same node/edge count
-            random_G = nx.gnm_random_graph(n_nodes, n_edges, seed=i)
-
-            # Calculate metrics
-            metrics = {}
             try:
-                metrics['Clustering'] = nx.average_clustering(random_G)
-                metrics['Assortativity'] = nx.degree_assortativity_coefficient(random_G)
+                R = nx.configuration_model(degree_sequence, seed=i)
+                R = nx.Graph(R)  # Remove parallel edges
+                R.remove_edges_from(nx.selfloop_edges(R))  # Remove self-loops
 
-                # Only calculate these if graph is connected
-                if nx.is_connected(random_G):
-                    metrics['Avg Shortest Path'] = nx.average_shortest_path_length(random_G)
-                    metrics['Diameter'] = nx.diameter(random_G)
-                else:
-                    largest_cc = max(nx.connected_components(random_G), key=len)
-                    largest_cc_graph = random_G.subgraph(largest_cc)
-                    metrics['Avg Shortest Path'] = nx.average_shortest_path_length(largest_cc_graph)
-                    metrics['Diameter'] = nx.diameter(largest_cc_graph)
-            except:
+                random_props['Clustering'].append(nx.average_clustering(R))
+                random_props['Assortativity'].append(nx.degree_assortativity_coefficient(R))
+                random_props['Number of Communities'].append(
+                    len(list(nx.algorithms.community.greedy_modularity_communities(R))))
+
+                if 'Avg Shortest Path' in props and nx.is_connected(R):
+                    random_props['Avg Shortest Path'].append(nx.average_shortest_path_length(R))
+            except Exception as e:
+                pass
+
+        # Calculate statistics
+        results = []
+        for prop in props:
+            random_values = random_props[prop]
+            if not random_values:
                 continue
 
-            random_metrics.append(metrics)
+            random_mean = np.mean(random_values)
+            random_std = np.std(random_values)
+            z_score = (props[prop] - random_mean) / random_std if random_std > 0 else 0
 
-        # Convert to DataFrame
-        random_df = pd.DataFrame(random_metrics)
-
-        # Calculate z-scores
-        z_scores = {}
-        p_values = {}
-        for metric in original_metrics:
-            mean = random_df[metric].mean()
-            std = random_df[metric].std()
-            z_scores[metric] = (original_metrics[metric] - mean) / std
-
-            # Calculate p-value (two-tailed)
-            if original_metrics[metric] > mean:
-                p_values[metric] = 2 * (1 - stats.norm.cdf(z_scores[metric]))
+            # One-sample t-test
+            if len(random_values) > 1:
+                _, p_value = stats.ttest_1samp(random_values, props[prop])
             else:
-                p_values[metric] = 2 * stats.norm.cdf(z_scores[metric])
+                p_value = 1
 
-        # Visualize comparison
-        plt.figure(figsize=(14, 8))
+            results.append({
+                'Property': prop,
+                'Observed': props[prop],
+                'Random_Mean': random_mean,
+                'Random_Std': random_std,
+                'Z_score': z_score,
+                'P_value': p_value
+            })
 
-        # Create subplots for each metric
-        for i, metric in enumerate(original_metrics):
-            plt.subplot(2, 2, i + 1)
+        results_df = pd.DataFrame(results)
+        print("Network comparison results:")
+        print(results_df)
 
-            # Plot histogram of random networks
-            sns.histplot(random_df[metric], kde=True)
-
-            # Add vertical line for original network
-            plt.axvline(original_metrics[metric], color='red', linestyle='--')
-
-            plt.title(f"{metric}\nZ-score: {z_scores[metric]:.2f}, p-value: {p_values[metric]:.3e}")
-            plt.xlabel(metric)
-            plt.ylabel('Frequency')
-
-        plt.tight_layout()
-        plt.savefig(output_path, dpi=300)
-        plt.close()
-
-        # Save comparison data
-        comparison_df = pd.DataFrame({
-            'Metric': list(original_metrics.keys()),
-            'Original': list(original_metrics.values()),
-            'Random_Mean': [random_df[m].mean() for m in original_metrics],
-            'Random_Std': [random_df[m].std() for m in original_metrics],
-            'Z_Score': list(z_scores.values()),
-            'P_Value': list(p_values.values())
-        })
-
-        comparison_df.to_csv(output_path.replace('.png', '.csv'), index=False)
-
-        print("Network comparison completed")
-        return {
-            'original': original_metrics,
-            'random': random_df,
-            'z_scores': z_scores,
-            'p_values': p_values
-        }
+        return results_df
     except Exception as e:
         print(f"Error in random network comparison: {e}")
         return None
 
-# Main execution
+# Main function to run the analysis
 def main():
+    # Set up paths
+    base_dir = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158"
+    data_dir = os.path.join(base_dir, "DESeq2 outputs")
+    output_dir = os.path.join(base_dir, "PPI outputs")
+
     # Create output directory if it doesn't exist
-    output_dir = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/PPI outputs"
     os.makedirs(output_dir, exist_ok=True)
 
-    # 1. Load DESeq2 results
+    # Load DESeq2 results
     deg_results = load_deseq_results(
-        "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DESeq2 outputs/deseq2_results_M_OUD_vs_M_None.csv")
+        os.path.join(data_dir, "deseq2_results_M_OUD_vs_M_None.csv"))
 
-    # 2. Filter for significant DEGs
-    sig_genes = deg_results[(deg_results['padj'] < 0.05) &
-                            (abs(deg_results['log2FoldChange']) > 1)].copy()
-    print(f"Found {len(sig_genes)} significant DEGs")
+    # Filter for significant genes (adjust thresholds as needed)
+    sig_genes = deg_results[(deg_results['padj'] < 0.05) & (abs(deg_results['log2FoldChange']) > 1)]
+    print(f"Loaded {len(sig_genes)} significant DEGs")
 
-    # 3. Load complement genes from CSV
-    complement_genes = load_complement_genes(
+    # Load pathway genes - rename this variable to be pathway-agnostic
+    pathway_name = "Complement"  # Change this for different pathways
+    pathway_genes = load_pathway_genes(
         "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/KEGG outputs/kegg_complement_unique_genes.csv")
-    print(f"Loaded {len(complement_genes)} complement genes from file")
+    print(f"Loaded {len(pathway_genes)} {pathway_name} genes from file")
 
-    # 4. Combine gene lists (DEGs + complement genes)
-    # Using set to remove duplicates
-    genes_to_analyze = list(set(sig_genes['gene'].tolist() + complement_genes))
+    # Combine DEGs and pathway genes for PPI analysis
+    genes_to_analyze = list(set(sig_genes['gene'].tolist() + pathway_genes))
 
-    # If the list is too large for API, take top genes by significance
+    # If too many genes, prioritize most significant DEGs and pathway genes
     if len(genes_to_analyze) > 400:
-        sig_genes = sig_genes.sort_values('padj').head(380)
-        genes_to_analyze = list(set(sig_genes['gene'].tolist() + complement_genes))
+        # Equal prioritization - balance between DEGs and pathway genes
+        max_pathway_genes = min(100, len(pathway_genes))
+        max_deg_genes = 400 - max_pathway_genes
+
+        sig_genes_subset = sig_genes.sort_values('padj').head(max_deg_genes)
+        genes_to_analyze = list(set(sig_genes_subset['gene'].tolist() + pathway_genes[:max_pathway_genes]))
 
     print(f"Analyzing PPI network for {len(genes_to_analyze)} genes")
 
-    # 5. Get PPI data from STRING
-    ppi_data = get_string_interactions(genes_to_analyze)
-    print(f"Retrieved {len(ppi_data)} interactions")
+    # Get protein interactions from STRING
+    try:
+        ppi_data = get_string_interactions(genes_to_analyze)
+        print(f"Retrieved {len(ppi_data)} interactions from STRING")
 
-    # 6. Create network
-    G = create_ppi_network(ppi_data, deg_results)
+        # Save raw PPI data
+        pd.DataFrame(ppi_data).to_csv(os.path.join(output_dir, "string_ppi_data.csv"), index=False)
+    except Exception as e:
+        print(f"Error fetching STRING data: {e}")
+        return
+
+    # Create and analyze network
+    G = create_ppi_network(ppi_data, deg_data=deg_results)
     print(f"Created network with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
 
-    # 7. Visualize network
-    visualize_network(G, f"{output_dir}/PPI_network.png")
+    # Basic network visualization
+    visualize_network(G, os.path.join(output_dir, f"{pathway_name}_ppi_network.png"))
 
-    # 8. Identify and save hub genes
-    top_hubs = identify_hubs(G, f"{output_dir}/network_metrics.csv")
-    print("Top hub genes in the network:")
-    print(top_hubs)
+    # Identify hub genes
+    top_hubs = identify_hubs(G, os.path.join(output_dir, f"{pathway_name}_network_metrics.csv"))
+    print(f"Top hub genes: {', '.join(top_hubs['Gene'].head(5).tolist())}")
 
-    # 9. Detect network communities
-    print("\nPerforming community detection analysis...")
-    communities = detect_communities(G, f"{output_dir}/network_communities.png")
+    # Detect communities
+    communities = detect_communities(G, os.path.join(output_dir, f"{pathway_name}_network_communities.png"))
 
-    # 10. Analyze complement-specific subnetwork
-    print("\nAnalyzing complement-specific subnetwork...")
-    complement_subgraph = analyze_complement_subnetwork(G, complement_genes, f"{output_dir}/complement_subnetwork.png")
+    # Pathway enrichment
+    enrichment_results = pathway_enrichment(list(G.nodes()),
+                                            os.path.join(output_dir, f"{pathway_name}_pathway_enrichment.csv"))
 
-    # 11. Analyze hub gene expression patterns
-    print("\nAnalyzing hub gene expression patterns...")
-    hub_expression = analyze_hub_expression(G, f"{output_dir}/hub_expression.png")
+    # Analyze pathway subnetwork
+    pathway_subgraph = analyze_pathway_subnetwork(G, pathway_genes, pathway_name,
+                                                  os.path.join(output_dir, f"{pathway_name}_subnetwork.png"))
 
-    # 12. Compare different centrality measures
-    print("\nComparing different centrality measures...")
-    centrality_comparison = visualize_centrality_comparison(G, f"{output_dir}/centrality_comparison.png")
+    # Hub gene expression analysis
+    hub_expression = analyze_hub_expression(G, os.path.join(output_dir, f"{pathway_name}_hub_expression.png"))
 
-    # 13. Perform pathway enrichment on hub genes (top 50)
-    print("\nPerforming pathway enrichment analysis on hub genes...")
-    try:
-        top_hub_genes = top_hubs['Gene'].tolist()
-        pathway_results = pathway_enrichment(top_hub_genes, f"{output_dir}/pathway_enrichment.csv")
+    # Compare centrality measures
+    visualize_centrality_comparison(G, os.path.join(output_dir, f"{pathway_name}_centrality_comparison.png"))
 
-# 14. Visualize pathway enrichment results
-        if pathway_results is not None:
-            print("\nVisualizing pathway enrichment results...")
-            visualize_pathway_enrichment(pathway_results, f"{output_dir}/pathway_enrichment_plot.png")
-    except Exception as e:
-        print(f"Error in pathway enrichment analysis: {e}")
-        print("Continuing without pathway enrichment...")
+    # Visualize pathway enrichment
+    if enrichment_results is not None:
+        visualize_pathway_enrichment(enrichment_results,
+                                     os.path.join(output_dir, f"{pathway_name}_top_pathways.png"))
 
-    # 15. Create community expression heatmap
-    print("\nCreating community expression heatmap...")
-    community_expression = visualize_community_heatmap(G, communities, deg_results, f"{output_dir}/community_expression.png")
+    # Community expression heatmap
+    visualize_community_heatmap(G, communities, deg_results,
+                                os.path.join(output_dir, f"{pathway_name}_community_heatmap.png"))
 
-    # 16. Create volcano plot with hub genes
-    print("\nCreating volcano plot highlighting hub genes...")
-    volcano_hubs = visualize_volcano_with_hubs(deg_results, top_hubs['Gene'].tolist(), f"{output_dir}/volcano_with_hubs.png")
+    # Volcano plot with hubs
+    visualize_volcano_with_hubs(deg_results, top_hubs['Gene'].tolist(),
+                                os.path.join(output_dir, f"{pathway_name}_volcano_with_hubs.png"))
 
-    # 17. Analyze network motifs
-    print("\nAnalyzing network motifs...")
-    network_motifs = visualize_network_motifs(G, complement_genes, f"{output_dir}/network_motifs.png")
+    # Network motifs
+    visualize_network_motifs(G, pathway_genes, pathway_name,
+                             os.path.join(output_dir, f"{pathway_name}_network_motifs.png"))
 
-    # 18. Analyze shortest paths between complement and hub genes
-    print("\nAnalyzing shortest paths between complement and hub genes...")
-    shortest_paths = analyze_shortest_paths(G, complement_genes, top_hubs['Gene'].tolist()[:20],
-                                            f"{output_dir}/shortest_paths.png")
+    # Shortest path analysis
+    shortest_paths = analyze_shortest_paths(G, pathway_genes, top_hubs['Gene'].tolist()[:20],
+                                            os.path.join(output_dir, f"{pathway_name}_shortest_paths.png"))
 
-    # 19. Compare network to random networks
-    print("\nComparing network properties to random networks...")
-    random_comparison = compare_to_random_networks(G, f"{output_dir}/random_network_comparison.png", n_random=50)
+    # Compare to random networks
+    random_comparison = compare_to_random_networks(G)
+    if random_comparison is not None:
+        random_comparison.to_csv(os.path.join(output_dir, f"{pathway_name}_random_network_comparison.csv"),
+                                 index=False)
 
-    print("\nAll analyses completed!")
-    print(f"Results saved to: {output_dir}")
+    print(f"{pathway_name} network analysis complete!")
 
-
+    # Execute main function if script is run directly
 if __name__ == "__main__":
     main()
