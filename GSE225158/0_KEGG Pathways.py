@@ -7,15 +7,15 @@ kegg.organism = "hsa"  # Homo sapiens
 
 # Define KEGG pathways of interest -> comment out some pathways for debugging
 brain_inflammation_pathways = {
-    # "complement_cascade": "hsa04610",
-    # "nfkb_pathway": "hsa04064",
-    # "toll_like_receptor": "hsa04620",
-    # "nod_like_receptor": "hsa04621",
+    "complement_cascade": "hsa04610",
+    "nfkb_pathway": "hsa04064",
+    "toll_like_receptor": "hsa04620",
+    "nod_like_receptor": "hsa04621",
     "jak_stat_pathway": "hsa04630",
-    # "cytokine_signaling": "hsa04060",
-    # "tnf_signaling": "hsa04668",             # Optional
-    # "chemokine_signaling": "hsa04062",       # Optional
-    # "il17_pathway": "hsa04657"               # Optional
+    "cytokine_signaling": "hsa04060",
+    "tnf_signaling": "hsa04668",             # Optional
+    "chemokine_signaling": "hsa04062",       # Optional
+    "il17_pathway": "hsa04657"               # Optional
 }
 
 rows = []
@@ -46,13 +46,13 @@ for name, kegg_id in brain_inflammation_pathways.items():
         print(f"Error fetching {name}: {e}")
 
 # Export full pathway-gene mapping to CSV
-with open("KEGG outputs/kegg_jakstat_inflammatory_pathways.csv", "w", newline="") as f:
+with open("KEGG outputs/kegg_inflammatory_pathways.csv", "w", newline="") as f:
     writer = csv.DictWriter(f, fieldnames=["pathway", "gene"])
     writer.writeheader()
     writer.writerows(rows)
 
 # Export unique gene list to CSV
-with open("KEGG outputs/kegg_jatstat_unique_genes.csv", "w", newline="") as f:
+with open("KEGG outputs/kegg_unique_genes.csv", "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow(["gene"])
     for gene in sorted(unique_genes):
