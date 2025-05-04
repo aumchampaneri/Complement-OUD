@@ -60,9 +60,34 @@ gsea_cols <- colnames(gsea_res@result)
 print(paste("Available columns:", paste(gsea_cols, collapse=", ")))
 
 # Filter for inflammatory and complement pathways
+# Read complement genes from CSV file
+complement_genes_df <- read.csv("GSE225158/KEGG outputs/kegg_complement_unique_genes.csv", stringsAsFactors = FALSE)
+complement_genes <- complement_genes_df$gene  # Adjust column name if needed
+
+# Get Entrez IDs for complement genes
+complement_entrez <- mapIds(
+  org.Hs.eg.db,
+  keys = complement_genes,
+  column = "ENTREZID",
+  keytype = "SYMBOL",
+  multiVals = "first"
+)
+complement_entrez <- complement_entrez[!is.na(complement_entrez)]
+complement_entrez <- as.character(complement_entrez)
+
+# Filter pathways by keywords or complement genes in core enrichment
 inflammatory_complement_pathways <- gsea_res@result %>%
-  filter(grepl("INFLAMMATORY|INFLAMMATION|COMPLEMENT|CYTOKINE|IMMUNE|IL|TNF|INTERFERON",
-               Description, ignore.case = TRUE))
+  filter(
+    # Original keyword filter
+    grepl("INFLAMMATORY|INFLAMMATION|COMPLEMENT|CYTOKINE|IMMUNE|IL|TNF|INTERFERON",
+          Description, ignore.case = TRUE) |
+    # New filter: check if any complement genes are in core enrichment
+    sapply(core_enrichment, function(genes) {
+      if(is.na(genes)) return(FALSE)
+      gene_list <- unlist(strsplit(genes, "/"))
+      return(any(gene_list %in% complement_entrez))
+    })
+  )
 
 # Use p.adjust column instead of padj (based on standard clusterProfiler output)
 if("p.adjust" %in% colnames(gsea_res@result)) {

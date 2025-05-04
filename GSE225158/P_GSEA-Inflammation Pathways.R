@@ -3,13 +3,14 @@ library(ggplot2)
 library(dplyr)
 library(stringr)
 library(readr)
-library(enrichplot)     # For advanced GSEA plots
-library(clusterProfiler) # For handling GSEA data
-library(ComplexHeatmap)  # For heatmap
-library(treemapify)     # For treemap
-library(AnnotationDbi)  # For gene ID mapping
-library(org.Hs.eg.db)   # For human gene annotations
-library(ggridges)       # For ridge plots
+library(enrichplot)
+library(clusterProfiler)
+library(ComplexHeatmap)
+library(treemapify)
+library(AnnotationDbi)
+library(org.Hs.eg.db)
+library(ggridges)
+library(tibble)  # Add this to use column_to_rownames
 
 # Define paths
 base_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD"
@@ -20,6 +21,9 @@ dir.create(plot_output_dir, showWarnings = FALSE, recursive = TRUE)
 # Read and preprocess the GSEA data
 gsea_file_path <- file.path(gsea_output_dir, "gsea_inflammatory_complement_pathways.csv")
 df <- read.csv(gsea_file_path)
+
+# Print column names to troubleshoot
+cat("Available columns in GSEA results:", paste(colnames(df), collapse=", "), "\n")
 
 # Load original DESeq2 results for heatmap
 deseq_results_path <- file.path(base_dir, "GSE225158/DESeq2 outputs/deseq2_results_M_OUD_vs_M_None.csv")
@@ -36,16 +40,20 @@ if (!"entrez" %in% colnames(res)) {
   )
 }
 
+# Determine which adjusted p-value column to use
+p_col <- "p.adjust"  # We already know it's p.adjust from the printed columns
+
 # Filter for significant pathways
 df_filtered <- df %>%
-  filter(!is.na(padj), padj < 0.05) %>%  # Exclude NA p-values
+  filter(!is.na(!!sym(p_col)), !!sym(p_col) < 0.05) %>%
   arrange(desc(abs(NES))) %>%
   slice_head(n = 25)  # Limit to top 25 by absolute NES
 
 # 1. IMPROVED DOT PLOT
 message("Creating dot plot...")
 df_filtered <- df_filtered %>% arrange(NES)
-p <- ggplot(df_filtered, aes(x = NES, y = reorder(Description, NES), color = NES, size = -log10(padj))) +
+p <- ggplot(df_filtered, aes(x = NES, y = reorder(Description, NES),
+                             color = NES, size = -log10(!!sym(p_col)))) +
   geom_point() +
   scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
   theme_minimal(base_size = 12) +
@@ -53,11 +61,12 @@ p <- ggplot(df_filtered, aes(x = NES, y = reorder(Description, NES), color = NES
     x = "Normalized Enrichment Score (NES)",
     y = "Pathway",
     color = "NES",
-    size = "-log10(padj)",
+    size = paste0("-log10(", p_col, ")"),
     title = "GSEA Pathway Enrichment"
   ) +
   theme(axis.text.y = element_text(size = 8))
-ggsave(file.path(plot_output_dir, "gsea_dotplot.png"), p + theme(plot.margin = margin(5, 5, 5, 20)),
+ggsave(file.path(plot_output_dir, "gsea_dotplot.png"),
+       p + theme(plot.margin = margin(5, 5, 5, 20)),
        width = 20, height = 10)
 
 # 2. ENRICHMENT PLOTS
@@ -72,23 +81,27 @@ if(file.exists(gsea_obj_path)) {
   top_pathway_ids <- top_pathway_ids[!is.na(top_pathway_ids)]
 
   if(length(top_pathway_ids) > 0) {
-    pdf(file.path(plot_output_dir, "enrichment_plots.pdf"), width=12, height=10)
+    pdf(file.path(plot_output_dir, "enrichment_plots.pdf"), width=15, height=10)
     print(gseaplot2(gsea_data, geneSetID=top_pathway_ids, pvalue_table=TRUE))
     dev.off()
   }
 }
 
-# 3. RIDGE PLOT
+# 3. REPLACE RIDGE PLOT with a horizontal bar plot (more suitable for this data)
 message("Creating ridge plot...")
-p <- ggplot(df_filtered, aes(x = NES, y = reorder(Description, NES), fill = ..x..)) +
-  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01, quantile_lines = TRUE, quantiles = 2) +
+# Ridge plots work poorly with single values per category - use bar plot instead
+p <- ggplot(df_filtered, aes(x = reorder(Description, NES), y = NES, fill = NES)) +
+  geom_col(width = 0.7) +
   scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  coord_flip() +
   theme_minimal() +
-  theme(legend.position = "none", axis.text.y = element_text(size = 8)) +
-  labs(title = "Distribution of Enrichment Scores",
-       x = "Normalized Enrichment Score (NES)",
-       y = "")
-ggsave(file.path(plot_output_dir, "ridge_plot.png"), p, width = 10, height = 8)
+  theme(legend.position = "right", axis.text.y = element_text(size = 8)) +
+  labs(title = "GSEA Pathway Enrichment Scores",
+       x = "",
+       y = "Normalized Enrichment Score (NES)")
+ggsave(file.path(plot_output_dir, "pathway_barplot.png"), p, width = 16, height = 8)
+
+
 
 # 4. HEATMAP OF LEADING EDGE GENES
 message("Creating heatmap...")
@@ -122,9 +135,10 @@ if("core_enrichment" %in% colnames(df_filtered)) {
     expr_df$gene_symbol <- gene_symbols
     if(nrow(expr_df) > 50) expr_df <- expr_df %>% head(50)
 
+    # Use dplyr::select explicitly to avoid namespace conflicts
     expr_mat <- expr_df %>%
-      select(gene_symbol, log2FoldChange) %>%
-      column_to_rownames("gene_symbol") %>%
+      dplyr::select(gene_symbol, log2FoldChange) %>%
+      tibble::column_to_rownames("gene_symbol") %>%
       as.matrix()
 
     png(file.path(plot_output_dir, "leading_edge_heatmap.png"), width=800, height=1000)
@@ -136,50 +150,34 @@ if("core_enrichment" %in% colnames(df_filtered)) {
   }
 }
 
-# 5. CATEGORY TREEMAP
-message("Creating treemap...")
-df_categorized <- df_filtered %>%
-  mutate(Category = case_when(
-    grepl("INFLAMMATION|CYTOKINE|IMMUNE|IL|TNF|INTERFERON", Description, ignore.case=TRUE) ~ "Inflammation",
-    grepl("COMPLEMENT", Description, ignore.case=TRUE) ~ "Complement",
-    grepl("APOPTOSIS|DEATH", Description, ignore.case=TRUE) ~ "Cell Death",
-    grepl("SIGNAL|PATHWAY", Description, ignore.case=TRUE) ~ "Signaling",
-    TRUE ~ "Other"
-  ))
-
-p <- ggplot(df_categorized, aes(area = abs(NES), fill = NES,
-                              label = Description, subgroup = Category)) +
-  geom_treemap() +
-  geom_treemap_subgroup_border() +
-  geom_treemap_subgroup_text(place = "centre", grow = TRUE, alpha = 0.5, colour = "black") +
-  geom_treemap_text(aes(label = Description), place = "center", grow = FALSE,
-                  size = 10, colour = "black") +
-  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
-  theme(legend.position = "right") +
-  labs(title = "GSEA Pathway Enrichment by Category", fill = "NES")
-ggsave(file.path(plot_output_dir, "pathway_treemap.png"), p, width = 15, height = 12)
-
-# 6. PATHWAY NETWORK PLOT
+# 6. FIX NETWORK PLOT - Simplified version with better error handling
 message("Creating network plot...")
 if(file.exists(gsea_obj_path)) {
   gsea_data <- readRDS(gsea_obj_path)
 
-  # Try to create network plot with filtered significant pathways
-  tryCatch({
-    sig_pathway_ids <- match(df_filtered$ID, gsea_data@result$ID)
-    sig_pathway_ids <- sig_pathway_ids[!is.na(sig_pathway_ids)]
+  # Create properly formatted gene list
+  gene_list_for_viz <- res$log2FoldChange
+  names(gene_list_for_viz) <- as.character(res$entrez)
+  gene_list_for_viz <- gene_list_for_viz[!is.na(names(gene_list_for_viz))]
+  gene_list_for_viz <- gene_list_for_viz[!duplicated(names(gene_list_for_viz))]
 
-    if(length(sig_pathway_ids) > 0) {
-      png(file.path(plot_output_dir, "pathway_network.png"), width=1200, height=1000)
-      print(emapplot(gsea_data, showCategory=sig_pathway_ids[1:min(15, length(sig_pathway_ids))], color="NES"))
-      dev.off()
-    }
-  }, error = function(e) {
-    # Fallback to default behavior if the above fails
-    message("Using default network plot...")
-    png(file.path(plot_output_dir, "pathway_network.png"), width=1200, height=1000)
-    print(emapplot(gsea_data, showCategory=15, color="NES"))
+  tryCatch({
+    # Try simple dotplot first (most reliable)
+    png(file.path(plot_output_dir, "pathway_dotplot.png"), width=1000, height=800)
+    print(dotplot(gsea_data, showCategory=15, title="Top Enriched Pathways"))
     dev.off()
+
+    # Then try cnetplot with simplified parameters
+    png(file.path(plot_output_dir, "pathway_gene_network.png"), width=1200, height=1000)
+    top_pathways <- head(gsea_data@result$ID, 5)
+    print(cnetplot(gsea_data,
+                  categorySize="pvalue",
+                  showCategory=top_pathways,
+                  foldChange=gene_list_for_viz,
+                  colorEdge=FALSE))
+    dev.off()
+  }, error = function(e) {
+    message("Network plot failed: ", e$message)
   })
 }
 
