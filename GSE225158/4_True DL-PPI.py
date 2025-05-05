@@ -445,7 +445,7 @@ def main():
     # Generate test pairs from complement genes and DEGs
     print("\nGenerating test pairs from complement genes and DEGs...")
     comp_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/KEGG outputs/kegg_complement_unique_genes.csv"
-    deg_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DESeq2 outputs/deseq2_results_M_OUD_vs_M_None.csv"
+    deg_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DESeq2 outputs/deseq2_results_F_OUD_vs_F_None.csv"
 
     # Load gene lists
     try:
