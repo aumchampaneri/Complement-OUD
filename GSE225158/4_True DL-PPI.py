@@ -523,7 +523,7 @@ def main():
     })
 
     # Keep only high-confidence predictions for visualization
-    viz_df = viz_df[viz_df['prediction'] >= 0.5]
+    viz_df = viz_df[viz_df['prediction'] >= 0.4]
     viz_df.to_csv(f"{out_dir}/dl_ppi_viz_data.csv", index=False)
 
     print(f"\nFound {len(viz_df)} high-confidence interactions.")
