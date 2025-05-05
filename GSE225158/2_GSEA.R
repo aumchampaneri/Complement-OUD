@@ -53,7 +53,7 @@ gsea_res <- GSEA(
 write.csv(gsea_res@result, 'GSE225158/GSEA outputs/gsea_results_M_OUD_vs_M_None.csv', row.names = FALSE)
 
 # Save GSEA object for visualization
-saveRDS(gsea_res, file.path("GSE225158/GSEA outputs", "gsea_obj.rds"))
+saveRDS(gsea_res, file.path("GSE225158/GSEA outputs", "gsea_obj_M_OUD_vs_M_None.rds"))
 
 # Check column names to find adjusted p-value column
 gsea_cols <- colnames(gsea_res@result)
@@ -103,5 +103,5 @@ if("p.adjust" %in% colnames(gsea_res@result)) {
 
 # Save inflammatory and complement pathways
 write.csv(inflammatory_complement_pathways,
-          'GSE225158/GSEA outputs/gsea_inflammatory_complement_pathways.csv',
+          'GSE225158/GSEA outputs/gsea_M_inflammatory_complement_pathways.csv',
           row.names = FALSE)
