@@ -498,7 +498,7 @@ def main():
     test_pairs = []
     for c in comp_uniprot:
         for s in sig_uniprot:
-            if c in protein_sequences_dict and s in protein_sequences_dict:
+            if c in protein_sequences_dict and s in protein_sequences_d4_True DL-PPI.pyict:
                 test_pairs.append((c, s))
 
     print(f"Created {len(test_pairs)} protein pairs for prediction")
