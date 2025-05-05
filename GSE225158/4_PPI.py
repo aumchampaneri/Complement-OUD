@@ -983,7 +983,7 @@ def main_pathway_analysis():
 
     # Load DESeq2 results
     deg_results = load_deseq_results(
-        os.path.join(data_dir, "deseq2_results_M_OUD_vs_M_None.csv"))
+        os.path.join(data_dir, "deseq2_results_F_OUD_vs_F_None.csv"))
 
     # Filter for significant genes (adjust thresholds as needed)
     sig_genes = deg_results[(deg_results['padj'] < 0.05) & (abs(deg_results['log2FoldChange']) > 1)]
