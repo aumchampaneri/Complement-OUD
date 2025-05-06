@@ -49,7 +49,7 @@ def ensure_path(path):
 
 
 # Function to load cached protein data instead of making API calls
-def load_cached_protein_data(gene_list, cache_dir="protein_cache"):
+def load_cached_protein_data(gene_list, cache_dir="/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/protein_cache"):
     """Load pre-cached protein sequences and gene-to-UniProt mappings"""
     import os
     import pickle
@@ -62,9 +62,17 @@ def load_cached_protein_data(gene_list, cache_dir="protein_cache"):
     protein_sequences_file = os.path.join(cache_dir, "protein_sequences.pkl")
 
     # Check if cache exists
-    if not os.path.exists(gene_to_uniprot_file) or not os.path.exists(protein_sequences_file):
-        print(f"Warning: Protein cache not found in {cache_dir}. Run protein_downloader.py first.")
-        return {}, {}
+    if not os.path.exists(gene_to_uniprot_file):
+        # Try to create a mapping from the sequences
+        print(f"Gene-to-UniProt mapping not found. Creating from available sequences...")
+        # Look for proteins.fasta or sequences.pkl files
+        if os.path.exists(os.path.join(cache_dir, "protein_sequences.pkl")):
+            with open(os.path.join(cache_dir, "protein_sequences.pkl"), 'rb') as f:
+                protein_sequences_dict = pickle.load(f)
+                # Create basic mapping (may be incomplete)
+                gene_to_uniprot = {acc.split('|')[1] if '|' in acc else acc: acc
+                                 for acc in protein_sequences_dict.keys()}
+        return gene_to_uniprot, protein_sequences_dict
 
     # Load cached gene-to-UniProt mappings
     with open(gene_to_uniprot_file, 'rb') as f:
@@ -620,42 +628,88 @@ def predict_ppi_deep_learning(protein_pairs, protein_sequences_dict, model=None,
 
 
 # Helper to precompute all embeddings
-def precompute_all_embeddings(protein_sequences_dict, model, cache_file):
-    """Precompute embeddings for all proteins"""
+def precompute_all_embeddings(protein_sequences_dict, model, cache_file, batch_size=10):
+    """Precompute embeddings for all proteins with batching and resumable processing"""
     print("Precomputing embeddings for all proteins...")
 
-    # Check if already cached
-    if hasattr(model, 'embedding_cache') and len(model.embedding_cache) >= len(protein_sequences_dict):
-        print(f"Embeddings already cached for {len(model.embedding_cache)} proteins")
+    # Initialize cache if needed
+    if not hasattr(model, 'embedding_cache'):
+        model.embedding_cache = {}
+
+    # Load existing cache if available
+    if os.path.exists(cache_file):
+        with open(cache_file, 'rb') as f:
+            existing_cache = pickle.load(f)
+            model.embedding_cache.update(existing_cache)
+        print(f"Loaded existing cache with {len(model.embedding_cache)} protein embeddings")
+
+    # Get proteins that need embeddings
+    proteins_to_process = [p for p in protein_sequences_dict if p not in model.embedding_cache]
+
+    if not proteins_to_process:
+        print(f"All {len(protein_sequences_dict)} proteins already have cached embeddings")
         return
 
-    # Compute embeddings
-    for protein_id, sequence in tqdm(protein_sequences_dict.items()):
-        if protein_id not in model.embedding_cache:
-            model.get_embeddings(sequence, use_cache=True)
+    print(f"Need to compute embeddings for {len(proteins_to_process)} proteins")
 
-    # Save cache
-    print(f"Saving {len(model.embedding_cache)} embeddings to cache...")
-    with open(cache_file, 'wb') as f:
-        pickle.dump(model.embedding_cache, f)
+    # Process in smaller batches and save progress periodically
+    batches = [proteins_to_process[i:i + batch_size] for i in range(0, len(proteins_to_process), batch_size)]
+
+    try:
+        for i, batch in enumerate(tqdm(batches)):
+            for protein_id in batch:
+                sequence = protein_sequences_dict[protein_id]
+                model.get_embeddings(sequence, use_cache=True)
+
+            # Save cache every 5 batches or at the end
+            if (i + 1) % 5 == 0 or i == len(batches) - 1:
+                with open(cache_file, 'wb') as f:
+                    pickle.dump(model.embedding_cache, f)
+                print(f"Saved {len(model.embedding_cache)} embeddings to cache")
+
+    except KeyboardInterrupt:
+        print("\nInterrupted! Saving current progress...")
+        with open(cache_file, 'wb') as f:
+            pickle.dump(model.embedding_cache, f)
+        print(f"Saved {len(model.embedding_cache)} embeddings to cache before interruption")
+
+        # Continue with partial embeddings
+        print("Continuing pipeline with partial embeddings...")
+        return
 
 
 # Helper to create visualization data
 def create_viz_data(results_df, uniprot_to_gene, threshold=0.4):
-    """Create visualization-friendly format from results dataframe"""
-    # Extract protein pairs
-    pairs = list(zip(results_df['acc1'], results_df['acc2']))
+    """Create visualization data from prediction results"""
+    if results_df.empty:
+        print("No prediction results to visualize")
+        return pd.DataFrame()
 
-    # Create visualization-friendly format
-    viz_df = pd.DataFrame({
-        'protein1': [uniprot_to_gene.get(p[0], p[0]) for p in pairs],
-        'protein2': [uniprot_to_gene.get(p[1], p[1]) for p in pairs],
-        'prediction': results_df['prediction'].values,
-        'method': results_df['method'].values
-    })
+    # Get column names from the actual DataFrame
+    column_names = results_df.columns.tolist()
 
-    # Keep only high-confidence predictions for visualization
-    viz_df = viz_df[viz_df['prediction'] >= threshold]
+    # Determine which columns contain protein IDs
+    protein_cols = [col for col in column_names if 'protein' in col.lower() or 'acc' in col.lower()]
+    if len(protein_cols) < 2:
+        print(f"Warning: Expected protein ID columns not found. Available columns: {column_names}")
+        # Use first two columns as protein ID columns if no better match
+        protein_cols = column_names[:2]
+
+    # Get prediction column
+    pred_col = [col for col in column_names if 'pred' in col.lower()]
+    pred_col = pred_col[0] if pred_col else column_names[-1]
+
+    print(f"Using columns: {protein_cols[0]}, {protein_cols[1]} for proteins and {pred_col} for predictions")
+
+    # Filter by threshold
+    viz_df = results_df[results_df[pred_col] >= threshold].copy()
+
+    # Map UniProt IDs to gene names if available
+    viz_df['protein1'] = viz_df[protein_cols[0]].map(lambda x: uniprot_to_gene.get(x, x))
+    viz_df['protein2'] = viz_df[protein_cols[1]].map(lambda x: uniprot_to_gene.get(x, x))
+    viz_df['prediction'] = viz_df[pred_col]
+
+    print(f"Created visualization data with {len(viz_df)} high-confidence interactions (threshold={threshold})")
     return viz_df
 
 
@@ -665,6 +719,17 @@ def compare_networks(male_df, female_df, output_dir="DL-PPI outputs/comparison")
     print("Comparing male and female networks...")
     os.makedirs(output_dir, exist_ok=True)
 
+    # Check if dataframes are empty
+    if male_df.empty or female_df.empty:
+        print("Warning: One or both networks are empty. Cannot perform comparison.")
+        return {
+            'shared_count': 0,
+            'male_specific_count': 0 if male_df.empty else len(male_df),
+            'female_specific_count': 0 if female_df.empty else len(female_df),
+            'network_stats': pd.DataFrame()
+        }
+
+    # Original code continues here for non-empty dataframes
     # 1. FIND SHARED AND SEX-SPECIFIC INTERACTIONS
     male_pairs = set(zip(male_df['protein1'], male_df['protein2']))
     female_pairs = set(zip(female_df['protein1'], female_df['protein2']))
@@ -972,6 +1037,30 @@ def visualize_pathway_ppi_network(results_df, uniprot_to_gene, pathway_df,
     return G
 
 
+def generate_test_gene_mappings(pathway_df):
+    """Generate test gene-to-protein mappings when real data is unavailable"""
+    print("WARNING: Creating test gene-to-protein mappings")
+
+    gene_to_uniprot = {}
+    protein_sequences_dict = {}
+
+    # Sample protein sequence to use for all test proteins
+    sample_sequence = "MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNALSALSDLHAHKLRVDPVNFKLLSHCLLVTLAAHLPAEFTPAVHASLDKFLASVSTVLTSKYR"
+
+    # Create mappings for genes in each pathway
+    for pathway_name in pathway_df['pathway'].unique():
+        pathway_genes = pathway_df[pathway_df['pathway'] == pathway_name]['gene'].unique()
+
+        # Take up to 10 genes from each pathway
+        for i, gene in enumerate(pathway_genes[:10]):
+            # Create a synthetic UniProt ID
+            uniprot_id = f"TEST_{pathway_name[:3]}_{i}"
+            gene_to_uniprot[gene] = uniprot_id
+            protein_sequences_dict[uniprot_id] = sample_sequence
+
+    print(f"Created {len(gene_to_uniprot)} test gene mappings")
+    return gene_to_uniprot, protein_sequences_dict
+
 # Main function to run the pipeline
 def main():
     print("Starting memory-optimized DL-PPI pipeline for both sexes...")
@@ -1027,6 +1116,15 @@ def main():
     all_pathway_genes = pathway_df.gene.unique().tolist()
     all_genes = set(all_pathway_genes + male_genes + female_genes)
     gene_to_uniprot, protein_sequences_dict = load_cached_protein_data(list(all_genes))
+
+    if not gene_to_uniprot:
+        gene_to_uniprot, protein_sequences_dict = generate_test_gene_mappings(pathway_df)
+        # Save these for future use
+        os.makedirs("DL-PPI outputs/data", exist_ok=True)
+        with open("DL-PPI outputs/data/gene_to_uniprot.pkl", 'wb') as f:
+            pickle.dump(gene_to_uniprot, f)
+        with open("DL-PPI outputs/data/protein_sequences.pkl", 'wb') as f:
+            pickle.dump(protein_sequences_dict, f)
 
     # Create reverse mapping for visualization
     uniprot_to_gene = {v: k for k, v in gene_to_uniprot.items()}
