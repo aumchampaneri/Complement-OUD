@@ -403,6 +403,40 @@ def get_pathway_info(gene1, gene2, pathway_df):
         'is_same_pathway': len(common_pathways) > 0
     }
 
+# Dataset class for protein-protein interactions
+class PPIDataset(Dataset):
+    def __init__(self, pairs, labels, sequences_dict, model):
+        self.pairs = pairs
+        self.labels = labels
+        self.sequences_dict = sequences_dict
+        self.model = model
+
+    def __len__(self):
+        return len(self.pairs)
+
+    def __getitem__(self, idx):
+        p1, p2 = self.pairs[idx]
+        label = self.labels[idx]
+
+        # Get protein sequences with better placeholder
+        seq1 = self.sequences_dict.get(p1, "X" * 10)
+        seq2 = self.sequences_dict.get(p2, "X" * 10)
+
+        # Get embeddings with error handling
+        try:
+            emb1 = self.model.get_embeddings(seq1)
+            emb2 = self.model.get_embeddings(seq2)
+        except Exception as e:
+            print(f"Error generating embeddings for {p1}/{p2}: {e}")
+            # Return zero embeddings as fallback
+            emb1 = np.zeros(1280)
+            emb2 = np.zeros(1280)
+
+        return {
+            "emb1": torch.tensor(emb1, dtype=torch.float32),
+            "emb2": torch.tensor(emb2, dtype=torch.float32),
+            "label": torch.tensor(label, dtype=torch.float32)
+        }
 
 # Training function with memory optimization
 def train_ppi_model(train_pairs, train_labels, protein_sequences_dict,
