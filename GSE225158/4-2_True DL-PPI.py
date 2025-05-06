@@ -2103,215 +2103,77 @@ def map_genes_and_download_sequences(gene_list, protein_sequences_dict=None):
     Entrez.api_key = "bee8c07e73f4e5935bdacaa9ecc653e9dc09"
     mg = MyGeneInfo()
 
+    # Filter out likely non-coding RNAs and other non-protein entries
+    filtered_gene_list = []
+    for gene in gene_list:
+        # Skip genes with period in name (likely non-coding RNAs or genomic contigs)
+        if isinstance(gene, str) and '.' in gene:
+            continue
+        # Skip genes with common non-coding RNA prefixes
+        if isinstance(gene, str) and any(gene.startswith(prefix) for prefix in
+                                         ['LINC', 'MIR', 'SNORD', 'AC', 'AL', 'AP']):
+            continue
+        # Keep potential protein-coding genes
+        filtered_gene_list.append(gene)
+
+    print(f"Filtered out {len(gene_list) - len(filtered_gene_list)} likely non-coding genes")
+    print(f"Proceeding with {len(filtered_gene_list)} potential protein-coding genes")
+
     # Process in batches to avoid API limits
     batch_size = 100
-    for i in range(0, len(gene_list), batch_size):
-        batch = gene_list[i:i+batch_size]
+    for i in range(0, len(filtered_gene_list), batch_size):
+        batch = filtered_gene_list[i:i + batch_size]
         try:
-            # Query for UniProt IDs
-            results = mg.querymany(batch, scopes='symbol', fields='uniprot', species='human')
+            # Query gene info
+            gene_info = mg.querymany(batch, scopes='symbol', fields='uniprot', species='human', returnall=True)
 
-            for result in results:
-                if 'uniprot' in result and not 'notfound' in result:
-                    gene = result['query']
-                    # Handle different response formats
-                    if isinstance(result['uniprot'], dict) and 'Swiss-Prot' in result['uniprot']:
-                        uniprot_id = result['uniprot']['Swiss-Prot']
-                        if isinstance(uniprot_id, list) and uniprot_id:
-                            uniprot_id = uniprot_id[0]
-                    elif isinstance(result['uniprot'], list) and result['uniprot']:
-                        uniprot_id = result['uniprot'][0]
-                    else:
-                        uniprot_id = result['uniprot']
-
-                    if isinstance(uniprot_id, list) and uniprot_id:
-                        uniprot_id = uniprot_id[0]
-
-                    gene_to_uniprot[gene] = uniprot_id
-
-                    # Download the sequence if we have a UniProt ID
-                    if gene in gene_to_uniprot and gene_to_uniprot[gene] not in protein_sequences_dict:
-                        uniprot_id = gene_to_uniprot[gene]
-
-                        # Try UniProt API
-                        try:
-                            url = f"https://rest.uniprot.org/uniprotkb/{uniprot_id}.fasta"
-                            response = requests.get(url)
-                            if response.status_code == 200:
-                                # Parse FASTA format
-                                fasta_text = response.text
-                                lines = fasta_text.strip().split('\n')
-                                if len(lines) > 1:  # Valid FASTA has header + sequence
-                                    sequence = ''.join(lines[1:])  # Skip header, join sequence lines
-                                    protein_sequences_dict[uniprot_id] = sequence
-                                    continue
-                            else:
-                                print(f"Could not retrieve sequence for {uniprot_id}, status: {response.status_code}")
-                        except Exception as e:
-                            print(f"Error with UniProt API for {uniprot_id}: {e}")
-
-                        # Try alternate UniProt API format
-                        try:
-                            alt_url = f"https://www.uniprot.org/uniprot/{uniprot_id}.fasta"
-                            response = requests.get(alt_url)
-                            if response.status_code == 200:
-                                fasta_text = response.text
-                                lines = fasta_text.strip().split('\n')
-                                if len(lines) > 1:
-                                    sequence = ''.join(lines[1:])
-                                    protein_sequences_dict[uniprot_id] = sequence
-                                    continue
-                        except Exception as e:
-                            print(f"Error with alternate UniProt API for {uniprot_id}: {e}")
-
-                        # Try NCBI as fallback
-                        try:
-                            ncbi_url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=protein&id={uniprot_id}&rettype=fasta&retmode=text"
-                            ncbi_response = requests.get(ncbi_url)
-                            if ncbi_response.status_code == 200:
-                                fasta_text = ncbi_response.text
-                                lines = fasta_text.strip().split('\n')
-                                if len(lines) > 1:
-                                    sequence = ''.join(lines[1:])
-                                    protein_sequences_dict[uniprot_id] = sequence
-                                    continue
-                        except Exception as e:
-                            print(f"Error with NCBI API for {uniprot_id}: {e}")
-
-                        # One last try with direct NCBI accession
-                        try:
-                            handle = Entrez.efetch(db="protein", id=uniprot_id, rettype="fasta", retmode="text")
-                            fasta_record = handle.read()
-                            handle.close()
-                            if fasta_record:
-                                lines = fasta_record.strip().split('\n')
-                                if len(lines) > 1:
-                                    sequence = ''.join(lines[1:])
-                                    protein_sequences_dict[uniprot_id] = sequence
-                        except Exception as e:
-                            print(f"Error with Entrez API for {uniprot_id}: {e}")
-
+            # Process results - ensure we extract string IDs only
+            for entry in gene_info['out']:
+                gene_symbol = entry.get('query', '')
+                if 'uniprot' in entry:
+                    uniprot_data = entry['uniprot']
+                    # Handle Swiss-Prot ID (preferred)
+                    if 'Swiss-Prot' in uniprot_data:
+                        swiss_prot = uniprot_data['Swiss-Prot']
+                        if isinstance(swiss_prot, str):
+                            gene_to_uniprot[gene_symbol] = swiss_prot
+                        elif isinstance(swiss_prot, list) and swiss_prot:
+                            gene_to_uniprot[gene_symbol] = swiss_prot[0]
+                    # Fall back to TrEMBL if no Swiss-Prot
+                    elif 'TrEMBL' in uniprot_data:
+                        trembl = uniprot_data['TrEMBL']
+                        if isinstance(trembl, str):
+                            gene_to_uniprot[gene_symbol] = trembl
+                        elif isinstance(trembl, list) and trembl:
+                            gene_to_uniprot[gene_symbol] = trembl[0]
         except Exception as e:
             print(f"Error in batch query: {e}")
 
         # Add delay between batches to avoid rate limiting
         time.sleep(1)
 
-    print(f"Successfully mapped {len(gene_to_uniprot)} genes to UniProt IDs")
-    print(f"Downloaded {len(protein_sequences_dict)} protein sequences")
+    # Download sequences for mapped UniProt IDs
+    for gene, uniprot_id in list(gene_to_uniprot.items()):
+        # Skip any non-string UniProt IDs to ensure only strings are in the final dict
+        if not isinstance(uniprot_id, str):
+            print(f"Removing non-string UniProt ID for gene {gene}: {uniprot_id}")
+            gene_to_uniprot.pop(gene)
+            continue
 
-    return gene_to_uniprot, protein_sequences_dict
+        if uniprot_id not in protein_sequences_dict:
+            try:
+                # Get protein sequence from UniProt
+                url = f"https://www.uniprot.org/uniprot/{uniprot_id}.fasta"
+                response = requests.get(url)
 
-def map_genes_and_download_sequences(gene_list, protein_sequences_dict=None):
-    """Map gene symbols to UniProt IDs and download their sequences"""
-    if protein_sequences_dict is None:
-        protein_sequences_dict = {}
-
-    gene_to_uniprot = {}
-
-    from mygene import MyGeneInfo
-    import requests
-    import re
-    from Bio import Entrez
-    import time
-
-    # Set your email for NCBI API
-    Entrez.email = "your.email@example.com"  # Change this to your actual email
-    mg = MyGeneInfo()
-
-    # Process in batches to avoid API limits
-    batch_size = 100
-    for i in range(0, len(gene_list), batch_size):
-        batch = gene_list[i:i+batch_size]
-        try:
-            # Query for UniProt IDs
-            results = mg.querymany(batch, scopes='symbol', fields='uniprot', species='human')
-
-            for result in results:
-                if 'uniprot' in result and not 'notfound' in result:
-                    gene = result['query']
-                    # Handle different response formats
-                    if isinstance(result['uniprot'], dict) and 'Swiss-Prot' in result['uniprot']:
-                        uniprot_id = result['uniprot']['Swiss-Prot']
-                        if isinstance(uniprot_id, list) and uniprot_id:
-                            uniprot_id = uniprot_id[0]
-                    elif isinstance(result['uniprot'], list) and result['uniprot']:
-                        uniprot_id = result['uniprot'][0]
-                    else:
-                        uniprot_id = result['uniprot']
-
-                    if isinstance(uniprot_id, list) and uniprot_id:
-                        uniprot_id = uniprot_id[0]
-
-                    gene_to_uniprot[gene] = uniprot_id
-
-                    # Download the sequence if we have a UniProt ID
-                    if gene in gene_to_uniprot and gene_to_uniprot[gene] not in protein_sequences_dict:
-                        uniprot_id = gene_to_uniprot[gene]
-
-                        # Try UniProt API
-                        try:
-                            url = f"https://rest.uniprot.org/uniprotkb/{uniprot_id}.fasta"
-                            response = requests.get(url)
-                            if response.status_code == 200:
-                                # Parse FASTA format
-                                fasta_text = response.text
-                                lines = fasta_text.strip().split('\n')
-                                if len(lines) > 1:  # Valid FASTA has header + sequence
-                                    sequence = ''.join(lines[1:])  # Skip header, join sequence lines
-                                    protein_sequences_dict[uniprot_id] = sequence
-                                    continue
-                            else:
-                                print(f"Could not retrieve sequence for {uniprot_id}, status: {response.status_code}")
-                        except Exception as e:
-                            print(f"Error with UniProt API for {uniprot_id}: {e}")
-
-                        # Try alternate UniProt API format
-                        try:
-                            alt_url = f"https://www.uniprot.org/uniprot/{uniprot_id}.fasta"
-                            response = requests.get(alt_url)
-                            if response.status_code == 200:
-                                fasta_text = response.text
-                                lines = fasta_text.strip().split('\n')
-                                if len(lines) > 1:
-                                    sequence = ''.join(lines[1:])
-                                    protein_sequences_dict[uniprot_id] = sequence
-                                    continue
-                        except Exception as e:
-                            print(f"Error with alternate UniProt API for {uniprot_id}: {e}")
-
-                        # Try NCBI as fallback
-                        try:
-                            ncbi_url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=protein&id={uniprot_id}&rettype=fasta&retmode=text"
-                            ncbi_response = requests.get(ncbi_url)
-                            if ncbi_response.status_code == 200:
-                                fasta_text = ncbi_response.text
-                                lines = fasta_text.strip().split('\n')
-                                if len(lines) > 1:
-                                    sequence = ''.join(lines[1:])
-                                    protein_sequences_dict[uniprot_id] = sequence
-                                    continue
-                        except Exception as e:
-                            print(f"Error with NCBI API for {uniprot_id}: {e}")
-
-                        # One last try with direct NCBI accession
-                        try:
-                            handle = Entrez.efetch(db="protein", id=uniprot_id, rettype="fasta", retmode="text")
-                            fasta_record = handle.read()
-                            handle.close()
-                            if fasta_record:
-                                lines = fasta_record.strip().split('\n')
-                                if len(lines) > 1:
-                                    sequence = ''.join(lines[1:])
-                                    protein_sequences_dict[uniprot_id] = sequence
-                        except Exception as e:
-                            print(f"Error with Entrez API for {uniprot_id}: {e}")
-
-        except Exception as e:
-            print(f"Error in batch query: {e}")
-
-        # Add delay between batches to avoid rate limiting
-        time.sleep(1)
+                if response.status_code == 200:
+                    # Parse FASTA
+                    sequence_lines = response.text.strip().split('\n')
+                    if len(sequence_lines) > 1:
+                        sequence = ''.join(sequence_lines[1:])
+                        protein_sequences_dict[uniprot_id] = sequence
+            except Exception as e:
+                print(f"Error downloading sequence for {uniprot_id}: {e}")
 
     print(f"Successfully mapped {len(gene_to_uniprot)} genes to UniProt IDs")
     print(f"Downloaded {len(protein_sequences_dict)} protein sequences")
