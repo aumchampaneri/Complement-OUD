@@ -2088,9 +2088,9 @@ def map_genes_and_download_sequences(gene_list, protein_sequences_dict=None):
     gene_to_uniprot = {}
 
     print(f"Mapping and downloading sequences for {len(gene_list)} genes...")
-    # Use mygene to map genes to UniProt IDs
     from mygene import MyGeneInfo
     import requests
+    import re
     mg = MyGeneInfo()
 
     # Process in batches to avoid API limits
@@ -2118,15 +2118,27 @@ def map_genes_and_download_sequences(gene_list, protein_sequences_dict=None):
                     if gene in gene_to_uniprot and gene_to_uniprot[gene] not in protein_sequences_dict:
                         uniprot_id = gene_to_uniprot[gene]
                         try:
-                            # Use UniProt API to get sequence
-                            seq_url = f"https://rest.uniprot.org/uniprotkb/{uniprot_id}.fasta"
-                            response = requests.get(seq_url)
+                            # Primary source: UniProt REST API
+                            url = f"https://rest.uniprot.org/uniprotkb/{uniprot_id}.fasta"
+                            response = requests.get(url)
                             if response.status_code == 200:
                                 # Parse FASTA format
-                                fasta_lines = response.text.strip().split('\n')
-                                # Skip the header line, join the rest
-                                sequence = ''.join(fasta_lines[1:])
-                                protein_sequences_dict[uniprot_id] = sequence
+                                fasta_text = response.text
+                                lines = fasta_text.strip().split('\n')
+                                if len(lines) > 1:  # Valid FASTA has header + sequence
+                                    sequence = ''.join(lines[1:])  # Skip header, join sequence lines
+                                    protein_sequences_dict[uniprot_id] = sequence
+                            else:
+                                # Fallback source: NCBI
+                                ncbi_url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=protein&id={uniprot_id}&rettype=fasta&retmode=text"
+                                ncbi_response = requests.get(ncbi_url)
+                                if ncbi_response.status_code == 200:
+                                    # Parse FASTA from NCBI
+                                    fasta_text = ncbi_response.text
+                                    lines = fasta_text.strip().split('\n')
+                                    if len(lines) > 1:
+                                        sequence = ''.join(lines[1:])
+                                        protein_sequences_dict[uniprot_id] = sequence
                         except Exception as e:
                             print(f"Error downloading sequence for {uniprot_id}: {e}")
         except Exception as e:
