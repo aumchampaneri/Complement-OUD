@@ -13,12 +13,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import networkx as nx
 from scipy import stats
-import os
 import requests
 
 os.environ["OMP_NUM_THREADS"] = "1"  # Limit OpenMP threads
-import torch
-
 torch.set_num_threads(4)  # Reduce parallel threads
 
 # Constants
@@ -32,10 +29,10 @@ def optimize_for_m1_mac():
     """Configure environment for optimal performance on M1 Mac with limited RAM"""
     # Enable MPS (Metal Performance Shaders) for M1 acceleration
     if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-        device = torch.device("mps")
+        device = torch.device('mps')
         print("Using MPS (Apple Silicon GPU) acceleration")
     else:
-        device = torch.device("cpu")
+        device = torch.device('cpu')
         print("MPS not available, using CPU")
 
     # Limit memory usage
@@ -51,91 +48,130 @@ def ensure_path(path):
     return path
 
 
+# Function to load cached protein data instead of making API calls
+def load_cached_protein_data(gene_list, cache_dir="protein_cache"):
+    """Load pre-cached protein sequences and gene-to-UniProt mappings"""
+    import os
+    import pickle
+
+    gene_to_uniprot = {}
+    protein_sequences_dict = {}
+
+    # Define cache file paths
+    gene_to_uniprot_file = os.path.join(cache_dir, "gene_to_uniprot.pkl")
+    protein_sequences_file = os.path.join(cache_dir, "protein_sequences.pkl")
+
+    # Check if cache exists
+    if not os.path.exists(gene_to_uniprot_file) or not os.path.exists(protein_sequences_file):
+        print(f"Warning: Protein cache not found in {cache_dir}. Run protein_downloader.py first.")
+        return {}, {}
+
+    # Load cached gene-to-UniProt mappings
+    with open(gene_to_uniprot_file, 'rb') as f:
+        full_gene_to_uniprot = pickle.load(f)
+
+    # Load cached protein sequences
+    with open(protein_sequences_file, 'rb') as f:
+        protein_sequences_dict = pickle.load(f)
+
+    # Filter gene mappings to only include genes in our list
+    for gene in gene_list:
+        if gene in full_gene_to_uniprot:
+            gene_to_uniprot[gene] = full_gene_to_uniprot[gene]
+
+    print(f"Loaded {len(protein_sequences_dict)} protein sequences from cache")
+    print(f"Found UniProt mappings for {len(gene_to_uniprot)} out of {len(gene_list)} genes")
+
+    return gene_to_uniprot, protein_sequences_dict
+
+
 # Enhanced DeepLearningPPI class with memory optimizations
 class DeepLearningPPI:
     def __init__(self, model_name="facebook/esm2_t33_650M_UR50D", embedding_cache=None):
-        """Initialize with a pre-trained protein language model"""
-        print(f"Loading {model_name} model with memory optimizations...")
-        # Get optimized device
-        self.device = optimize_for_m1_mac()
-        self.embedding_cache = embedding_cache or {}
+        from transformers import AutoTokenizer, EsmModel, AutoConfig
+        import torch
+        import torch.nn as nn
 
-        # Load tokenizer
-        from transformers import AutoTokenizer, AutoModel, AutoConfig
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        # Set device to MPS if available
+        self.device = optimize_for_m1_mac()
+
+        # Initialize embedding cache
+        if embedding_cache is None:
+            self.embedding_cache = {}
+        else:
+            self.embedding_cache = embedding_cache
+            print(f"Loaded {len(self.embedding_cache)} embeddings from cache")
+
+        print(f"Loading {model_name} model with memory optimizations...")
 
         # Load model with memory optimizations
         config = AutoConfig.from_pretrained(model_name)
-        with torch.no_grad():
-            self.model = AutoModel.from_pretrained(
-                model_name,
-                config=config,
-                torch_dtype=torch.float16,  # Use FP16 instead of FP32
-                low_cpu_mem_usage=True
-            ).to(self.device)
-
-        # Define a smaller classifier head
-        self.classifier = torch.nn.Sequential(
-            torch.nn.Linear(2 * 1280, 256),  # Reduced intermediate size
-            torch.nn.ReLU(),
-            torch.nn.Dropout(0.1),
-            torch.nn.Linear(256, 64),  # Reduced intermediate size
-            torch.nn.ReLU(),
-            torch.nn.Dropout(0.1),
-            torch.nn.Linear(64, 1),
-            torch.nn.Sigmoid()
-        ).to(self.device)
-
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = EsmModel.from_pretrained(model_name, config=config).to(self.device)
         print(f"Model loaded on {self.device}")
 
+        # Create classification head
+        embedding_dim = self.model.config.hidden_size
+        self.classifier = nn.Sequential(
+            nn.Linear(embedding_dim * 2, 512),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(256, 1),
+            nn.Sigmoid()
+        ).to(self.device)
+
     def get_embeddings(self, sequence, max_length=512, use_cache=True):
-        """Get protein embedding with memory optimizations"""
-        # Check cache first if enabled
+        if not isinstance(sequence, str):
+            print(f"Input sequence provided is not a string: {type(sequence)}. Converting...")
+            sequence = str(sequence)
+
+        # Check if we already have this embedding cached
         if use_cache and sequence in self.embedding_cache:
             return self.embedding_cache[sequence]
 
-        # Truncate sequence if needed
+        # Truncate long sequences to max_length
         if len(sequence) > max_length:
             sequence = sequence[:max_length]
 
-        # Use context manager to clear cache immediately
-        with torch.no_grad():
-            inputs = self.tokenizer(sequence, return_tensors="pt").to(self.device)
-            outputs = self.model(**inputs)
-            # Get embedding and immediately move to CPU and numpy
-            embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()
+        # Tokenize and get embeddings
+        try:
+            inputs = self.tokenizer(sequence, return_tensors="pt", padding=True).to(self.device)
+            with torch.no_grad():
+                outputs = self.model(**inputs)
 
-        # Force garbage collection
-        if hasattr(torch.cuda, 'empty_cache'):
-            torch.cuda.empty_cache()
-        gc.collect()
+            # Use the mean of the last hidden state (CLS token)
+            embeddings = outputs.last_hidden_state[:, 0, :].cpu().numpy()
 
-        # Cache the result if enabled
-        if use_cache:
-            self.embedding_cache[sequence] = embedding[0]
+            # Cache the embedding
+            if use_cache:
+                self.embedding_cache[sequence] = embeddings[0]
 
-        return embedding[0]
+            return embeddings[0]
+        except Exception as e:
+            print(f"Error getting embeddings: {e}")
+            # Return zero embedding vector if there's an error
+            return np.zeros(self.model.config.hidden_size)
 
     def predict_interaction(self, seq1, seq2):
-        """Predict interaction between two proteins"""
-        # Get embeddings
-        emb1 = torch.tensor(self.get_embeddings(seq1)).unsqueeze(0).to(self.device)
-        emb2 = torch.tensor(self.get_embeddings(seq2)).unsqueeze(0).to(self.device)
+        # Get embeddings for both proteins
+        emb1 = self.get_embeddings(seq1)
+        emb2 = self.get_embeddings(seq2)
 
         # Concatenate embeddings
-        concat_emb = torch.cat([emb1, emb2], dim=1)
+        combined = np.concatenate([emb1, emb2])
+        combined_tensor = torch.tensor(combined, dtype=torch.float32).unsqueeze(0).to(self.device)
 
-        # Get prediction
+        # Predict interaction
+        self.classifier.eval()
         with torch.no_grad():
-            prediction = self.classifier(concat_emb).item()
+            pred = self.classifier(combined_tensor)
 
-        return {
-            "prediction": round(prediction, 4),
-            "method": "deep_learning_esm2"
-        }
+        return pred.item()
 
     def load_embedding_cache(self, cache_file):
-        """Load embedding cache from file"""
         if os.path.exists(cache_file):
             try:
                 with open(cache_file, 'rb') as f:
@@ -145,7 +181,7 @@ class DeepLearningPPI:
                 print(f"Error loading embedding cache: {e}")
                 self.embedding_cache = {}
         else:
-            print("No embedding cache found, starting fresh")
+            print("No embedding cache found, starting with empty cache")
             self.embedding_cache = {}
 
 
@@ -154,58 +190,45 @@ def load_inflammatory_pathways(
         pathway_file="/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/KEGG outputs/kegg_inflammatory_pathways.csv"):
     """Load inflammatory pathway data and handle multiple pathways per gene"""
     try:
-        # Load the pathway file
-        path_df = pd.read_csv(pathway_file)
+        pathway_df = pd.read_csv(pathway_file)
+        print(f"Loaded {len(pathway_df)} gene-pathway associations")
 
-        # Get statistics on pathways
-        pathways = path_df['pathway'].unique()
-        pathway_counts = path_df.groupby('pathway').count()
+        # Count pathways and genes
+        unique_pathways = pathway_df['pathway'].unique()
+        print(f"Found {len(unique_pathways)} unique pathways")
 
-        print(f"Loaded {len(path_df)} gene-pathway associations")
-        print(f"Found {len(pathways)} unique pathways")
-        print(f"Top 5 pathways by gene count:")
-        for pathway, count in pathway_counts.sort_values('gene', ascending=False).head(5).iterrows():
-            print(f"  - {pathway}: {count['gene']} genes")
+        # Show top pathways by gene count
+        pathway_counts = pathway_df.groupby('pathway')['gene'].count().sort_values(ascending=False)
+        print("Top 5 pathways by gene count:")
+        for p, count in pathway_counts.head(5).items():
+            print(f"  - {p}: {count} genes")
 
-        # Check for overlapping genes
-        gene_pathway_counts = path_df.groupby('gene').count()
-        overlapping_genes = gene_pathway_counts[gene_pathway_counts['pathway'] > 1]
-        print(f"Found {len(overlapping_genes)} genes that belong to multiple pathways")
+        # Count multi-pathway genes
+        gene_pathway_counts = pathway_df.groupby('gene')['pathway'].count()
+        multi_pathway_genes = gene_pathway_counts[gene_pathway_counts > 1]
+        print(f"Found {len(multi_pathway_genes)} genes that belong to multiple pathways")
 
-        return path_df
+        return pathway_df
     except Exception as e:
-        print(f"Error loading inflammatory pathway data: {e}")
-        return pd.DataFrame(columns=["pathway", "gene"])
+        print(f"Error loading pathway data: {e}")
+        return pd.DataFrame()
 
 
 # Function to load sex-specific genes
 def load_sex_specific_genes(sex="M"):
     """Load differentially expressed genes from DESeq2 results"""
     try:
-        # Use the appropriate DESeq2 file based on sex
-        if sex == "M":
+        if sex.upper() == "M":
             file_path = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DESeq2 outputs/deseq2_results_M_OUD_vs_M_None.csv"
         else:
             file_path = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DESeq2 outputs/deseq2_results_F_OUD_vs_F_None.csv"
 
-        # Load the DESeq2 results
         deg_df = pd.read_csv(file_path)
-
-        # Check column names and use appropriate ones
-        padj_col = 'padj' if 'padj' in deg_df.columns else ('p.adj' if 'p.adj' in deg_df.columns else 'FDR')
-        log2fc_col = 'log2FoldChange' if 'log2FoldChange' in deg_df.columns else 'log2FC'
-
-        # Filter for significant DEGs (padj < 0.05 and |log2FC| > 1)
-        filtered_df = deg_df[(deg_df[padj_col] < 0.05) & (abs(deg_df[log2fc_col]) > 1)]
-
-        # Extract gene names
-        gene_column = "gene" if "gene" in deg_df.columns else deg_df.columns[0]
-        genes = filtered_df[gene_column].unique().tolist()
-
-        print(f"Loaded {len(genes)} {sex} sex-specific genes")
-        return genes
+        gene_list = deg_df['gene'].tolist()
+        print(f"Loaded {len(gene_list)} {sex} sex-specific genes")
+        return gene_list
     except Exception as e:
-        print(f"Error loading sex-specific genes: {e}")
+        print(f"Error loading {sex} sex-specific genes: {e}")
         return []
 
 
@@ -220,175 +243,86 @@ def create_complement_training_data(output_dir="DL-PPI outputs"):
 
     # Get known PPIs from STRING database
     try:
-        # Use a subset of inflammatory proteins as a seed
-        base_url = "https://string-db.org/api"
-        output_format = "tsv-no-header"
-        method = "network"
+        # Known C5/C3AR1 interaction
+        known_interactions = [
+            {"protein1": "P01031", "protein2": "Q16581", "interaction": 1},  # C5 and C3AR1
+        ]
 
-        # Download PPI data - FIX: Use proper URL encoding for multiple identifiers
-        proteins = ["C3", "C5", "CFB", "CFH", "CFD"]
-        request_url = f"{base_url}/{output_format}/{method}?identifiers={'%0D'.join(proteins)}&species=9606&add_nodes=20&network_type=physical"
+        # Add more known interactions from complement pathway
+        complement_pairs = [
+            ("P01024", "P17927"),  # C3 and CR1
+            ("P01024", "P15529"),  # C3 and CD46
+            ("P01024", "P13987"),  # C3 and CD59
+            ("P01031", "P21730"),  # C5 and C5AR1
+            ("P02748", "P13987"),  # C9 and CD59
+            ("P00736", "P13987"),  # C1R and CD59
+            ("P00736", "P05155"),  # C1R and SERPING1
+        ]
 
-        print(f"Requesting URL: {request_url}")
-        response = requests.get(request_url)
+        for pair in complement_pairs:
+            known_interactions.append({"protein1": pair[0], "protein2": pair[1], "interaction": 1})
 
-        if response.status_code != 200:
-            print(f"API request failed with status code {response.status_code}")
-            print(f"Response content: {response.text[:200]}...")
-            raise Exception("Failed to retrieve data from STRING database")
+        # Create equal number of negative samples (non-interacting proteins)
+        # Use proteins from different cellular compartments as negative samples
+        negative_pairs = [
+            ("P01024", "P01375"),  # C3 and TNF
+            ("P01031", "P01584"),  # C5 and IL1B
+            ("P02748", "P05231"),  # C9 and IL6
+            ("P00736", "P10145"),  # C1R and CXCL8
+            ("P13987", "P16581"),  # CD59 and ELAM1
+            ("P15529", "P29460"),  # CD46 and IL12B
+            ("P17927", "P01375"),  # CR1 and TNF
+        ]
 
-        # Parse response and handle different column formats
-        response_text = response.text.strip()
-        if not response_text:
-            raise Exception("Empty response from STRING database")
+        for pair in negative_pairs:
+            known_interactions.append({"protein1": pair[0], "protein2": pair[1], "interaction": 0})
 
-        # Debug the response
-        print(f"First few lines of API response:")
-        print('\n'.join(response_text.split('\n')[:5]))
+        # Download protein sequences
+        protein_sequences_dict = {}
+        for interaction in known_interactions:
+            for protein_key in ["protein1", "protein2"]:
+                uniprot_id = interaction[protein_key]
+                if uniprot_id not in protein_sequences_dict:
+                    try:
+                        # Get protein sequence from UniProt
+                        url = f"https://www.uniprot.org/uniprot/{uniprot_id}.fasta"
+                        response = requests.get(url)
 
-        ppi_df = pd.read_csv(StringIO(response_text), sep='\t', header=None)
-
-        # Handle different column formats
-        if len(ppi_df.columns) == 3:
-            ppi_df.columns = ['protein1', 'protein2', 'score']
-        elif len(ppi_df.columns) == 4:
-            ppi_df.columns = ['protein1', 'protein2', 'score', 'additional']
-            # Keep only the columns we need
-            ppi_df = ppi_df[['protein1', 'protein2', 'score']]
-        else:
-            print(f"Warning: Unexpected column count in response: {len(ppi_df.columns)}")
-            print(f"Columns: {ppi_df.columns}")
-            # Create minimal required columns
-            if len(ppi_df.columns) >= 2:
-                ppi_df = ppi_df.iloc[:, :2]
-                ppi_df.columns = ['protein1', 'protein2']
-                ppi_df['score'] = 900  # Default high score
-            else:
-                raise Exception(f"Insufficient columns in API response: {len(ppi_df.columns)}")
-
-        # Filter for high confidence interactions
-        if 'score' in ppi_df.columns:
-            ppi_df = ppi_df[ppi_df['score'] > 700]
-
-        print(f"Downloaded {len(ppi_df)} high-confidence PPIs")
-
-        # Create backup data if no PPIs found
-        if len(ppi_df) == 0:
-            print("No PPIs found, creating sample data for testing")
-            sample_proteins = ['P01024', 'P01031', 'P00751', 'P08603', 'P00746']
-            sample_pairs = []
-            for i in range(len(sample_proteins)):
-                for j in range(i + 1, len(sample_proteins)):
-                    sample_pairs.append((sample_proteins[i], sample_proteins[j], 900))
-            ppi_df = pd.DataFrame(sample_pairs, columns=['protein1', 'protein2', 'score'])
-
-        # Create positive and negative examples
-        proteins = set(ppi_df['protein1'].tolist() + ppi_df['protein2'].tolist())
-
-        # Generate negative examples
-        neg_pairs = []
-        num_pos = len(ppi_df)
-
-        while len(neg_pairs) < num_pos:
-            p1 = np.random.choice(list(proteins))
-            p2 = np.random.choice(list(proteins))
-
-            if p1 != p2 and not ppi_df[(ppi_df['protein1'] == p1) & (ppi_df['protein2'] == p2)].any().any():
-                if not ppi_df[(ppi_df['protein1'] == p2) & (ppi_df['protein2'] == p1)].any().any():
-                    neg_pairs.append((p1, p2, 0))  # Include label 0 for negative examples
-
-        # Create balanced dataset
-        pos_data = [(row['protein1'], row['protein2'], 1) for _, row in ppi_df.iterrows()]
-
-        # Combine and shuffle
-        all_data = pos_data + neg_pairs
-        np.random.shuffle(all_data)
-
-        # Create DataFrame with explicit column names
-        train_df = pd.DataFrame(all_data, columns=['protein1', 'protein2', 'interaction_label'])
-        print(f"Created {len(train_df)} training pairs, {len(pos_data)} positive, {len(neg_pairs)} negative")
-
-        # Get protein sequences
-        protein_sequences = {}
-        for protein_id in tqdm(proteins, desc="Downloading protein sequences"):
-            try:
-                # Check if it's a STRING ID (has 9606.ENSP format)
-                if protein_id.startswith('9606.ENSP'):
-                    # Extract the Ensembl ID part
-                    ensembl_id = protein_id.split('.')[1]
-
-                    # Use mygene to convert Ensembl ID to UniProt
-                    from mygene import MyGeneInfo
-                    mg = MyGeneInfo()
-                    result = mg.query(ensembl_id, scopes='ensembl.protein', fields='uniprot', species='human')
-
-                    if result['hits'] and 'uniprot' in result['hits'][0]:
-                        # Get the UniProt ID
-                        if 'Swiss-Prot' in result['hits'][0]['uniprot']:
-                            uniprot_id = result['hits'][0]['uniprot']['Swiss-Prot']
-                        elif isinstance(result['hits'][0]['uniprot'], list) and len(result['hits'][0]['uniprot']) > 0:
-                            uniprot_id = result['hits'][0]['uniprot'][0]
-                        else:
-                            print(f"No Swiss-Prot entry found for {protein_id}")
-                            continue
-
-                        # Download sequence using proper UniProt ID
-                        response = requests.get(f"https://rest.uniprot.org/uniprotkb/{uniprot_id}.fasta")
                         if response.status_code == 200:
-                            lines = response.text.strip().split('\n')
-                            sequence = ''.join(lines[1:])
-                            protein_sequences[protein_id] = sequence
-                        else:
-                            print(
-                                f"Could not retrieve sequence for mapped ID {uniprot_id}, status: {response.status_code}")
-                    else:
-                        print(f"Could not map {protein_id} to UniProt")
-                else:
-                    # Try original method for non-Ensembl IDs (assumed to be UniProt)
-                    response = requests.get(f"https://rest.uniprot.org/uniprotkb/{protein_id}.fasta")
-                    if response.status_code == 200:
-                        lines = response.text.strip().split('\n')
-                        sequence = ''.join(lines[1:])
-                        protein_sequences[protein_id] = sequence
-                    else:
-                        print(f"Could not retrieve sequence for {protein_id}, status: {response.status_code}")
-            except Exception as e:
-                print(f"Error processing {protein_id}: {e}")
+                            # Parse FASTA
+                            sequence_lines = response.text.strip().split('\n')
+                            if len(sequence_lines) > 1:
+                                # Extract sequence from FASTA (skip the header line)
+                                sequence = ''.join(sequence_lines[1:])
+                                protein_sequences_dict[uniprot_id] = sequence
+                    except Exception as e:
+                        print(f"Error downloading sequence for {uniprot_id}: {e}")
 
-        print(f"Downloaded {len(protein_sequences)} protein sequences")
+        # Save data to files
+        ensure_path(f"{output_dir}/data")
 
-        # Save data
-        os.makedirs(f"{output_dir}/data", exist_ok=True)
-        train_df.to_csv(f"{output_dir}/data/known_interactions.csv", index=False)
+        # Create dataframe
+        training_df = pd.DataFrame(known_interactions)
+        training_df.columns = ['protein1', 'protein2', 'interaction_label']
 
-        # Save protein sequences as FASTA
-        with open(f"{output_dir}/data/protein_sequences.fasta", 'w') as f:
-            for protein_id, sequence in protein_sequences.items():
-                f.write(f">{protein_id}\n{sequence}\n")
+        # Shuffle data
+        training_df = training_df.sample(frac=1, random_state=RANDOM_SEED).reset_index(drop=True)
 
-        return train_df, protein_sequences
+        # Save training data
+        training_df.to_csv(f"{output_dir}/data/known_interactions.csv", index=False)
+
+        # Save protein sequences
+        with open(f"{output_dir}/data/protein_sequences.pkl", 'wb') as f:
+            pickle.dump(protein_sequences_dict, f)
+
+        print(f"Created training data with {len(training_df)} protein interactions")
+        print(f"Saved protein sequences for {len(protein_sequences_dict)} proteins")
+
+        return training_df, protein_sequences_dict
 
     except Exception as e:
         print(f"Error creating training data: {e}")
-        # Create fallback minimal dataset so the pipeline doesn't fail
-        fallback_proteins = ['P01024', 'P01031', 'P00751', 'P08603', 'P00746']
-        fallback_sequences = {
-            'P01024': 'MGPTSGPSLLLLLLTHLPLALGSPMYSIITPNILRLESEETMVLEAHDAQGDVPVTVTVHDFPGKKLVLSSEKTVLTPATNHMGNVTFTIPANREFKSEKGRNKFVTVQATFGTQVVEKVVLVSLQSGYLFIQTDKTIYTPGSTVLYRIFTVNHKLLPVGRTVMVNIENPEGIPVKQDSLSSQNQLGVLPLSWDIPELVNMGQWKIRAYYENSPQQVFSTEFEVKEYVLPSFEVIVEPTEKFYYIYNEKGLEVTITARFLYGKKVEGTAFVIFGIQDGEQRISLPESLKRIPIEDGSGEVVLSRKVLLDGVQNPRAEDLVGKSLYVSATVILHSGSDMVQAERSGIPIVTSPYQIHFTKTPKYFKPGMPFDLMVFVTNPDGSPAYRVPVAVQGEDTVQSLTQGDGVAKLSINTHPSQKPLSITVRTKKQELSEAEQATRTMQALPYSTVGNSNNYLHLSVLRTELRPGETLNVNFLLRMDRAHEAKIRYYTYLIMNKGRLLKAGRQVREPGQDLVVLPLSITTDFIPSFRLVAYYTLIGASGQREVVADSVWVDVKDSCVGSLVVKSGQSEDRQPVPGQQMTLKIEGDHGARVVLVAVDKGVFVLNKKNKLTQSKIWDVVEKADIGCTPGSGKDYAGVFSDAGLTFTSSSGQQTAQRAELQCPQPAAR',
-            'P01031': 'MGLLGILCFLIFLGKTWGQEQTYVISAPKIFRVGASENIVIQVTGYTEAEISVPANVQFTCPPPQDTSLNTKGICESPGVIPTKTKPLSVFKCDTPPEVNVHVPGLYVIGTSVILQEGHLAFLTPGKPYQAVVFVGLKKDVPVYEIGVPAESTGTWNLGSSLWSHEYDVGHIMFSFGPPTHDVNFPLEITCEQTTKQPWDCPKIKCSRCMPTQGQTVTNTLHYLKGVKVLLENLDVTIETDYAEPEFIIKRPDIAVSTWDPHARTTFKSFIKVLRNSQYSELDFGTVKEVVPEGISVPIEGTVKILMSGSVVSKRKTLYSSVPKEKGQALISPFHEFDIHGDDLAEELDLNISDISGFLGAMYVINFKGDIQVTFTNVVVESGSLVKSNLSSSVVYTKVTLVDYKERLASIQLPELTKMPFTLQVVTACRHGVCSEGDLASIASLKVQEAAISLTSIHPDIIQLIKTNLSLFEHSIAHCFIENVLMTNLELSDRGGSNFDCWTSVRGYQEGKVFYLLEDPTISLSRNSLEISKLKADMVPLNTDFRQFVTLPVLYQLSFDQLALNYIIPQMTNCILYGPDGGSTVMASVSVFLILGAVLLFIMIACVLRRQKRPPDREAPSLKDEFNSLVGFFPVFLSAVFFAIGLVLGVALRHRKRQQKINEQEIAAIGARPQPSLQPPSTTKTPPTKTPSPKPVLVSLPSLLKTDTEQHQVPSQDQVRIQQESPVEGASDTLSPEEEQASGGLAEALAALVVVVLVVVILIALIAYFRQKITPGKCAVNFIQSRQRTSIHIGHANEISVSIHAEDSDSSSSGDHIASSVSVIAREDDELPGDRLYVQLSSPGFTKEKVQINVTQVIPVTLQPLPSFRILMGSILNQLTFNPSELQLVFWEYDPSKMAIPILSIDPLVIHQDWLNMGVWLHAFSHQDGLHSLLVPVSLEDIQGWFNMLGISIAFLLLYFLVRLLLCRRPPRSQGSPQLLKTPDILPTRQPLSSISNRDNRKHSRPSQTSTKSPKLSHNSHMGVVPTASSLNVETQASQGTFSHFFPHQE',
-            'P00751': 'MRLLAKIICLMLWAICVAQDCVPKEGSDQNPRGQPNIPGSYPEGPGSYPEGPQIPGSYPEGPGSYPEGPGSYPEGTLSYGPGGGIYGSYPEGPGSYAEGPGSYAEGPGSYAEGPGSYPEGPQIYAEGPGSYAEGPRSYAEGPRIYAEGPGSYAEGPTIYAEGPGSYAEGTGIYAEGPGSYAEGRQSYSEGPQIYPEGPGIYAEGPQIYSEGPGIYPEGPGSYAEGPGIYAEGPTIYAEGPGIYAEGPGIYAEGPGIYAEGPTIYAEGPGIYAEGPGIYPEGPGIYAEGPGIYSEGPRSYAEGPGIYPEGPGIYPEGPGIYAEGPGIYPEGPGIYPEGPGSYDEGPGIYPEGPGAYPEGPGIYPEGPGIYPEGPGIYPEGPGAYTEGPGSYAEGPGSYPEGPGSYPEGPGSYPEGTLSYGPGG',
-            'P08603': 'MRLLAKIICLMADSCSPTRLLLYYISYTVLLFALSFIHFSTTQCGYPCEIRRGENAVFQEHGDKVELPAAKPNPTTGPATVVEEVCANRHVYYGAVAGFGGGVKKQVLFDLVPVRSRRVPLHEIYNDGAYHVGQALLTPTEVTYTCNEGYSLIGNHTAACVLIGEINGDYLELDSNTTHMMDFGPCIVPDRKHAHGQSQVLDVQRFGLCRASNMPTTVGRFSSAPNILRLRYHNEEWAEIIKDAYWAKILATPGSVGEHYFTAVVEKLAQLAGKYTYLVLTLRHAKLTGGSPIYTGSSMVFEPPKQGYSILALLDTNLKHVVTAKGKEGAWDADNCCVKKCGKFSACQDSGNDCGDFSDEDDCEPCQHRKCNNPPPQNGGSPCPGIYNEKLNYPGSVKTYSCDPRRLVNGDANQTCTDGEWANLPSFCQREDSFISCKLSPCSQPPQIEHGTINSSRSSQESYAHGTKLSYTCEGGFRISEENETTCYMGKWSSPPQCEGLPCKSPPEISHGVVAHMASPSTSPDTGTTAERKKREVEKTVDCCSLTLGLLIGILVLVFCLYFKKSRKKPSYKPRPTDPLSIPVVTPTLPTSLPTVVETTASTEKCQGAGYVTQSLPVPTAPKLCPPPPQIPNSHNMTTTLNYRDGEKVSVLCQENYLIQEGEEITCKDGRWQSIPLCVEKIPCSQPPQIEHGTINSSRMSLLWDQQKLPSCPQDITVNSSQDWGSVKSYECKPGYRLQGADTTICLENGWSPEPPQCIRKCKS',
-            'P00746': 'MGATRSVWGLLGAAAVLWAVSGDSCHWDEDCVEIFTNGKWNDRACGDKSAKCRLIKDPGCEYRNECKEIVEEAEERMEEVDQCVVAHRGGPGSQVWLGRCCPGGECPRKKFTICVPESRYWELKDGCVGFGGGDLKCQGCGNPWKPLPECKGDVKCVPIELRRRQSVLTEIHQGVCLEVDECGAAPGQCLDGSALWEFSCHTSCPVKSQPCGFDACWPEHTWNCSVSSCGGGVQCRRTCTDNNKCEGRWRCDGEACGQQCKTKACDGECCAYVHRGKCVPGFGGGWQCGCHNKCIDKFWCDGDPDCKDGSDEVSCPRVPTCKPPCGHRRCQCHAACQVGWACSQDECLSGLCMGDGICQCDSKLCEGDKFCQRGQCICKDSGRWGCNCERRCEQERLAVRYEACDTDDECSGLEKCKDGVCQCPRRRELRYLGPCKAPGIQCGKGTCVQRSSRTDSGRCICGAGTVGYHCEHSDCPSGYHCECRAGYTGAFCDQDLFCPEAVRCEPVQCPPPKIAAAVLPVAVALAVLIALLVLSAIWYSWKRHSRTANNLDIVELYRIADL'
-        }
-
-        fallback_pairs = []
-        for i in range(len(fallback_proteins)):
-            for j in range(i + 1, len(fallback_proteins)):
-                fallback_pairs.append((fallback_proteins[i], fallback_proteins[j], 1 if i % 2 == 0 else 0))
-
-        train_df = pd.DataFrame(fallback_pairs, columns=['protein1', 'protein2', 'interaction_label'])
-        print(f"Created {len(train_df)} fallback training pairs")
-
-        return train_df, fallback_sequences
+        return pd.DataFrame(), {}
 
 
 # Helper to generate pathway-based pairs
@@ -399,26 +333,24 @@ def generate_pathway_based_pairs(gene_list, pathway_df, protein_sequences_dict, 
 
     pairs = []
     for pathway, genes in pathway_groups.items():
-        # Find intersection with our gene list
-        pathway_genes = [g for g in genes if g in gene_list]
+        # Filter genes to include only those in both our gene list and pathway
+        pathway_genes = list(set(genes).intersection(set(gene_list)))
 
-        # Get UniProt IDs where available
+        # Get UniProt IDs with sequences
         uniprot_ids = [gene_to_uniprot.get(g) for g in pathway_genes]
-        uniprot_ids = [u for u in uniprot_ids if u and u in protein_sequences_dict]
+        uniprot_ids_raw = [u for u in uniprot_ids if u]
+        uniprot_ids = [u for u in uniprot_ids_raw if u in protein_sequences_dict]
+        print(
+            f"Pathway {pathway}: Found {len(pathway_genes)} genes, {len(uniprot_ids_raw)} with UniProt IDs, "
+            f"{len(uniprot_ids)} with sequences"
+        )
 
-        # Generate all pairwise combinations within pathway
+        # Create all protein pairs within this pathway
         for i in range(len(uniprot_ids)):
             for j in range(i + 1, len(uniprot_ids)):
                 pairs.append((uniprot_ids[i], uniprot_ids[j]))
 
     print(f"Generated {len(pairs)} pathway-based protein pairs")
-
-    # After getting UniProt IDs
-    uniprot_ids = [gene_to_uniprot.get(g) for g in pathway_genes]
-    uniprot_ids_raw = [u for u in uniprot_ids if u]
-    uniprot_ids = [u for u in uniprot_ids_raw if u in protein_sequences_dict]
-    print(
-        f"Pathway {pathway}: Found {len(pathway_genes)} genes, {len(uniprot_ids_raw)} with UniProt IDs, {len(uniprot_ids)} with sequences")
     return pairs
 
 
@@ -432,11 +364,12 @@ def get_pathway_info(gene1, gene2, pathway_df):
     common_pathways = list(set(gene1_pathways) & set(gene2_pathways))
 
     return {
-        'shared_pathways': common_pathways,
         'gene1_pathways': gene1_pathways,
         'gene2_pathways': gene2_pathways,
-        'is_same_pathway': len(common_pathways) > 0
+        'common_pathways': common_pathways,
+        'has_common_pathway': len(common_pathways) > 0
     }
+
 
 # Dataset class for protein-protein interactions
 class PPIDataset(Dataset):
@@ -446,32 +379,34 @@ class PPIDataset(Dataset):
         self.sequences_dict = sequences_dict
         self.model = model
 
+        # Precompute and cache embeddings for all proteins to speed up training
+        for pair in pairs:
+            for protein in pair:
+                if protein in sequences_dict and protein not in model.embedding_cache:
+                    model.get_embeddings(sequences_dict[protein], use_cache=True)
+
     def __len__(self):
         return len(self.pairs)
 
     def __getitem__(self, idx):
-        p1, p2 = self.pairs[idx]
+        protein1, protein2 = self.pairs[idx]
+
+        # Get sequences
+        seq1 = self.sequences_dict[protein1]
+        seq2 = self.sequences_dict[protein2]
+
+        # Get embeddings
+        emb1 = self.model.get_embeddings(seq1)
+        emb2 = self.model.get_embeddings(seq2)
+
+        # Concatenate embeddings
+        combined = np.concatenate([emb1, emb2])
+
+        # Get label
         label = self.labels[idx]
 
-        # Get protein sequences with better placeholder
-        seq1 = self.sequences_dict.get(p1, "X" * 10)
-        seq2 = self.sequences_dict.get(p2, "X" * 10)
+        return torch.tensor(combined, dtype=torch.float32), torch.tensor([label], dtype=torch.float32)
 
-        # Get embeddings with error handling
-        try:
-            emb1 = self.model.get_embeddings(seq1)
-            emb2 = self.model.get_embeddings(seq2)
-        except Exception as e:
-            print(f"Error generating embeddings for {p1}/{p2}: {e}")
-            # Return zero embeddings as fallback
-            emb1 = np.zeros(1280)
-            emb2 = np.zeros(1280)
-
-        return {
-            "emb1": torch.tensor(emb1, dtype=torch.float32),
-            "emb2": torch.tensor(emb2, dtype=torch.float32),
-            "label": torch.tensor(label, dtype=torch.float32)
-        }
 
 # Training function with memory optimization
 def train_ppi_model(train_pairs, train_labels, protein_sequences_dict,
@@ -486,7 +421,9 @@ def train_ppi_model(train_pairs, train_labels, protein_sequences_dict,
 
     # Split data for training and validation
     train_indices, val_indices = train_test_split(
-        range(len(dataset)), test_size=0.2, random_state=RANDOM_SEED,
+        range(len(dataset)),
+        test_size=0.2,
+        random_state=RANDOM_SEED,
         stratify=train_labels
     )
 
@@ -494,13 +431,17 @@ def train_ppi_model(train_pairs, train_labels, protein_sequences_dict,
     val_sampler = torch.utils.data.SubsetRandomSampler(val_indices)
 
     train_loader = DataLoader(
-        dataset, batch_size=batch_size, sampler=train_sampler,
-        num_workers=0, pin_memory=False
+        dataset,
+        batch_size=batch_size,
+        sampler=train_sampler,
+        num_workers=0  # No multiprocessing for RAM conservation
     )
 
     val_loader = DataLoader(
-        dataset, batch_size=batch_size, sampler=val_sampler,
-        num_workers=0, pin_memory=False
+        dataset,
+        batch_size=batch_size,
+        sampler=val_sampler,
+        num_workers=0  # No multiprocessing for RAM conservation
     )
 
     # Initialize optimizer
@@ -521,108 +462,88 @@ def train_ppi_model(train_pairs, train_labels, protein_sequences_dict,
 
     print("Starting training...")
     for epoch in range(epochs):
-        # Training
+        # Training phase
         model.classifier.train()
-        train_loss = 0.0
-        train_pbar = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{epochs} [Train]")
+        train_loss = 0
+        train_count = 0
 
-        for batch in train_pbar:
-            # Zero gradients
-            optimizer.zero_grad()
-
-            # Get embeddings and labels
-            emb1 = batch["emb1"].to(model.device)
-            emb2 = batch["emb2"].to(model.device)
-            labels = batch["label"].unsqueeze(1).to(model.device)
+        for inputs, targets in train_loader:
+            inputs = inputs.to(model.device)
+            targets = targets.to(model.device)
 
             # Forward pass
-            concat_emb = torch.cat([emb1, emb2], dim=1)
-            outputs = model.classifier(concat_emb)
+            optimizer.zero_grad()
+            outputs = model.classifier(inputs)
+            loss = criterion(outputs, targets)
 
-            # Calculate loss
-            loss = criterion(outputs, labels)
-
-            # Backward pass
+            # Backward pass and update
             loss.backward()
-
-            # Gradient clipping
-            torch.nn.utils.clip_grad_norm_(model.classifier.parameters(), max_norm=1.0)
-
-            # Update weights
             optimizer.step()
 
-            # Update loss
-            train_loss += loss.item() * labels.size(0)
-            train_pbar.set_postfix({"batch_loss": f"{loss.item():.4f}"})
+            # Accumulate loss
+            train_loss += loss.item() * inputs.size(0)
+            train_count += inputs.size(0)
 
-            # Force garbage collection
-            gc.collect()
-            if hasattr(torch.cuda, 'empty_cache'):
-                torch.cuda.empty_cache()
+            # Memory management
+            del inputs, targets, outputs
+            torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
-        # Calculate average training loss
-        train_loss = train_loss / len(train_indices)
+        train_loss = train_loss / train_count
 
-        # Validation
+        # Validation phase
         model.classifier.eval()
-        val_loss = 0.0
-        correct = 0
-        total = 0
+        val_loss = 0
+        val_correct = 0
+        val_count = 0
 
-        val_pbar = tqdm(val_loader, desc=f"Epoch {epoch + 1}/{epochs} [Val]")
         with torch.no_grad():
-            for batch in val_pbar:
-                # Get embeddings and labels
-                emb1 = batch["emb1"].to(model.device)
-                emb2 = batch["emb2"].to(model.device)
-                labels = batch["label"].unsqueeze(1).to(model.device)
+            for inputs, targets in val_loader:
+                inputs = inputs.to(model.device)
+                targets = targets.to(model.device)
 
                 # Forward pass
-                concat_emb = torch.cat([emb1, emb2], dim=1)
-                outputs = model.classifier(concat_emb)
-
-                # Calculate loss
-                loss = criterion(outputs, labels)
-                val_loss += loss.item() * labels.size(0)
+                outputs = model.classifier(inputs)
+                loss = criterion(outputs, targets)
 
                 # Calculate accuracy
-                predicted = (outputs > 0.5).float()
-                correct += (predicted == labels).sum().item()
-                total += labels.size(0)
+                preds = (outputs > 0.5).float()
+                val_correct += (preds == targets).sum().item()
 
-                val_pbar.set_postfix({"batch_loss": f"{loss.item():.4f}"})
+                # Accumulate loss
+                val_loss += loss.item() * inputs.size(0)
+                val_count += inputs.size(0)
 
-                # Force garbage collection
-                gc.collect()
-                if hasattr(torch.cuda, 'empty_cache'):
-                    torch.cuda.empty_cache()
+                # Memory management
+                del inputs, targets, outputs, preds
+                torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
-        # Calculate average validation loss and accuracy
-        val_loss = val_loss / len(val_indices)
-        val_acc = correct / total
+        val_loss = val_loss / val_count
+        val_acc = val_correct / val_count
 
-        print(
-            f"Epoch {epoch + 1}/{epochs}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
-
-        # Learning rate scheduler
+        # Update learning rate if needed
         if lr_scheduler:
             scheduler.step(val_loss)
 
-        # Early stopping
+        # Print progress
+        print(
+            f"Epoch {epoch + 1}/{epochs} - Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
+
+        # Check for early stopping
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
-
             # Save best model
             os.makedirs(output_dir, exist_ok=True)
             torch.save(model.classifier.state_dict(), f"{output_dir}/classifier_head.pt")
-            print(f"Saved best model with val_loss: {val_loss:.4f}")
+            print(f"Saved model checkpoint with validation loss {val_loss:.4f}")
         else:
             patience_counter += 1
+            if patience_counter >= patience:
+                print(f"Early stopping at epoch {epoch + 1}")
+                break
 
-        if patience_counter >= patience:
-            print(f"Early stopping after {epoch + 1} epochs")
-            break
+        # Garbage collection
+        gc.collect()
 
     # Load best model
     model.classifier.load_state_dict(torch.load(f"{output_dir}/classifier_head.pt"))
@@ -635,1158 +556,7 @@ def predict_ppi_deep_learning(protein_pairs, protein_sequences_dict, model=None,
                               output_dir="DL-PPI outputs/results"):
     """Predict protein-protein interactions using deep learning"""
     print(f"Predicting interactions for {len(protein_pairs)} protein pairs...")
-    import os
-    import torch
-    import pandas as pd
-    import numpy as np
-    import json
-    import time
-    import gc
-    import pickle
-    from tqdm import tqdm
-    from torch.utils.data import Dataset, DataLoader
-    from sklearn.model_selection import train_test_split
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    import networkx as nx
-    from scipy import stats
-    import os
-    os.environ["OMP_NUM_THREADS"] = "1"  # Limit OpenMP threads
-    import torch
-    torch.set_num_threads(4)  # Reduce parallel threads
 
-    # Constants
-    RANDOM_SEED = 42
-    np.random.seed(RANDOM_SEED)
-    torch.manual_seed(RANDOM_SEED)
-
-    # Memory optimization for M1 Mac
-    def optimize_for_m1_mac():
-        """Configure environment for optimal performance on M1 Mac with limited RAM"""
-        # Enable MPS (Metal Performance Shaders) for M1 acceleration
-        if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-            device = torch.device("mps")
-            print("Using MPS (Apple Silicon GPU) acceleration")
-        else:
-            device = torch.device("cpu")
-            print("MPS not available, using CPU")
-
-        # Limit memory usage
-        os.environ["TOKENIZERS_PARALLELISM"] = "false"
-        torch.set_num_threads(4)  # Prevent thread explosion
-
-        return device
-
-    # Function to ensure directory exists
-    def ensure_path(path):
-        os.makedirs(path, exist_ok=True)
-        return path
-
-    # Enhanced DeepLearningPPI class with memory optimizations
-    class DeepLearningPPI:
-        def __init__(self, model_name="facebook/esm2_t33_650M_UR50D", embedding_cache=None):
-            """Initialize with a pre-trained protein language model"""
-            print(f"Loading {model_name} model with memory optimizations...")
-            # Get optimized device
-            self.device = optimize_for_m1_mac()
-            self.embedding_cache = embedding_cache or {}
-
-            # Load tokenizer
-            from transformers import AutoTokenizer, AutoModel, AutoConfig
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-            # Load model with memory optimizations
-            config = AutoConfig.from_pretrained(model_name)
-            with torch.no_grad():
-                self.model = AutoModel.from_pretrained(
-                    model_name,
-                    config=config,
-                    torch_dtype=torch.float16,  # Use FP16 instead of FP32
-                    low_cpu_mem_usage=True
-                ).to(self.device)
-
-            # Define a smaller classifier head
-            self.classifier = torch.nn.Sequential(
-                torch.nn.Linear(2 * 1280, 256),  # Reduced intermediate size
-                torch.nn.ReLU(),
-                torch.nn.Dropout(0.1),
-                torch.nn.Linear(256, 64),  # Reduced intermediate size
-                torch.nn.ReLU(),
-                torch.nn.Dropout(0.1),
-                torch.nn.Linear(64, 1),
-                torch.nn.Sigmoid()
-            ).to(self.device)
-
-            print(f"Model loaded on {self.device}")
-
-        def get_embeddings(self, sequence, max_length=512, use_cache=True):
-            """Get protein embedding with memory optimizations"""
-            # Check cache first if enabled
-            if use_cache and sequence in self.embedding_cache:
-                return self.embedding_cache[sequence]
-
-            # Truncate sequence if needed
-            if len(sequence) > max_length:
-                sequence = sequence[:max_length]
-
-            # Use context manager to clear cache immediately
-            with torch.no_grad():
-                inputs = self.tokenizer(sequence, return_tensors="pt").to(self.device)
-                outputs = self.model(**inputs)
-                # Get embedding and immediately move to CPU and numpy
-                embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()
-
-            # Force garbage collection
-            if hasattr(torch.cuda, 'empty_cache'):
-                torch.cuda.empty_cache()
-            gc.collect()
-
-            # Cache the result if enabled
-            if use_cache:
-                self.embedding_cache[sequence] = embedding[0]
-
-            return embedding[0]
-
-        def predict_interaction(self, seq1, seq2):
-            """Predict interaction between two proteins"""
-            # Get embeddings
-            emb1 = torch.tensor(self.get_embeddings(seq1)).unsqueeze(0).to(self.device)
-            emb2 = torch.tensor(self.get_embeddings(seq2)).unsqueeze(0).to(self.device)
-
-            # Concatenate embeddings
-            concat_emb = torch.cat([emb1, emb2], dim=1)
-
-            # Get prediction
-            with torch.no_grad():
-                prediction = self.classifier(concat_emb).item()
-
-            return {
-                "prediction": round(prediction, 4),
-                "method": "deep_learning_esm2"
-            }
-
-        def load_embedding_cache(self, cache_file):
-            """Load embedding cache from file"""
-            if os.path.exists(cache_file):
-                try:
-                    with open(cache_file, 'rb') as f:
-                        self.embedding_cache = pickle.load(f)
-                    print(f"Loaded {len(self.embedding_cache)} embeddings from cache")
-                except Exception as e:
-                    print(f"Error loading embedding cache: {e}")
-                    self.embedding_cache = {}
-            else:
-                print("No embedding cache found, starting fresh")
-                self.embedding_cache = {}
-
-    # Enhanced function to load inflammatory pathway data
-    def load_inflammatory_pathways(
-            pathway_file="/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/KEGG outputs/kegg_inflammatory_pathways.csv"):
-        """Load inflammatory pathway data and handle multiple pathways per gene"""
-        try:
-            # Load the pathway file
-            path_df = pd.read_csv(pathway_file)
-
-            # Get statistics on pathways
-            pathways = path_df['pathway'].unique()
-            pathway_counts = path_df.groupby('pathway').count()
-
-            print(f"Loaded {len(path_df)} gene-pathway associations")
-            print(f"Found {len(pathways)} unique pathways")
-            print(f"Top 5 pathways by gene count:")
-            for pathway, count in pathway_counts.sort_values('gene', ascending=False).head(5).iterrows():
-                print(f"  - {pathway}: {count['gene']} genes")
-
-            # Check for overlapping genes
-            gene_pathway_counts = path_df.groupby('gene').count()
-            overlapping_genes = gene_pathway_counts[gene_pathway_counts['pathway'] > 1]
-            print(f"Found {len(overlapping_genes)} genes that belong to multiple pathways")
-
-            return path_df
-        except Exception as e:
-            print(f"Error loading inflammatory pathway data: {e}")
-            return pd.DataFrame(columns=["pathway", "gene"])
-
-    # Function to load sex-specific genes
-    def load_sex_specific_genes(sex="M"):
-        """Load differentially expressed genes from DESeq2 results"""
-        try:
-            # Use the appropriate DESeq2 file based on sex
-            if sex == "M":
-                file_path = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DESeq2 outputs/deseq2_results_M_OUD_vs_M_None.csv"
-            else:
-                file_path = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DESeq2 outputs/deseq2_results_F_OUD_vs_F_None.csv"
-
-            # Load the DESeq2 results
-            deg_df = pd.read_csv(file_path)
-
-            # Check column names and use appropriate ones
-            padj_col = 'padj' if 'padj' in deg_df.columns else ('p.adj' if 'p.adj' in deg_df.columns else 'FDR')
-            log2fc_col = 'log2FoldChange' if 'log2FoldChange' in deg_df.columns else 'log2FC'
-
-            # Filter for significant DEGs (padj < 0.05 and |log2FC| > 1)
-            filtered_df = deg_df[(deg_df[padj_col] < 0.05) & (abs(deg_df[log2fc_col]) > 1)]
-
-            # Extract gene names
-            gene_column = "gene" if "gene" in deg_df.columns else deg_df.columns[0]
-            genes = filtered_df[gene_column].unique().tolist()
-
-            print(f"Loaded {len(genes)} {sex} sex-specific genes")
-            return genes
-        except Exception as e:
-            print(f"Error loading sex-specific genes: {e}")
-            return []
-
-    # Function to create complement training data
-    def create_complement_training_data(output_dir="DL-PPI outputs"):
-        """Create training data for the model"""
-        import requests
-        import re
-        from io import StringIO
-
-        print("Creating training data for protein-protein interactions...")
-
-        # Get known PPIs from STRING database
-        try:
-            # Use a subset of inflammatory proteins as a seed
-            base_url = "https://string-db.org/api"
-            output_format = "tsv-no-header"
-            method = "network"
-
-            # Download PPI data - FIX: Use proper URL encoding for multiple identifiers
-            proteins = ["C3", "C5", "CFB", "CFH", "CFD"]
-            request_url = f"{base_url}/{output_format}/{method}?identifiers={'%0D'.join(proteins)}&species=9606&add_nodes=20&network_type=physical"
-
-            print(f"Requesting URL: {request_url}")
-            response = requests.get(request_url)
-
-            if response.status_code != 200:
-                print(f"API request failed with status code {response.status_code}")
-                print(f"Response content: {response.text[:200]}...")
-                raise Exception("Failed to retrieve data from STRING database")
-
-            # Parse response and handle different column formats
-            response_text = response.text.strip()
-            if not response_text:
-                raise Exception("Empty response from STRING database")
-
-            # Debug the response
-            print(f"First few lines of API response:")
-            print('\n'.join(response_text.split('\n')[:5]))
-
-            ppi_df = pd.read_csv(StringIO(response_text), sep='\t', header=None)
-
-            # Handle different column formats
-            if len(ppi_df.columns) == 3:
-                ppi_df.columns = ['protein1', 'protein2', 'score']
-            elif len(ppi_df.columns) == 4:
-                ppi_df.columns = ['protein1', 'protein2', 'score', 'additional']
-                # Keep only the columns we need
-                ppi_df = ppi_df[['protein1', 'protein2', 'score']]
-            else:
-                print(f"Warning: Unexpected column count in response: {len(ppi_df.columns)}")
-                print(f"Columns: {ppi_df.columns}")
-                # Create minimal required columns
-                if len(ppi_df.columns) >= 2:
-                    ppi_df = ppi_df.iloc[:, :2]
-                    ppi_df.columns = ['protein1', 'protein2']
-                    ppi_df['score'] = 900  # Default high score
-                else:
-                    raise Exception(f"Insufficient columns in API response: {len(ppi_df.columns)}")
-
-            # Filter for high confidence interactions
-            if 'score' in ppi_df.columns:
-                ppi_df = ppi_df[ppi_df['score'] > 700]
-
-            print(f"Downloaded {len(ppi_df)} high-confidence PPIs")
-
-            # Create backup data if no PPIs found
-            if len(ppi_df) == 0:
-                print("No PPIs found, creating sample data for testing")
-                sample_proteins = ['P01024', 'P01031', 'P00751', 'P08603', 'P00746']
-                sample_pairs = []
-                for i in range(len(sample_proteins)):
-                    for j in range(i + 1, len(sample_proteins)):
-                        sample_pairs.append((sample_proteins[i], sample_proteins[j], 900))
-                ppi_df = pd.DataFrame(sample_pairs, columns=['protein1', 'protein2', 'score'])
-
-            # Create positive and negative examples
-            proteins = set(ppi_df['protein1'].tolist() + ppi_df['protein2'].tolist())
-
-            # Generate negative examples
-            neg_pairs = []
-            num_pos = len(ppi_df)
-
-            while len(neg_pairs) < num_pos:
-                p1 = np.random.choice(list(proteins))
-                p2 = np.random.choice(list(proteins))
-
-                if p1 != p2 and not ppi_df[(ppi_df['protein1'] == p1) & (ppi_df['protein2'] == p2)].any().any():
-                    if not ppi_df[(ppi_df['protein1'] == p2) & (ppi_df['protein2'] == p1)].any().any():
-                        neg_pairs.append((p1, p2, 0))  # Include label 0 for negative examples
-
-            # Create balanced dataset
-            pos_data = [(row['protein1'], row['protein2'], 1) for _, row in ppi_df.iterrows()]
-
-            # Combine and shuffle
-            all_data = pos_data + neg_pairs
-            np.random.shuffle(all_data)
-
-            # Create DataFrame with explicit column names
-            train_df = pd.DataFrame(all_data, columns=['protein1', 'protein2', 'interaction_label'])
-            print(f"Created {len(train_df)} training pairs, {len(pos_data)} positive, {len(neg_pairs)} negative")
-
-            # Get protein sequences
-            protein_sequences = {}
-            for protein_id in tqdm(proteins, desc="Downloading protein sequences"):
-                try:
-                    # Check if it's a STRING ID (has 9606.ENSP format)
-                    if protein_id.startswith('9606.ENSP'):
-                        # Extract the Ensembl ID part
-                        ensembl_id = protein_id.split('.')[1]
-
-                        # Use mygene to convert Ensembl ID to UniProt
-                        from mygene import MyGeneInfo
-                        mg = MyGeneInfo()
-                        result = mg.query(ensembl_id, scopes='ensembl.protein', fields='uniprot', species='human')
-
-                        if result['hits'] and 'uniprot' in result['hits'][0]:
-                            # Get the UniProt ID
-                            if 'Swiss-Prot' in result['hits'][0]['uniprot']:
-                                uniprot_id = result['hits'][0]['uniprot']['Swiss-Prot']
-                            elif isinstance(result['hits'][0]['uniprot'], list) and len(
-                                    result['hits'][0]['uniprot']) > 0:
-                                uniprot_id = result['hits'][0]['uniprot'][0]
-                            else:
-                                print(f"No Swiss-Prot entry found for {protein_id}")
-                                continue
-
-                            # Download sequence using proper UniProt ID
-                            response = requests.get(f"https://rest.uniprot.org/uniprotkb/{uniprot_id}.fasta")
-                            if response.status_code == 200:
-                                lines = response.text.strip().split('\n')
-                                sequence = ''.join(lines[1:])
-                                protein_sequences[protein_id] = sequence
-                            else:
-                                print(
-                                    f"Could not retrieve sequence for mapped ID {uniprot_id}, status: {response.status_code}")
-                        else:
-                            print(f"Could not map {protein_id} to UniProt")
-                    else:
-                        # Try original method for non-Ensembl IDs (assumed to be UniProt)
-                        response = requests.get(f"https://rest.uniprot.org/uniprotkb/{protein_id}.fasta")
-                        if response.status_code == 200:
-                            lines = response.text.strip().split('\n')
-                            sequence = ''.join(lines[1:])
-                            protein_sequences[protein_id] = sequence
-                        else:
-                            print(f"Could not retrieve sequence for {protein_id}, status: {response.status_code}")
-                except Exception as e:
-                    print(f"Error processing {protein_id}: {e}")
-
-            print(f"Downloaded {len(protein_sequences)} protein sequences")
-
-            # Save data
-            os.makedirs(f"{output_dir}/data", exist_ok=True)
-            train_df.to_csv(f"{output_dir}/data/known_interactions.csv", index=False)
-
-            # Save protein sequences as FASTA
-            with open(f"{output_dir}/data/protein_sequences.fasta", 'w') as f:
-                for protein_id, sequence in protein_sequences.items():
-                    f.write(f">{protein_id}\n{sequence}\n")
-
-            return train_df, protein_sequences
-
-        except Exception as e:
-            print(f"Error creating training data: {e}")
-            # Create fallback minimal dataset so the pipeline doesn't fail
-            fallback_proteins = ['P01024', 'P01031', 'P00751', 'P08603', 'P00746']
-            fallback_sequences = {
-                'P01024': 'MGPTSGPSLLLLLLTHLPLALGSPMYSIITPNILRLESEETMVLEAHDAQGDVPVTVTVHDFPGKKLVLSSEKTVLTPATNHMGNVTFTIPANREFKSEKGRNKFVTVQATFGTQVVEKVVLVSLQSGYLFIQTDKTIYTPGSTVLYRIFTVNHKLLPVGRTVMVNIENPEGIPVKQDSLSSQNQLGVLPLSWDIPELVNMGQWKIRAYYENSPQQVFSTEFEVKEYVLPSFEVIVEPTEKFYYIYNEKGLEVTITARFLYGKKVEGTAFVIFGIQDGEQRISLPESLKRIPIEDGSGEVVLSRKVLLDGVQNPRAEDLVGKSLYVSATVILHSGSDMVQAERSGIPIVTSPYQIHFTKTPKYFKPGMPFDLMVFVTNPDGSPAYRVPVAVQGEDTVQSLTQGDGVAKLSINTHPSQKPLSITVRTKKQELSEAEQATRTMQALPYSTVGNSNNYLHLSVLRTELRPGETLNVNFLLRMDRAHEAKIRYYTYLIMNKGRLLKAGRQVREPGQDLVVLPLSITTDFIPSFRLVAYYTLIGASGQREVVADSVWVDVKDSCVGSLVVKSGQSEDRQPVPGQQMTLKIEGDHGARVVLVAVDKGVFVLNKKNKLTQSKIWDVVEKADIGCTPGSGKDYAGVFSDAGLTFTSSSGQQTAQRAELQCPQPAAR',
-                'P01031': 'MGLLGILCFLIFLGKTWGQEQTYVISAPKIFRVGASENIVIQVTGYTEAEISVPANVQFTCPPPQDTSLNTKGICESPGVIPTKTKPLSVFKCDTPPEVNVHVPGLYVIGTSVILQEGHLAFLTPGKPYQAVVFVGLKKDVPVYEIGVPAESTGTWNLGSSLWSHEYDVGHIMFSFGPPTHDVNFPLEITCEQTTKQPWDCPKIKCSRCMPTQGQTVTNTLHYLKGVKVLLENLDVTIETDYAEPEFIIKRPDIAVSTWDPHARTTFKSFIKVLRNSQYSELDFGTVKEVVPEGISVPIEGTVKILMSGSVVSKRKTLYSSVPKEKGQALISPFHEFDIHGDDLAEELDLNISDISGFLGAMYVINFKGDIQVTFTNVVVESGSLVKSNLSSSVVYTKVTLVDYKERLASIQLPELTKMPFTLQVVTACRHGVCSEGDLASIASLKVQEAAISLTSIHPDIIQLIKTNLSLFEHSIAHCFIENVLMTNLELSDRGGSNFDCWTSVRGYQEGKVFYLLEDPTISLSRNSLEISKLKADMVPLNTDFRQFVTLPVLYQLSFDQLALNYIIPQMTNCILYGPDGGSTVMASVSVFLILGAVLLFIMIACVLRRQKRPPDREAPSLKDEFNSLVGFFPVFLSAVFFAIGLVLGVALRHRKRQQKINEQEIAAIGARPQPSLQPPSTTKTPPTKTPSPKPVLVSLPSLLKTDTEQHQVPSQDQVRIQQESPVEGASDTLSPEEEQASGGLAEALAALVVVVLVVVILIALIAYFRQKITPGKCAVNFIQSRQRTSIHIGHANEISVSIHAEDSDSSSSGDHIASSVSVIAREDDELPGDRLYVQLSSPGFTKEKVQINVTQVIPVTLQPLPSFRILMGSILNQLTFNPSELQLVFWEYDPSKMAIPILSIDPLVIHQDWLNMGVWLHAFSHQDGLHSLLVPVSLEDIQGWFNMLGISIAFLLLYFLVRLLLCRRPPRSQGSPQLLKTPDILPTRQPLSSISNRDNRKHSRPSQTSTKSPKLSHNSHMGVVPTASSLNVETQASQGTFSHFFPHQE',
-                'P00751': 'MRLLAKIICLMLWAICVAQDCVPKEGSDQNPRGQPNIPGSYPEGPGSYPEGPQIPGSYPEGPGSYPEGPGSYPEGTLSYGPGGGIYGSYPEGPGSYAEGPGSYAEGPGSYAEGPGSYPEGPQIYAEGPGSYAEGPRSYAEGPRIYAEGPGSYAEGPTIYAEGPGSYAEGTGIYAEGPGSYAEGRQSYSEGPQIYPEGPGIYAEGPQIYSEGPGIYPEGPGSYAEGPGIYAEGPTIYAEGPGIYAEGPGIYAEGPGIYAEGPTIYAEGPGIYAEGPGIYPEGPGIYAEGPGIYSEGPRSYAEGPGIYPEGPGIYPEGPGIYAEGPGIYPEGPGIYPEGPGSYDEGPGIYPEGPGAYPEGPGIYPEGPGIYPEGPGIYPEGPGAYTEGPGSYAEGPGSYPEGPGSYPEGPGSYPEGTLSYGPGG',
-                'P08603': 'MRLLAKIICLMADSCSPTRLLLYYISYTVLLFALSFIHFSTTQCGYPCEIRRGENAVFQEHGDKVELPAAKPNPTTGPATVVEEVCANRHVYYGAVAGFGGGVKKQVLFDLVPVRSRRVPLHEIYNDGAYHVGQALLTPTEVTYTCNEGYSLIGNHTAACVLIGEINGDYLELDSNTTHMMDFGPCIVPDRKHAHGQSQVLDVQRFGLCRASNMPTTVGRFSSAPNILRLRYHNEEWAEIIKDAYWAKILATPGSVGEHYFTAVVEKLAQLAGKYTYLVLTLRHAKLTGGSPIYTGSSMVFEPPKQGYSILALLDTNLKHVVTAKGKEGAWDADNCCVKKCGKFSACQDSGNDCGDFSDEDDCEPCQHRKCNNPPPQNGGSPCPGIYNEKLNYPGSVKTYSCDPRRLVNGDANQTCTDGEWANLPSFCQREDSFISCKLSPCSQPPQIEHGTINSSRSSQESYAHGTKLSYTCEGGFRISEENETTCYMGKWSSPPQCEGLPCKSPPEISHGVVAHMASPSTSPDTGTTAERKKREVEKTVDCCSLTLGLLIGILVLVFCLYFKKSRKKPSYKPRPTDPLSIPVVTPTLPTSLPTVVETTASTEKCQGAGYVTQSLPVPTAPKLCPPPPQIPNSHNMTTTLNYRDGEKVSVLCQENYLIQEGEEITCKDGRWQSIPLCVEKIPCSQPPQIEHGTINSSRMSLLWDQQKLPSCPQDITVNSSQDWGSVKSYECKPGYRLQGADTTICLENGWSPEPPQCIRKCKS',
-                'P00746': 'MGATRSVWGLLGAAAVLWAVSGDSCHWDEDCVEIFTNGKWNDRACGDKSAKCRLIKDPGCEYRNECKEIVEEAEERMEEVDQCVVAHRGGPGSQVWLGRCCPGGECPRKKFTICVPESRYWELKDGCVGFGGGDLKCQGCGNPWKPLPECKGDVKCVPIELRRRQSVLTEIHQGVCLEVDECGAAPGQCLDGSALWEFSCHTSCPVKSQPCGFDACWPEHTWNCSVSSCGGGVQCRRTCTDNNKCEGRWRCDGEACGQQCKTKACDGECCAYVHRGKCVPGFGGGWQCGCHNKCIDKFWCDGDPDCKDGSDEVSCPRVPTCKPPCGHRRCQCHAACQVGWACSQDECLSGLCMGDGICQCDSKLCEGDKFCQRGQCICKDSGRWGCNCERRCEQERLAVRYEACDTDDECSGLEKCKDGVCQCPRRRELRYLGPCKAPGIQCGKGTCVQRSSRTDSGRCICGAGTVGYHCEHSDCPSGYHCECRAGYTGAFCDQDLFCPEAVRCEPVQCPPPKIAAAVLPVAVALAVLIALLVLSAIWYSWKRHSRTANNLDIVELYRIADL'
-            }
-
-            fallback_pairs = []
-            for i in range(len(fallback_proteins)):
-                for j in range(i + 1, len(fallback_proteins)):
-                    fallback_pairs.append((fallback_proteins[i], fallback_proteins[j], 1 if i % 2 == 0 else 0))
-
-            train_df = pd.DataFrame(fallback_pairs, columns=['protein1', 'protein2', 'interaction_label'])
-            print(f"Created {len(train_df)} fallback training pairs")
-
-            return train_df, fallback_sequences
-
-    # Helper to generate pathway-based pairs
-    def generate_pathway_based_pairs(gene_list, pathway_df, protein_sequences_dict, gene_to_uniprot):
-        """Generate protein pairs within pathways"""
-        # Create pathway groups
-        pathway_groups = pathway_df.groupby('pathway')['gene'].apply(list).to_dict()
-
-        pairs = []
-        for pathway, genes in pathway_groups.items():
-            # Find intersection with our gene list
-            pathway_genes = [g for g in genes if g in gene_list]
-
-            # Get UniProt IDs where available
-            uniprot_ids = [gene_to_uniprot.get(g) for g in pathway_genes]
-            uniprot_ids = [u for u in uniprot_ids if u and u in protein_sequences_dict]
-
-            # Generate all pairwise combinations within pathway
-            for i in range(len(uniprot_ids)):
-                for j in range(i + 1, len(uniprot_ids)):
-                    pairs.append((uniprot_ids[i], uniprot_ids[j]))
-
-        print(f"Generated {len(pairs)} pathway-based protein pairs")
-        return pairs
-
-    # Helper to get pathway information for a gene pair
-    def get_pathway_info(gene1, gene2, pathway_df):
-        """Get pathway information for a gene pair"""
-        gene1_pathways = pathway_df[pathway_df['gene'] == gene1]['pathway'].unique().tolist()
-        gene2_pathways = pathway_df[pathway_df['gene'] == gene2]['pathway'].unique().tolist()
-
-        # Find common pathways
-        common_pathways = list(set(gene1_pathways) & set(gene2_pathways))
-
-        return {
-            'shared_pathways': common_pathways,
-            'gene1_pathways': gene1_pathways,
-            'gene2_pathways': gene2_pathways,
-            'is_same_pathway': len(common_pathways) > 0
-        }
-
-    # Training function with memory optimization
-    def train_ppi_model(train_pairs, train_labels, protein_sequences_dict,
-                        batch_size=8, epochs=20, patience=3, lr_scheduler=True,
-                        output_dir="DL-PPI outputs/models"):
-        """Train model with memory optimizations for M1 Mac"""
-        print("Initializing model...")
-        model = DeepLearningPPI()
-
-        # Create dataset and dataloader
-        dataset = PPIDataset(train_pairs, train_labels, protein_sequences_dict, model)
-
-        # Split data for training and validation
-        train_indices, val_indices = train_test_split(
-            range(len(dataset)), test_size=0.2, random_state=RANDOM_SEED,
-            stratify=train_labels
-        )
-
-        train_sampler = torch.utils.data.SubsetRandomSampler(train_indices)
-        val_sampler = torch.utils.data.SubsetRandomSampler(val_indices)
-
-        train_loader = DataLoader(
-            dataset, batch_size=batch_size, sampler=train_sampler,
-            num_workers=0, pin_memory=False
-        )
-
-        val_loader = DataLoader(
-            dataset, batch_size=batch_size, sampler=val_sampler,
-            num_workers=0, pin_memory=False
-        )
-
-        # Initialize optimizer
-        optimizer = torch.optim.Adam(model.classifier.parameters(), lr=1e-4, weight_decay=1e-5)
-
-        # Learning rate scheduler
-        if lr_scheduler:
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode='min', factor=0.5, patience=2, verbose=True
-            )
-
-        # Loss function
-        criterion = torch.nn.BCELoss()
-
-        # Early stopping variables
-        best_val_loss = float('inf')
-        patience_counter = 0
-
-        print("Starting training...")
-        for epoch in range(epochs):
-            # Training
-            model.classifier.train()
-            train_loss = 0.0
-            train_pbar = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{epochs} [Train]")
-
-            for batch in train_pbar:
-                # Zero gradients
-                optimizer.zero_grad()
-
-                # Get embeddings and labels
-                emb1 = batch["emb1"].to(model.device)
-                emb2 = batch["emb2"].to(model.device)
-                labels = batch["label"].unsqueeze(1).to(model.device)
-
-                # Forward pass
-                concat_emb = torch.cat([emb1, emb2], dim=1)
-                outputs = model.classifier(concat_emb)
-
-                # Calculate loss
-                loss = criterion(outputs, labels)
-
-                # Backward pass
-                loss.backward()
-
-                # Gradient clipping
-                torch.nn.utils.clip_grad_norm_(model.classifier.parameters(), max_norm=1.0)
-
-                # Update weights
-                optimizer.step()
-
-                # Update loss
-                train_loss += loss.item() * labels.size(0)
-                train_pbar.set_postfix({"batch_loss": f"{loss.item():.4f}"})
-
-                # Force garbage collection
-                gc.collect()
-                if hasattr(torch.cuda, 'empty_cache'):
-                    torch.cuda.empty_cache()
-
-            # Calculate average training loss
-            train_loss = train_loss / len(train_indices)
-
-            # Validation
-            model.classifier.eval()
-            val_loss = 0.0
-            correct = 0
-            total = 0
-
-            val_pbar = tqdm(val_loader, desc=f"Epoch {epoch + 1}/{epochs} [Val]")
-            with torch.no_grad():
-                for batch in val_pbar:
-                    # Get embeddings and labels
-                    emb1 = batch["emb1"].to(model.device)
-                    emb2 = batch["emb2"].to(model.device)
-                    labels = batch["label"].unsqueeze(1).to(model.device)
-
-                    # Forward pass
-                    concat_emb = torch.cat([emb1, emb2], dim=1)
-                    outputs = model.classifier(concat_emb)
-
-                    # Calculate loss
-                    loss = criterion(outputs, labels)
-                    val_loss += loss.item() * labels.size(0)
-
-                    # Calculate accuracy
-                    predicted = (outputs > 0.5).float()
-                    correct += (predicted == labels).sum().item()
-                    total += labels.size(0)
-
-                    val_pbar.set_postfix({"batch_loss": f"{loss.item():.4f}"})
-
-                    # Force garbage collection
-                    gc.collect()
-                    if hasattr(torch.cuda, 'empty_cache'):
-                        torch.cuda.empty_cache()
-
-            # Calculate average validation loss and accuracy
-            val_loss = val_loss / len(val_indices)
-            val_acc = correct / total
-
-            print(
-                f"Epoch {epoch + 1}/{epochs}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
-
-            # Learning rate scheduler
-            if lr_scheduler:
-                scheduler.step(val_loss)
-
-            # Early stopping
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                patience_counter = 0
-
-                # Save best model
-                os.makedirs(output_dir, exist_ok=True)
-                torch.save(model.classifier.state_dict(), f"{output_dir}/classifier_head.pt")
-                print(f"Saved best model with val_loss: {val_loss:.4f}")
-            else:
-                patience_counter += 1
-
-            if patience_counter >= patience:
-                print(f"Early stopping after {epoch + 1} epochs")
-                break
-
-        # Load best model
-        model.classifier.load_state_dict(torch.load(f"{output_dir}/classifier_head.pt"))
-        return model
-
-    # Function to predict PPIs
-    def predict_ppi_deep_learning(protein_pairs, protein_sequences_dict, model=None,
-                                  batch_size=4, model_path="DL-PPI outputs/models/classifier_head.pt",
-                                  output_dir="DL-PPI outputs/results"):
-        """Predict protein-protein interactions using deep learning"""
-        print(f"Predicting interactions for {len(protein_pairs)} protein pairs...")
-
-        # Create model if not provided
-        if model is None:
-            model = DeepLearningPPI()
-            model.classifier.load_state_dict(torch.load(model_path))
-
-        # Ensure model is in evaluation mode
-        model.classifier.eval()
-
-        # Process in batches to save memory
-        predictions = []
-
-        # Create batches
-        batches = [protein_pairs[i:i + batch_size] for i in range(0, len(protein_pairs), batch_size)]
-
-        with torch.no_grad():
-            for i, batch in enumerate(tqdm(batches, desc="Predicting")):
-                batch_predictions = []
-
-                for p1, p2 in batch:
-                    # Get sequences
-                    seq1 = protein_sequences_dict.get(p1, "")
-                    seq2 = protein_sequences_dict.get(p2, "")
-
-                    if not seq1 or not seq2:
-                        continue
-
-                    # Predict
-                    result = model.predict_interaction(seq1, seq2)
-                    result["acc1"] = p1
-                    result["acc2"] = p2
-
-                    # Add gene names if available
-                    if hasattr(model, 'uniprot_to_gene') and p1 in model.uniprot_to_gene:
-                        result["gene1"] = model.uniprot_to_gene[p1]
-                    if hasattr(model, 'uniprot_to_gene') and p2 in model.uniprot_to_gene:
-                        result["gene2"] = model.uniprot_to_gene[p2]
-
-                    batch_predictions.append(result)
-
-                predictions.extend(batch_predictions)
-
-                # Force garbage collection
-                gc.collect()
-                if hasattr(torch.cuda, 'empty_cache'):
-                    torch.cuda.empty_cache()
-
-        # Create results dataframe
-        results_df = pd.DataFrame(predictions)
-
-        # Save results
-        os.makedirs(output_dir, exist_ok=True)
-        results_df.to_csv(f"{output_dir}/dl_ppi_predictions.csv", index=False)
-
-        print(f"Prediction complete. Results saved to {output_dir}/dl_ppi_predictions.csv")
-        return results_df
-
-    # Helper to precompute all embeddings
-    def precompute_all_embeddings(protein_sequences_dict, model, cache_file):
-        """Precompute embeddings for all proteins"""
-        print("Precomputing embeddings for all proteins...")
-
-        # Check if already cached
-        if hasattr(model, 'embedding_cache') and len(model.embedding_cache) >= len(protein_sequences_dict):
-            print(f"Embeddings already cached for {len(model.embedding_cache)} proteins")
-            return
-
-        # Compute embeddings
-        for protein_id, sequence in tqdm(protein_sequences_dict.items()):
-            if protein_id not in model.embedding_cache:
-                model.get_embeddings(sequence)
-
-        # Save cache
-        print(f"Saving {len(model.embedding_cache)} embeddings to cache...")
-        with open(cache_file, 'wb') as f:
-            pickle.dump(model.embedding_cache, f)
-
-    # Helper to create visualization data
-    def create_viz_data(results_df, uniprot_to_gene, threshold=0.4):
-        """Create visualization-friendly format from results dataframe"""
-        # Extract protein pairs
-        pairs = list(zip(results_df['acc1'], results_df['acc2']))
-
-        # Create visualization-friendly format
-        viz_df = pd.DataFrame({
-            'protein1': [uniprot_to_gene.get(p[0], p[0]) for p in pairs],
-            'protein2': [uniprot_to_gene.get(p[1], p[1]) for p in pairs],
-            'prediction': results_df['prediction'].values,
-            'method': results_df['method'].values
-        })
-
-        # Keep only high-confidence predictions for visualization
-        viz_df = viz_df[viz_df['prediction'] >= threshold]
-        return viz_df
-
-    # Compare male and female networks
-    def compare_networks(male_df, female_df, output_dir="DL-PPI outputs/comparison"):
-        """Compare male and female networks"""
-        print("Comparing male and female networks...")
-        os.makedirs(output_dir, exist_ok=True)
-
-        # 1. FIND SHARED AND SEX-SPECIFIC INTERACTIONS
-        male_pairs = set(zip(male_df['protein1'], male_df['protein2']))
-        female_pairs = set(zip(female_df['protein1'], female_df['protein2']))
-
-        # Find shared and unique interactions
-        shared_pairs = male_pairs.intersection(female_pairs)
-        male_specific = male_pairs - shared_pairs
-        female_specific = female_pairs - shared_pairs
-
-        print(f"Found {len(shared_pairs)} shared interactions")
-        print(f"Found {len(male_specific)} male-specific interactions")
-        print(f"Found {len(female_specific)} female-specific interactions")
-
-        # Create Venn diagram
-        plt.figure(figsize=(10, 7), dpi=300)
-        from matplotlib_venn import venn2
-        venn = venn2([male_pairs, female_pairs], ('Male', 'Female'))
-        venn.get_patch_by_id('10').set_color('blue')
-        venn.get_patch_by_id('01').set_color('red')
-        venn.get_patch_by_id('11').set_color('purple')
-        plt.title('Overlap of Predicted Interactions by Sex', fontsize=16)
-        plt.savefig(f"{output_dir}/interaction_overlap_venn.png", dpi=300, bbox_inches='tight')
-        plt.close()
-
-        # 2. ANALYZE SHARED INTERACTIONS FOR SCORE DIFFERENCES
-        shared_interactions = []
-
-        # For each shared interaction, find scores in both datasets
-        for pair in shared_pairs:
-            male_score = male_df[
-                (male_df['protein1'] == pair[0]) & (male_df['protein2'] == pair[1]) |
-                (male_df['protein1'] == pair[1]) & (male_df['protein2'] == pair[0])
-                ]['prediction'].values[0]
-
-            female_score = female_df[
-                (female_df['protein1'] == pair[0]) & (female_df['protein2'] == pair[1]) |
-                (female_df['protein1'] == pair[1]) & (female_df['protein2'] == pair[0])
-                ]['prediction'].values[0]
-
-            shared_interactions.append({
-                'Protein1': pair[0],
-                'Protein2': pair[1],
-                'Male Score': male_score,
-                'Female Score': female_score,
-                'Difference': female_score - male_score
-            })
-
-        shared_df = pd.DataFrame(shared_interactions)
-
-        # Get top differential interactions
-        if not shared_df.empty:
-            top_diff = shared_df.iloc[shared_df['Difference'].abs().argsort()[-15:][::-1]]
-
-            plt.figure(figsize=(12, 8), dpi=300)
-
-            # Prepare data for grouped bar chart
-            index = range(len(top_diff))
-            bar_width = 0.35
-
-            # Create paired labels
-            interaction_labels = [f"{row['Protein1']}-{row['Protein2']}" for _, row in top_diff.iterrows()]
-
-            # Plot bars
-            plt.barh([i for i in index], top_diff['Male Score'], bar_width,
-                     color='blue', alpha=0.7, label='Male')
-            plt.barh([i + bar_width for i in index], top_diff['Female Score'], bar_width,
-                     color='red', alpha=0.7, label='Female')
-
-            # Add details
-            plt.yticks([i + bar_width / 2 for i in index], interaction_labels)
-            plt.xlabel('Interaction Confidence Score')
-            plt.title('Top Differential Protein Interactions by Sex', fontsize=16)
-            plt.legend()
-            plt.grid(axis='x', linestyle='--', alpha=0.5)
-            plt.tight_layout()
-            plt.savefig(f"{output_dir}/differential_interactions.png", dpi=300)
-            plt.close()
-
-        # 3. NETWORK STATISTICS COMPARISON
-        print("Creating network statistics comparison...")
-        # Create separate graphs for comparison statistics
-        G_male = nx.Graph()
-        for _, row in male_df.iterrows():
-            G_male.add_edge(row['protein1'], row['protein2'], weight=row['prediction'])
-
-        G_female = nx.Graph()
-        for _, row in female_df.iterrows():
-            G_female.add_edge(row['protein1'], row['protein2'], weight=row['prediction'])
-
-        # Calculate network metrics
-        metrics = {
-            'Metric': ['Nodes', 'Edges', 'Density', 'Avg. Degree', 'Connected Components'],
-            'Male': [
-                len(G_male.nodes()),
-                len(G_male.edges()),
-                nx.density(G_male),
-                sum(dict(G_male.degree()).values()) / len(G_male.nodes()),
-                nx.number_connected_components(G_male)
-            ],
-            'Female': [
-                len(G_female.nodes()),
-                len(G_female.edges()),
-                nx.density(G_female),
-                sum(dict(G_female.degree()).values()) / len(G_female.nodes()),
-                nx.number_connected_components(G_female)
-            ]
-        }
-
-        # Create a nice comparison table/figure
-        metrics_df = pd.DataFrame(metrics)
-        metrics_df['Difference %'] = (metrics_df['Female'] - metrics_df['Male']) / metrics_df['Male'] * 100
-
-        # Create a visual table
-        plt.figure(figsize=(10, 5), dpi=300)
-        plt.axis('off')
-        table = plt.table(
-            cellText=metrics_df.values,
-            colLabels=metrics_df.columns,
-            cellLoc='center',
-            loc='center',
-            cellColours=[['#f2f2f2'] * 4] * 5
-        )
-        table.auto_set_font_size(False)
-        table.set_fontsize(12)
-        table.scale(1.2, 1.8)
-        plt.title('Network Property Comparison: Male vs Female OUD', fontsize=16, pad=20)
-        plt.savefig(f"{output_dir}/network_metrics_comparison.png", dpi=300, bbox_inches='tight')
-        plt.close()
-
-        # 4. STATISTICAL COMPARISON OF SCORE DISTRIBUTIONS
-        print("Creating statistical comparison of score distributions...")
-
-        # A. Kolmogorov-Smirnov test to statistically compare distributions
-        ks_stat, p_value = stats.ks_2samp(male_df['prediction'], female_df['prediction'])
-        print(f"KS statistic: {ks_stat}, p-value: {p_value}")
-
-        # B. Quantile-Quantile plot
-        plt.figure(figsize=(8, 8), dpi=300)
-        male_scores = sorted(male_df['prediction'])
-        female_scores = sorted(female_df['prediction'])
-
-        # Make equal length if needed
-        min_len = min(len(male_scores), len(female_scores))
-        male_quantiles = np.linspace(0, 1, min_len)
-        female_quantiles = np.linspace(0, 1, min_len)
-
-        male_sample = np.quantile(male_scores, male_quantiles)
-        female_sample = np.quantile(female_scores, female_quantiles)
-
-        plt.scatter(male_sample, female_sample, alpha=0.5)
-        plt.plot([0.4, 0.6], [0.4, 0.6], 'r--')  # diagonal line
-        plt.xlabel('Male Prediction Scores')
-        plt.ylabel('Female Prediction Scores')
-        plt.title('Q-Q Plot: Male vs Female Prediction Scores')
-        plt.grid(alpha=0.3)
-
-        # Add KS test results to plot
-        plt.figtext(0.15, 0.15,
-                    f"Kolmogorov-Smirnov test:\nStatistic: {ks_stat:.4f}\np-value: {p_value:.4f}",
-                    bbox=dict(facecolor='white', alpha=0.8),
-                    fontsize=10)
-
-        plt.savefig(f"{output_dir}/qq_plot.png", dpi=300, bbox_inches='tight')
-        plt.close()
-
-        # C. Enhanced histogram/density plot
-        plt.figure(figsize=(10, 6), dpi=300)
-
-        # Create histogram/KDE of prediction scores
-        sns.histplot(male_df['prediction'], kde=True, color='blue', alpha=0.5, label='Male', bins=20)
-        sns.histplot(female_df['prediction'], kde=True, color='red', alpha=0.5, label='Female', bins=20)
-
-        # Add mean lines
-        plt.axvline(male_df['prediction'].mean(), color='blue', linestyle='--',
-                    label=f'Male mean: {male_df["prediction"].mean():.4f}')
-        plt.axvline(female_df['prediction'].mean(), color='red', linestyle='--',
-                    label=f'Female mean: {female_df["prediction"].mean():.4f}')
-
-        # Add KS test results to plot
-        plt.text(0.42, plt.gca().get_ylim()[1] * 0.9,
-                 f"KS test: statistic={ks_stat:.4f}, p-value={p_value:.4f}",
-                 bbox=dict(facecolor='white', alpha=0.8))
-
-        plt.xlabel('Prediction Score')
-        plt.ylabel('Frequency')
-        plt.title('Distribution of Prediction Scores by Sex', fontsize=16)
-        plt.legend()
-        plt.grid(alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(f"{output_dir}/prediction_score_distribution.png", dpi=300)
-        plt.close()
-
-        print(f"All visualizations saved to {output_dir}")
-        return metrics_df
-
-    # Main function to run both sexes in a single pass
-    def main():
-        print("Starting memory-optimized DL-PPI pipeline for both sexes...")
-        run_params = {
-            "model": "facebook/esm2_t33_650M_UR50D",
-            "batch_size_train": 8,
-            "batch_size_predict": 4,
-            "epochs": 20,
-            "patience": 3,
-            "lr": 1e-4,
-            "weight_decay": 1e-5,
-            "embedding_dim": 1280,
-            "timestamp": time.strftime("%Y%m%d-%H%M%S")
-        }
-
-        # Create output directories
-        out_dir = "DL-PPI outputs"
-        os.makedirs(out_dir, exist_ok=True)
-        os.makedirs(f"{out_dir}/data", exist_ok=True)
-        os.makedirs(f"{out_dir}/models", exist_ok=True)
-        os.makedirs(f"{out_dir}/results", exist_ok=True)
-
-        # Create sex-specific output directories
-        male_dir = ensure_path(f"{out_dir}/results/male")
-        female_dir = ensure_path(f"{out_dir}/results/female")
-        comp_dir = ensure_path(f"{out_dir}/results/comparison")
-
-        # Load inflammatory pathway data
-        pathway_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/KEGG outputs/kegg_inflammatory_pathways.csv"
-        pathway_df = load_inflammatory_pathways(pathway_file)
-
-        if pathway_df.empty:
-            print("WARNING: Pathway data unavailable!")
-            return
-
-        # Load or create training data
-        if not os.path.exists(f"{out_dir}/data/known_interactions.csv"):
-            print("\nCreating training data for inflammatory pathways...")
-            training_df, protein_sequences_dict = create_complement_training_data(out_dir)
-        else:
-            print("\nLoading existing training data...")
-            training_df = pd.read_csv(f"{out_dir}/data/known_interactions.csv")
-
-            # Load protein sequences from FASTA
-            protein_sequences_dict = {}
-            with open(f"{out_dir}/data/protein_sequences.fasta", 'r') as f:
-                current_id = None
-                current_seq = ""
-                for line in f:
-                    line = line.strip()
-                    if line.startswith('>'):
-                        if current_id:
-                            protein_sequences_dict[current_id] = current_seq
-                        current_id = line[1:]
-                        current_seq = ""
-                    else:
-                        current_seq += line
-                if current_id:
-                    protein_sequences_dict[current_id] = current_seq
-
-        # Create training pairs and labels
-        train_pairs = list(zip(training_df['protein1'], training_df['protein2']))
-        train_labels = training_df['interaction_label'].tolist()
-
-        print(
-            f"Loaded {len(train_pairs)} training pairs, {sum(train_labels)} positive, {len(train_labels) - sum(train_labels)} negative")
-
-        # Initialize deep learning model - ONCE for both sexes
-        embedding_cache_file = f"{out_dir}/data/embedding_cache.pkl"
-        dl_model = DeepLearningPPI()
-
-        # Load embedding cache if available
-        dl_model.load_embedding_cache(embedding_cache_file)
-
-        # Check if model exists or needs training
-        if os.path.exists(f"{out_dir}/models/classifier_head.pt"):
-            print("\nFound existing trained model.")
-            # Load model for inference
-            dl_model.classifier.load_state_dict(torch.load(f"{out_dir}/models/classifier_head.pt"))
-        else:
-            print("\nTraining new model with memory optimizations...")
-            # Train model with smaller batch size for M1 Mac
-            dl_model = train_ppi_model(train_pairs, train_labels, protein_sequences_dict,
-                                       batch_size=8,  # Smaller batch size for M1 Mac
-                                       epochs=20,
-                                       patience=3,
-                                       output_dir=f"{out_dir}/models")
-
-        # Precompute embeddings for all proteins to avoid recomputing
-        precompute_all_embeddings(protein_sequences_dict, dl_model, embedding_cache_file)
-
-        # Extract all genes from inflammatory pathways
-        all_pathway_genes = pathway_df.gene.unique().tolist()
-        # Filter out entries that aren't gene symbols
-        all_pathway_genes = [g for g in all_pathway_genes if isinstance(g, str) and not g.startswith('[')]
-        print(f"Loaded {len(all_pathway_genes)} genes from inflammatory pathways")
-
-        # Load sex-specific DEGs
-        male_genes = load_sex_specific_genes("M")
-        female_genes = load_sex_specific_genes("F")
-
-        print(f"Loaded {len(male_genes)} male-specific and {len(female_genes)} female-specific genes")
-
-        # Before generating pairs, map all genes and download sequences
-        all_genes = list(set(pathway_df['gene'].tolist() + male_genes + female_genes))
-        gene_to_uniprot, protein_sequences_dict = map_genes_and_download_sequences(all_genes, protein_sequences_dict)
-
-        # Map genes to UniProt IDs - do this ONCE for all genes
-        print("\nMapping genes to UniProt IDs...")
-        all_genes = set(all_pathway_genes + male_genes + female_genes)
-        gene_to_uniprot, protein_sequences_dict = map_genes_and_download_sequences(list(all_genes),
-                                                                                   protein_sequences_dict)
-
-        # Create reverse mapping for visualization
-        uniprot_to_gene = {v: k for k, v in gene_to_uniprot.items()}
-
-        # Add gene mapping to model for convenient access
-        dl_model.uniprot_to_gene = uniprot_to_gene
-
-        # Get all genes
-        all_genes = set(all_pathway_genes + male_genes + female_genes)
-
-        # More aggressive filtering for non-coding RNAs
-        filtered_genes = []
-        for gene in all_genes:
-            # Skip any gene that matches non-coding RNA patterns
-            if (isinstance(gene, str) and
-                    not re.match(r'^(AC|AL|AP|RP|LINC|LOC\d+|.*-AS\d+|.*-IT\d+|.*\.\d+)', gene) and
-                    not '-AS' in gene and
-                    not gene.startswith(('MIR', 'SNORD', 'SNORA', 'TCONS_', 'XLOC_')) and
-                    len(gene) > 1):  # Skip single-character entries
-                filtered_genes.append(gene)
-
-        print(f"Filtered out {len(all_genes) - len(filtered_genes)} non-protein coding entries")
-        print(f"Proceeding with {len(filtered_genes)} potential protein-coding genes")
-
-        # Query only the filtered genes
-        gene_info = mg.querymany(filtered_genes, scopes='symbol', fields='uniprot', species='human', returnall=True)
-
-        # Process results
-        gene_to_uniprot = {}
-        for entry in gene_info['out']:
-            if 'uniprot' in entry and 'Swiss-Prot' in entry['uniprot']:
-                gene = entry.get('query', '')
-                uniprot_id = entry['uniprot']['Swiss-Prot']
-                if isinstance(uniprot_id, list):
-                    uniprot_id = uniprot_id[0]  # Take the first one
-                gene_to_uniprot[gene] = uniprot_id
-
-        # Create reverse mapping for visualization
-        uniprot_to_gene = {v: k for k, v in gene_to_uniprot.items()}
-
-        # Add gene mapping to model for convenient access
-        dl_model.uniprot_to_gene = uniprot_to_gene
-
-        # Process male data
-        male_results = None
-        print("\n========== PROCESSING MALE DATA ==========")
-        if male_genes:
-            # Generate pathway-based pairs for males
-            male_pairs = generate_pathway_based_pairs(male_genes, pathway_df, protein_sequences_dict, gene_to_uniprot)
-            male_test_pairs = [(p[0], p[1]) for p in male_pairs]
-
-            if male_test_pairs:
-                male_results = predict_ppi_deep_learning(
-                    male_test_pairs,
-                    protein_sequences_dict,
-                    model=dl_model,
-                    batch_size=run_params["batch_size_predict"],
-                    output_dir=male_dir
-                )
-
-                # Add metadata to results
-                if not male_results.empty:
-                    # Add gene names
-                    male_results['gene1'] = male_results['acc1'].map(uniprot_to_gene)
-                    male_results['gene2'] = male_results['acc2'].map(uniprot_to_gene)
-
-                    # Add pathway information
-                    def get_pathway_info_for_row(row):
-                        gene1 = row['gene1'] if pd.notna(row['gene1']) else ""
-                        gene2 = row['gene2'] if pd.notna(row['gene2']) else ""
-                        return get_pathway_info(gene1, gene2, pathway_df)
-
-                    male_results['pathway_info'] = male_results.apply(get_pathway_info_for_row, axis=1)
-                    male_results.to_csv(f"{male_dir}/dl_ppi_predictions_with_metadata.csv", index=False)
-
-                    # Save visualization-friendly format
-                    male_viz_df = create_viz_data(male_results, uniprot_to_gene, threshold=0.4)
-                    male_viz_df.to_csv(f"{out_dir}/results/dl_ppi_viz_data_male_0.4_genes.csv", index=False)
-
-        # Force garbage collection to free memory before processing female data
-        gc.collect()
-        if hasattr(torch.cuda, 'empty_cache'):
-            torch.cuda.empty_cache()
-
-        # Process female data
-        female_results = None
-        print("\n========== PROCESSING FEMALE DATA ==========")
-        if female_genes:
-            # Generate pathway-based pairs for females
-            female_pairs = generate_pathway_based_pairs(female_genes, pathway_df, protein_sequences_dict,
-                                                        gene_to_uniprot)
-            female_test_pairs = [(p[0], p[1]) for p in female_pairs]
-
-            if female_test_pairs:
-                female_results = predict_ppi_deep_learning(
-                    female_test_pairs,
-                    protein_sequences_dict,
-                    model=dl_model,
-                    batch_size=run_params["batch_size_predict"],
-                    output_dir=female_dir
-                )
-
-                # Add metadata to results
-                if not female_results.empty:
-                    # Add gene names
-                    female_results['gene1'] = female_results['acc1'].map(uniprot_to_gene)
-                    female_results['gene2'] = female_results['acc2'].map(uniprot_to_gene)
-
-                    # Add pathway information
-                    def get_pathway_info_for_row(row):
-                        gene1 = row['gene1'] if pd.notna(row['gene1']) else ""
-                        gene2 = row['gene2'] if pd.notna(row['gene2']) else ""
-                        return get_pathway_info(gene1, gene2, pathway_df)
-
-                    female_results['pathway_info'] = female_results.apply(get_pathway_info_for_row, axis=1)
-                    female_results.to_csv(f"{female_dir}/dl_ppi_predictions_with_metadata.csv", index=False)
-
-                    # Save visualization-friendly format
-                    female_viz_df = create_viz_data(female_results, uniprot_to_gene, threshold=0.4)
-                    female_viz_df.to_csv(f"{out_dir}/results/dl_ppi_viz_data_female_0.4_genes.csv", index=False)
-
-        # Compare networks if both have results
-        if male_results is not None and female_results is not None and not male_results.empty and not female_results.empty:
-            print("\n========== COMPARING MALE AND FEMALE NETWORKS ==========")
-            # Convert UniProt IDs to gene symbols for visualization
-            male_viz_df = pd.DataFrame({
-                'protein1': male_results['gene1'],
-                'protein2': male_results['gene2'],
-                'prediction': male_results['prediction'],
-                'method': male_results['method']
-            })
-
-            female_viz_df = pd.DataFrame({
-                'protein1': female_results['gene1'],
-                'protein2': female_results['gene2'],
-                'prediction': female_results['prediction'],
-                'method': female_results['method']
-            })
-
-            # Compare the networks
-            network_metrics = compare_networks(male_viz_df, female_viz_df, output_dir=comp_dir)
-
-            # Save metrics
-            network_metrics.to_csv(f"{comp_dir}/network_metrics.csv", index=False)
-
-        # Save embedding cache before finishing
-        print("\nSaving embedding cache...")
-        with open(embedding_cache_file, 'wb') as f:
-            pickle.dump(dl_model.embedding_cache, f)
-
-        # Save run parameters for reproducibility
-        with open(f"{out_dir}/run_parameters.json", 'w') as f:
-            json.dump(run_params, f, indent=2)
-
-        print("\nDL-PPI prediction pipeline completed for both sexes.")
-        print(f"Results saved to {out_dir}")
-        print(f"Run parameters saved to {out_dir}/run_parameters.json")
-
-    if __name__ == "__main__":
-        main()
     # Create model if not provided
     if model is None:
         model = DeepLearningPPI()
@@ -1805,33 +575,38 @@ def predict_ppi_deep_learning(protein_pairs, protein_sequences_dict, model=None,
         for i, batch in enumerate(tqdm(batches, desc="Predicting")):
             batch_predictions = []
 
-            for p1, p2 in batch:
-                # Get sequences
-                seq1 = protein_sequences_dict.get(p1, "")
-                seq2 = protein_sequences_dict.get(p2, "")
+            for pair in batch:
+                protein1, protein2 = pair
 
-                if not seq1 or not seq2:
+                # Check if both proteins are in sequences
+                if protein1 not in protein_sequences_dict or protein2 not in protein_sequences_dict:
+                    print(f"Warning: Missing sequence for {protein1} or {protein2}")
                     continue
 
-                # Predict
-                result = model.predict_interaction(seq1, seq2)
-                result["acc1"] = p1
-                result["acc2"] = p2
+                # Get sequences
+                seq1 = protein_sequences_dict[protein1]
+                seq2 = protein_sequences_dict[protein2]
 
-                # Add gene names if available
-                if hasattr(model, 'uniprot_to_gene') and p1 in model.uniprot_to_gene:
-                    result["gene1"] = model.uniprot_to_gene[p1]
-                if hasattr(model, 'uniprot_to_gene') and p2 in model.uniprot_to_gene:
-                    result["gene2"] = model.uniprot_to_gene[p2]
+                # Predict interaction
+                pred = model.predict_interaction(seq1, seq2)
 
-                batch_predictions.append(result)
+                # Store result
+                batch_predictions.append({
+                    'acc1': protein1,
+                    'acc2': protein2,
+                    'prediction': pred,
+                    'method': 'dl-ppi'
+                })
 
+            # Free memory immediately
+            torch.cuda.empty_cache() if torch.cuda.is_available() else None
+
+            # Add to overall predictions
             predictions.extend(batch_predictions)
 
-            # Force garbage collection
-            gc.collect()
-            if hasattr(torch.cuda, 'empty_cache'):
-                torch.cuda.empty_cache()
+            # Perform garbage collection every few batches
+            if i % 5 == 0:
+                gc.collect()
 
     # Create results dataframe
     results_df = pd.DataFrame(predictions)
@@ -1857,7 +632,7 @@ def precompute_all_embeddings(protein_sequences_dict, model, cache_file):
     # Compute embeddings
     for protein_id, sequence in tqdm(protein_sequences_dict.items()):
         if protein_id not in model.embedding_cache:
-            model.get_embeddings(sequence)
+            model.get_embeddings(sequence, use_cache=True)
 
     # Save cache
     print(f"Saving {len(model.embedding_cache)} embeddings to cache...")
@@ -1954,9 +729,9 @@ def compare_networks(male_df, female_df, output_dir="DL-PPI outputs/comparison")
 
         # Plot bars
         plt.barh([i for i in index], top_diff['Male Score'], bar_width,
-                 color='blue', alpha=0.7, label='Male')
+                 label='Male', color='blue', alpha=0.7)
         plt.barh([i + bar_width for i in index], top_diff['Female Score'], bar_width,
-                 color='red', alpha=0.7, label='Female')
+                 label='Female', color='red', alpha=0.7)
 
         # Add details
         plt.yticks([i + bar_width / 2 for i in index], interaction_labels)
@@ -1980,312 +755,278 @@ def compare_networks(male_df, female_df, output_dir="DL-PPI outputs/comparison")
         G_female.add_edge(row['protein1'], row['protein2'], weight=row['prediction'])
 
     # Calculate network metrics
-    metrics = {
-        'Metric': ['Nodes', 'Edges', 'Density', 'Avg. Degree', 'Connected Components'],
-        'Male': [
-            len(G_male.nodes()),
-            len(G_male.edges()),
-            nx.density(G_male),
-            sum(dict(G_male.degree()).values()) / len(G_male.nodes()),
-            nx.number_connected_components(G_male)
-        ],
-        'Female': [
-            len(G_female.nodes()),
-            len(G_female.edges()),
-            nx.density(G_female),
-            sum(dict(G_female.degree()).values()) / len(G_female.nodes()),
-            nx.number_connected_components(G_female)
-        ]
+    male_stats = {
+        'Nodes': G_male.number_of_nodes(),
+        'Edges': G_male.number_of_edges(),
+        'Density': nx.density(G_male),
+        'Transitivity': nx.transitivity(G_male),
+        'Avg Clustering': nx.average_clustering(G_male),
+        'Avg Path Length': nx.average_shortest_path_length(G_male) if nx.is_connected(G_male) else 'N/A',
+        'Diameter': nx.diameter(G_male) if nx.is_connected(G_male) else 'N/A',
     }
 
-    # Create a nice comparison table/figure
-    metrics_df = pd.DataFrame(metrics)
-    metrics_df['Difference %'] = (metrics_df['Female'] - metrics_df['Male']) / metrics_df['Male'] * 100
+    female_stats = {
+        'Nodes': G_female.number_of_nodes(),
+        'Edges': G_female.number_of_edges(),
+        'Density': nx.density(G_female),
+        'Transitivity': nx.transitivity(G_female),
+        'Avg Clustering': nx.average_clustering(G_female),
+        'Avg Path Length': nx.average_shortest_path_length(G_female) if nx.is_connected(G_female) else 'N/A',
+        'Diameter': nx.diameter(G_female) if nx.is_connected(G_female) else 'N/A',
+    }
 
-    # Create a visual table
-    plt.figure(figsize=(10, 5), dpi=300)
-    plt.axis('off')
-    table = plt.table(
-        cellText=metrics_df.values,
-        colLabels=metrics_df.columns,
-        cellLoc='center',
-        loc='center',
-        cellColours=[['#f2f2f2'] * 4] * 5
+    # Create table of network statistics
+    stats_df = pd.DataFrame({
+        'Metric': list(male_stats.keys()),
+        'Male': list(male_stats.values()),
+        'Female': list(female_stats.values())
+    })
+
+    # Save network statistics
+    stats_df.to_csv(f"{output_dir}/network_statistics.csv", index=False)
+    print("Network statistics saved to network_statistics.csv")
+
+    # 4. VISUALIZE SEX-SPECIFIC SUB-NETWORKS
+    # Create sub-networks with top nodes by degree centrality
+    create_subnetwork_viz(
+        G_male,
+        'Top Male-Specific Protein Interaction Network',
+        f"{output_dir}/male_specific_network.png"
     )
-    table.auto_set_font_size(False)
-    table.set_fontsize(12)
-    table.scale(1.2, 1.8)
-    plt.title('Network Property Comparison: Male vs Female OUD', fontsize=16, pad=20)
-    plt.savefig(f"{output_dir}/network_metrics_comparison.png", dpi=300, bbox_inches='tight')
-    plt.close()
 
-    # 4. STATISTICAL COMPARISON OF SCORE DISTRIBUTIONS
-    print("Creating statistical comparison of score distributions...")
+    create_subnetwork_viz(
+        G_female,
+        'Top Female-Specific Protein Interaction Network',
+        f"{output_dir}/female_specific_network.png"
+    )
 
-    # A. Kolmogorov-Smirnov test to statistically compare distributions
-    ks_stat, p_value = stats.ks_2samp(male_df['prediction'], female_df['prediction'])
-    print(f"KS statistic: {ks_stat}, p-value: {p_value}")
+    # Return summary results
+    return {
+        'shared_count': len(shared_pairs),
+        'male_specific_count': len(male_specific),
+        'female_specific_count': len(female_specific),
+        'network_stats': stats_df
+    }
 
-    # B. Quantile-Quantile plot
-    plt.figure(figsize=(8, 8), dpi=300)
-    male_scores = sorted(male_df['prediction'])
-    female_scores = sorted(female_df['prediction'])
+# 4. VISUALIZE SEX-SPECIFIC SUB-NETWORKS
+# Create sub-networks with top nodes by degree centrality
+def create_subnetwork_viz(G, title, filename, top_n=20):
+    # Get top nodes by degree centrality
+    degree_dict = dict(G.degree())
+    top_nodes = sorted(degree_dict.items(), key=lambda x: x[1], reverse=True)[:top_n]
+    top_node_names = [n[0] for n in top_nodes]
 
-    # Make equal length if needed
-    min_len = min(len(male_scores), len(female_scores))
-    male_quantiles = np.linspace(0, 1, min_len)
-    female_quantiles = np.linspace(0, 1, min_len)
+    # Create subgraph
+    sub_G = G.subgraph(top_node_names)
 
-    male_sample = np.quantile(male_scores, male_quantiles)
-    female_sample = np.quantile(female_scores, female_quantiles)
+    plt.figure(figsize=(10, 8), dpi=300)
+    pos = nx.spring_layout(sub_G, seed=42)
 
-    plt.scatter(male_sample, female_sample, alpha=0.5)
-    plt.plot([0.4, 0.6], [0.4, 0.6], 'r--')  # diagonal line
-    plt.xlabel('Male Prediction Scores')
-    plt.ylabel('Female Prediction Scores')
-    plt.title('Q-Q Plot: Male vs Female Prediction Scores')
-    plt.grid(alpha=0.3)
+    # Draw nodes
+    nx.draw_networkx_nodes(sub_G, pos, node_size=400, node_color='skyblue', alpha=0.8)
 
-    # Add KS test results to plot
-    plt.figtext(0.15, 0.15,
-                f"Kolmogorov-Smirnov test:\nStatistic: {ks_stat:.4f}\np-value: {p_value:.4f}",
-                bbox=dict(facecolor='white', alpha=0.8),
-                fontsize=10)
+    # Draw edges with weights as colors
+    edges = sub_G.edges()
+    weights = [sub_G[u][v]['weight'] for u, v in edges]
+    nx.draw_networkx_edges(sub_G, pos, width=2, alpha=0.5, edge_color=weights, edge_cmap=plt.cm.YlOrRd)
 
-    plt.savefig(f"{output_dir}/qq_plot.png", dpi=300, bbox_inches='tight')
-    plt.close()
+    # Draw labels
+    nx.draw_networkx_labels(sub_G, pos, font_size=10, font_family='sans-serif')
 
-    # C. Enhanced histogram/density plot
-    plt.figure(figsize=(10, 6), dpi=300)
-
-    # Create histogram/KDE of prediction scores
-    sns.histplot(male_df['prediction'], kde=True, color='blue', alpha=0.5, label='Male', bins=20)
-    sns.histplot(female_df['prediction'], kde=True, color='red', alpha=0.5, label='Female', bins=20)
-
-    # Add mean lines
-    plt.axvline(male_df['prediction'].mean(), color='blue', linestyle='--',
-                label=f'Male mean: {male_df["prediction"].mean():.4f}')
-    plt.axvline(female_df['prediction'].mean(), color='red', linestyle='--',
-                label=f'Female mean: {female_df["prediction"].mean():.4f}')
-
-    # Add KS test results to plot
-    plt.text(0.42, plt.gca().get_ylim()[1] * 0.9,
-             f"KS test: statistic={ks_stat:.4f}, p-value={p_value:.4f}",
-             bbox=dict(facecolor='white', alpha=0.8))
-
-    plt.xlabel('Prediction Score')
-    plt.ylabel('Frequency')
-    plt.title('Distribution of Prediction Scores by Sex', fontsize=16)
-    plt.legend()
-    plt.grid(alpha=0.3)
+    plt.title(title, fontsize=16)
+    plt.axis('off')
     plt.tight_layout()
-    plt.savefig(f"{output_dir}/prediction_score_distribution.png", dpi=300)
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
     plt.close()
 
-    print(f"All visualizations saved to {output_dir}")
-    return metrics_df
+    # Create visualizations
+    create_subnetwork_viz(
+        G_male,
+        'Top Male-Specific Protein Interaction Network',
+        f"{output_dir}/male_specific_network.png"
+    )
+
+    create_subnetwork_viz(
+        G_female,
+        'Top Female-Specific Protein Interaction Network',
+        f"{output_dir}/female_specific_network.png"
+    )
+
+    # Return summary results
+    return {
+        'shared_count': len(shared_pairs),
+        'male_specific_count': len(male_specific),
+        'female_specific_count': len(female_specific),
+        'network_stats': stats_df
+    }
 
 
-def map_genes_and_download_sequences(gene_list, protein_sequences_dict=None):
-    """Map gene symbols to UniProt IDs and download their sequences"""
-    if protein_sequences_dict is None:
-        protein_sequences_dict = {}
+# Helper to visualize PPI network by pathways
+def visualize_pathway_ppi_network(results_df, uniprot_to_gene, pathway_df,
+                                 threshold=0.6, output_dir="DL-PPI outputs/networks"):
+    """Visualize PPI network colored by pathway"""
+    print("Visualizing pathway-based PPI network...")
+    os.makedirs(output_dir, exist_ok=True)
 
-    gene_to_uniprot = {}
+    # Filter results by threshold
+    high_conf_df = results_df[results_df['prediction'] >= threshold]
+    print(f"Using {len(high_conf_df)} high-confidence interactions (score >= {threshold})")
 
-    from mygene import MyGeneInfo
-    import requests
-    import time
-    from Bio import Entrez
+    # Create network
+    G = nx.Graph()
 
-    # Set your email for NCBI API
-    Entrez.email = "aum.champaneri@outlook.com"
-    Entrez.api_key = "bee8c07e73f4e5935bdacaa9ecc653e9dc09"
-    mg = MyGeneInfo()
+    # Add edges with weights
+    for _, row in high_conf_df.iterrows():
+        protein1 = uniprot_to_gene.get(row['acc1'], row['acc1'])
+        protein2 = uniprot_to_gene.get(row['acc2'], row['acc2'])
+        G.add_edge(protein1, protein2, weight=row['prediction'])
 
-    # Filter out likely non-coding RNAs and other non-protein entries
-    filtered_gene_list = []
-    for gene in gene_list:
-        # Skip genes with period in name (likely non-coding RNAs or genomic contigs)
-        if isinstance(gene, str) and '.' in gene:
-            continue
-        # Skip genes with common non-coding RNA prefixes
-        if isinstance(gene, str) and any(gene.startswith(prefix) for prefix in
-                                         ['LINC', 'MIR', 'SNORD', 'AC', 'AL', 'AP']):
-            continue
-        # Keep potential protein-coding genes
-        filtered_gene_list.append(gene)
+    # Get pathway info for nodes
+    pathway_dict = {}
+    for gene in G.nodes():
+        pathways = pathway_df[pathway_df['gene'] == gene]['pathway'].unique().tolist()
+        pathway_dict[gene] = pathways
 
-    print(f"Filtered out {len(gene_list) - len(filtered_gene_list)} likely non-coding genes")
-    print(f"Proceeding with {len(filtered_gene_list)} potential protein-coding genes")
+    # Assign colors based on dominant pathway
+    node_colors = []
+    pathway_color_map = {}
 
-    # Process in batches to avoid API limits
-    batch_size = 100
-    for i in range(0, len(filtered_gene_list), batch_size):
-        batch = filtered_gene_list[i:i + batch_size]
-        try:
-            # Query gene info
-            gene_info = mg.querymany(batch, scopes='symbol', fields='uniprot', species='human', returnall=True)
+    # Get unique pathways for color mapping
+    all_pathways = pathway_df['pathway'].unique().tolist()
+    cmap = plt.cm.tab20
+    for i, pathway in enumerate(all_pathways):
+        pathway_color_map[pathway] = cmap(i % 20)
 
-            # Process results - ensure we extract string IDs only
-            for entry in gene_info['out']:
-                gene_symbol = entry.get('query', '')
-                if 'uniprot' in entry:
-                    uniprot_data = entry['uniprot']
-                    # Handle Swiss-Prot ID (preferred)
-                    if 'Swiss-Prot' in uniprot_data:
-                        swiss_prot = uniprot_data['Swiss-Prot']
-                        if isinstance(swiss_prot, str):
-                            gene_to_uniprot[gene_symbol] = swiss_prot
-                        elif isinstance(swiss_prot, list) and swiss_prot:
-                            gene_to_uniprot[gene_symbol] = swiss_prot[0]
-                    # Fall back to TrEMBL if no Swiss-Prot
-                    elif 'TrEMBL' in uniprot_data:
-                        trembl = uniprot_data['TrEMBL']
-                        if isinstance(trembl, str):
-                            gene_to_uniprot[gene_symbol] = trembl
-                        elif isinstance(trembl, list) and trembl:
-                            gene_to_uniprot[gene_symbol] = trembl[0]
-        except Exception as e:
-            print(f"Error in batch query: {e}")
+    for node in G.nodes():
+        pathways = pathway_dict.get(node, [])
+        if pathways:
+            # Use first pathway for color (could be enhanced to use most specific pathway)
+            node_colors.append(pathway_color_map[pathways[0]])
+        else:
+            # Grey for nodes without pathway info
+            node_colors.append((0.5, 0.5, 0.5, 0.5))
 
-        # Add delay between batches to avoid rate limiting
-        time.sleep(1)
+    # Create visualization
+    plt.figure(figsize=(12, 10), dpi=300)
 
-    # Download sequences for mapped UniProt IDs
-    for gene, uniprot_id in list(gene_to_uniprot.items()):
-        # Skip any non-string UniProt IDs to ensure only strings are in the final dict
-        if not isinstance(uniprot_id, str):
-            print(f"Removing non-string UniProt ID for gene {gene}: {uniprot_id}")
-            gene_to_uniprot.pop(gene)
-            continue
+    # Position nodes using spring layout
+    pos = nx.spring_layout(G, seed=42, k=0.3)
 
-        if uniprot_id not in protein_sequences_dict:
-            try:
-                # Get protein sequence from UniProt
-                url = f"https://www.uniprot.org/uniprot/{uniprot_id}.fasta"
-                response = requests.get(url)
+    # Draw network
+    nx.draw_networkx_nodes(G, pos, node_size=200, node_color=node_colors, alpha=0.8)
 
-                if response.status_code == 200:
-                    # Parse FASTA
-                    sequence_lines = response.text.strip().split('\n')
-                    if len(sequence_lines) > 1:
-                        sequence = ''.join(sequence_lines[1:])
-                        protein_sequences_dict[uniprot_id] = sequence
-            except Exception as e:
-                print(f"Error downloading sequence for {uniprot_id}: {e}")
+    # Draw edges with weight-based width
+    edges = G.edges()
+    weights = [G[u][v]['weight'] * 3 for u, v in edges]  # Scale up for visibility
+    nx.draw_networkx_edges(G, pos, width=weights, alpha=0.3, edge_color='gray')
 
-    print(f"Successfully mapped {len(gene_to_uniprot)} genes to UniProt IDs")
-    print(f"Downloaded {len(protein_sequences_dict)} protein sequences")
+    # Draw labels for high-degree nodes
+    node_degrees = dict(G.degree())
+    top_nodes = [n for n, d in sorted(node_degrees.items(), key=lambda x: x[1], reverse=True)[:30]]
+    label_dict = {n: n for n in top_nodes}
+    nx.draw_networkx_labels(G, pos, labels=label_dict, font_size=8, font_family='sans-serif')
 
-    return gene_to_uniprot, protein_sequences_dict
+    # Create legend for pathways
+    legend_elements = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=color,
+                                  label=pathway, markersize=10)
+                      for pathway, color in pathway_color_map.items()]
 
-# Main function to run both sexes in a single pass
+    plt.axis('off')
+    plt.title('Protein-Protein Interaction Network by Pathway', fontsize=16)
+    plt.legend(handles=legend_elements, loc='center left', bbox_to_anchor=(1, 0.5),
+               ncol=1, fontsize=8)
+    plt.tight_layout()
+    plt.savefig(f"{output_dir}/pathway_ppi_network.png", dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # Calculate and save network statistics
+    stats = {
+        'Nodes': G.number_of_nodes(),
+        'Edges': G.number_of_edges(),
+        'Average Degree': sum(dict(G.degree()).values()) / G.number_of_nodes(),
+        'Density': nx.density(G),
+        'Connected Components': nx.number_connected_components(G),
+        'Average Clustering': nx.average_clustering(G),
+    }
+
+    # Find most central nodes
+    degree_centrality = nx.degree_centrality(G)
+    betweenness_centrality = nx.betweenness_centrality(G)
+    eigenvector_centrality = nx.eigenvector_centrality(G, max_iter=1000)
+
+    top_central_nodes = sorted(degree_centrality.items(), key=lambda x: x[1], reverse=True)[:20]
+
+    # Save statistics
+    with open(f"{output_dir}/network_stats.txt", 'w') as f:
+        f.write("Network Statistics:\n")
+        for k, v in stats.items():
+            f.write(f"{k}: {v}\n")
+
+        f.write("\nTop 20 Central Nodes (Degree Centrality):\n")
+        for node, centrality in top_central_nodes:
+            f.write(f"{node}: {centrality:.4f}\n")
+
+    print(f"Network visualization saved to {output_dir}/pathway_ppi_network.png")
+    print(f"Network statistics saved to {output_dir}/network_stats.txt")
+
+    return G
+
+
+# Main function to run the pipeline
 def main():
     print("Starting memory-optimized DL-PPI pipeline for both sexes...")
-    run_params = {
-        "model": "facebook/esm2_t33_650M_UR50D",
-        "batch_size_train": 8,
-        "batch_size_predict": 4,
-        "epochs": 20,
-        "patience": 3,
-        "lr": 1e-4,
-        "weight_decay": 1e-5,
-        "embedding_dim": 1280,
-        "timestamp": time.strftime("%Y%m%d-%H%M%S")
-    }
 
-    # Create output directories
-    out_dir = "DL-PPI outputs"
-    os.makedirs(out_dir, exist_ok=True)
-    os.makedirs(f"{out_dir}/data", exist_ok=True)
-    os.makedirs(f"{out_dir}/models", exist_ok=True)
-    os.makedirs(f"{out_dir}/results", exist_ok=True)
+    # Step 1: Load inflammatory pathway data
+    pathway_df = load_inflammatory_pathways()
 
-    # Create sex-specific output directories
-    male_dir = ensure_path(f"{out_dir}/results/male")
-    female_dir = ensure_path(f"{out_dir}/results/female")
-    comp_dir = ensure_path(f"{out_dir}/results/comparison")
-
-    # Load inflammatory pathway data
-    pathway_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/KEGG outputs/kegg_inflammatory_pathways.csv"
-    pathway_df = load_inflammatory_pathways(pathway_file)
-
-    if pathway_df.empty:
-        print("WARNING: Pathway data unavailable!")
-        return
-
-    # Load or create training data
-    if not os.path.exists(f"{out_dir}/data/known_interactions.csv"):
-        print("\nCreating training data for inflammatory pathways...")
-        training_df, protein_sequences_dict = create_complement_training_data(out_dir)
-    else:
-        print("\nLoading existing training data...")
-        training_df = pd.read_csv(f"{out_dir}/data/known_interactions.csv")
-
-        # Load protein sequences from FASTA
-        protein_sequences_dict = {}
-        with open(f"{out_dir}/data/protein_sequences.fasta", 'r') as f:
-            current_id = None
-            current_seq = ""
-            for line in f:
-                line = line.strip()
-                if line.startswith('>'):
-                    if current_id:
-                        protein_sequences_dict[current_id] = current_seq
-                    current_id = line[1:]
-                    current_seq = ""
-                else:
-                    current_seq += line
-            if current_id:
-                protein_sequences_dict[current_id] = current_seq
-
-    # Create training pairs and labels
-    train_pairs = list(zip(training_df['protein1'], training_df['protein2']))
-    train_labels = training_df['interaction_label'].tolist()
-
-    print(
-        f"Loaded {len(train_pairs)} training pairs, {sum(train_labels)} positive, {len(train_labels) - sum(train_labels)} negative")
-
-    # Initialize deep learning model - ONCE for both sexes
-    embedding_cache_file = f"{out_dir}/data/embedding_cache.pkl"
-    dl_model = DeepLearningPPI()
-
-    # Load embedding cache if available
-    dl_model.load_embedding_cache(embedding_cache_file)
-
-    # Check if model exists or needs training
-    if os.path.exists(f"{out_dir}/models/classifier_head.pt"):
-        print("\nFound existing trained model.")
-        # Load model for inference
-        dl_model.classifier.load_state_dict(torch.load(f"{out_dir}/models/classifier_head.pt"))
-    else:
-        print("\nTraining new model with memory optimizations...")
-        # Train model with smaller batch size for M1 Mac
-        dl_model = train_ppi_model(train_pairs, train_labels, protein_sequences_dict,
-                                   batch_size=8,  # Smaller batch size for M1 Mac
-                                   epochs=20,
-                                   patience=3,
-                                   output_dir=f"{out_dir}/models")
-
-    # Precompute embeddings for all proteins to avoid recomputing
-    precompute_all_embeddings(protein_sequences_dict, dl_model, embedding_cache_file)
-
-    # Extract all genes from inflammatory pathways
-    all_pathway_genes = pathway_df.gene.unique().tolist()
-    # Filter out entries that aren't gene symbols
-    all_pathway_genes = [g for g in all_pathway_genes if isinstance(g, str) and not g.startswith('[')]
-    print(f"Loaded {len(all_pathway_genes)} genes from inflammatory pathways")
-
-    # Load sex-specific DEGs
-    male_genes = load_sex_specific_genes("M")
-    female_genes = load_sex_specific_genes("F")
+    # Step 2: Load sex-specific genes
+    male_genes = load_sex_specific_genes(sex="M")
+    female_genes = load_sex_specific_genes(sex="F")
     print(f"Loaded {len(male_genes)} male-specific and {len(female_genes)} female-specific genes")
 
-    # Map genes to UniProt IDs - do this ONCE for all genes
-    print("\nMapping genes to UniProt IDs...")
+    # Step 3: Load training data or create it if doesn't exist
+    train_file = "DL-PPI outputs/data/known_interactions.csv"
+    seq_file = "DL-PPI outputs/data/protein_sequences.pkl"
+
+    if os.path.exists(train_file) and os.path.exists(seq_file):
+        print("\nLoading existing training data...")
+        training_df = pd.read_csv(train_file)
+        with open(seq_file, 'rb') as f:
+            protein_sequences_dict = pickle.load(f)
+        print(f"Loaded {len(training_df)} training pairs, {training_df['interaction_label'].sum()} positive, {len(training_df) - training_df['interaction_label'].sum()} negative")
+    else:
+        training_df, protein_sequences_dict = create_complement_training_data()
+
+    # Step 4: Create and train model or load existing
+    model_file = "DL-PPI outputs/models/classifier_head.pt"
+    embedding_cache_file = "DL-PPI outputs/models/embedding_cache.pkl"
+
+    # Load model
+    print("\nLoading facebook/esm2_t33_650M_UR50D model with memory optimizations...")
+    dl_model = DeepLearningPPI(embedding_cache=None)
+
+    # Load embedding cache if exists
+    if os.path.exists(embedding_cache_file):
+        dl_model.load_embedding_cache(embedding_cache_file)
+
+    # Check if trained model exists
+    if os.path.exists(model_file):
+        print("\nFound existing trained model.")
+        dl_model.classifier.load_state_dict(torch.load(model_file))
+    else:
+        print("\nTraining new model...")
+        # Prepare training data
+        train_pairs = list(zip(training_df['protein1'], training_df['protein2']))
+        train_labels = training_df['interaction_label'].values
+
+        # Train model
+        dl_model = train_ppi_model(train_pairs, train_labels, protein_sequences_dict)
+
+    # Step 5: Map genes to UniProt IDs - do this ONCE for all genes
+    print("\nLoading cached protein data...")
+    all_pathway_genes = pathway_df.gene.unique().tolist()
     all_genes = set(all_pathway_genes + male_genes + female_genes)
-    gene_to_uniprot, protein_sequences_dict = map_genes_and_download_sequences(list(all_genes), protein_sequences_dict)
+    gene_to_uniprot, protein_sequences_dict = load_cached_protein_data(list(all_genes))
 
     # Create reverse mapping for visualization
     uniprot_to_gene = {v: k for k, v in gene_to_uniprot.items()}
@@ -2293,135 +1034,52 @@ def main():
     # Add gene mapping to model for convenient access
     dl_model.uniprot_to_gene = uniprot_to_gene
 
-    # Process results
-    gene_to_uniprot = {}
-    for entry in gene_info['out']:
-        if 'uniprot' in entry and 'Swiss-Prot' in entry['uniprot']:
-            gene = entry.get('query', '')
-            uniprot_id = entry['uniprot']['Swiss-Prot']
-            if isinstance(uniprot_id, list):
-                uniprot_id = uniprot_id[0]  # Take the first one
-            gene_to_uniprot[gene] = uniprot_id
+    # Step 6: Precompute embeddings for all proteins
+    precompute_all_embeddings(protein_sequences_dict, dl_model, embedding_cache_file)
 
-    # Create reverse mapping for visualization
-    uniprot_to_gene = {v: k for k, v in gene_to_uniprot.items()}
+    # Step 7: Generate protein pairs for prediction - Male specific
+    print("\nGenerating protein pairs for male network...")
+    male_genes_in_pathways = list(set(male_genes) & set(all_pathway_genes))
+    male_pairs = generate_pathway_based_pairs(male_genes_in_pathways, pathway_df,
+                                             protein_sequences_dict, gene_to_uniprot)
 
-    # Add gene mapping to model for convenient access
-    dl_model.uniprot_to_gene = uniprot_to_gene
+    # Step 8: Generate protein pairs for prediction - Female specific
+    print("\nGenerating protein pairs for female network...")
+    female_genes_in_pathways = list(set(female_genes) & set(all_pathway_genes))
+    female_pairs = generate_pathway_based_pairs(female_genes_in_pathways, pathway_df,
+                                              protein_sequences_dict, gene_to_uniprot)
 
-    # Process male data
-    male_results = None
-    print("\n========== PROCESSING MALE DATA ==========")
-    if male_genes:
-        # Generate pathway-based pairs for males
-        male_pairs = generate_pathway_based_pairs(male_genes, pathway_df, protein_sequences_dict, gene_to_uniprot)
-        male_test_pairs = [(p[0], p[1]) for p in male_pairs]
+    # Step 9: Predict interactions - Male
+    print("\nPredicting male-specific interactions...")
+    male_results = predict_ppi_deep_learning(male_pairs, protein_sequences_dict, dl_model,
+                                           output_dir="DL-PPI outputs/results/male")
 
-        if male_test_pairs:
-            male_results = predict_ppi_deep_learning(
-                male_test_pairs,
-                protein_sequences_dict,
-                model=dl_model,
-                batch_size=run_params["batch_size_predict"],
-                output_dir=male_dir
-            )
+    # Step 10: Predict interactions - Female
+    print("\nPredicting female-specific interactions...")
+    female_results = predict_ppi_deep_learning(female_pairs, protein_sequences_dict, dl_model,
+                                             output_dir="DL-PPI outputs/results/female")
 
-            # Add metadata to results
-            if not male_results.empty:
-                # Add gene names
-                male_results['gene1'] = male_results['acc1'].map(uniprot_to_gene)
-                male_results['gene2'] = male_results['acc2'].map(uniprot_to_gene)
+    # Step 11: Create visualization data
+    male_viz = create_viz_data(male_results, uniprot_to_gene, threshold=0.5)
+    female_viz = create_viz_data(female_results, uniprot_to_gene, threshold=0.5)
 
-                # Add pathway information
-                def get_pathway_info_for_row(row):
-                    gene1 = row['gene1'] if pd.notna(row['gene1']) else ""
-                    gene2 = row['gene2'] if pd.notna(row['gene2']) else ""
-                    return get_pathway_info(gene1, gene2, pathway_df)
+    # Step 12: Compare networks
+    comparison = compare_networks(male_viz, female_viz)
 
-                male_results['pathway_info'] = male_results.apply(get_pathway_info_for_row, axis=1)
-                male_results.to_csv(f"{male_dir}/dl_ppi_predictions_with_metadata.csv", index=False)
+    # Step 13: Visualize pathway-based networks
+    print("\nCreating pathway-based network visualizations...")
+    male_network = visualize_pathway_ppi_network(male_results, uniprot_to_gene, pathway_df,
+                                              output_dir="DL-PPI outputs/networks/male")
+    female_network = visualize_pathway_ppi_network(female_results, uniprot_to_gene, pathway_df,
+                                                output_dir="DL-PPI outputs/networks/female")
 
-                # Save visualization-friendly format
-                male_viz_df = create_viz_data(male_results, uniprot_to_gene, threshold=0.4)
-                male_viz_df.to_csv(f"{out_dir}/results/dl_ppi_viz_data_male_0.4_genes.csv", index=False)
-
-    # Force garbage collection to free memory before processing female data
-    gc.collect()
-    if hasattr(torch.cuda, 'empty_cache'):
-        torch.cuda.empty_cache()
-
-    # Process female data
-    female_results = None
-    print("\n========== PROCESSING FEMALE DATA ==========")
-    if female_genes:
-        # Generate pathway-based pairs for females
-        female_pairs = generate_pathway_based_pairs(female_genes, pathway_df, protein_sequences_dict, gene_to_uniprot)
-        female_test_pairs = [(p[0], p[1]) for p in female_pairs]
-
-        if female_test_pairs:
-            female_results = predict_ppi_deep_learning(
-                female_test_pairs,
-                protein_sequences_dict,
-                model=dl_model,
-                batch_size=run_params["batch_size_predict"],
-                output_dir=female_dir
-            )
-
-            # Add metadata to results
-            if not female_results.empty:
-                # Add gene names
-                female_results['gene1'] = female_results['acc1'].map(uniprot_to_gene)
-                female_results['gene2'] = female_results['acc2'].map(uniprot_to_gene)
-
-                # Add pathway information
-                def get_pathway_info_for_row(row):
-                    gene1 = row['gene1'] if pd.notna(row['gene1']) else ""
-                    gene2 = row['gene2'] if pd.notna(row['gene2']) else ""
-                    return get_pathway_info(gene1, gene2, pathway_df)
-
-                female_results['pathway_info'] = female_results.apply(get_pathway_info_for_row, axis=1)
-                female_results.to_csv(f"{female_dir}/dl_ppi_predictions_with_metadata.csv", index=False)
-
-                # Save visualization-friendly format
-                female_viz_df = create_viz_data(female_results, uniprot_to_gene, threshold=0.4)
-                female_viz_df.to_csv(f"{out_dir}/results/dl_ppi_viz_data_female_0.4_genes.csv", index=False)
-
-    # Compare networks if both have results
-    if male_results is not None and female_results is not None and not male_results.empty and not female_results.empty:
-        print("\n========== COMPARING MALE AND FEMALE NETWORKS ==========")
-        # Convert UniProt IDs to gene symbols for visualization
-        male_viz_df = pd.DataFrame({
-            'protein1': male_results['gene1'],
-            'protein2': male_results['gene2'],
-            'prediction': male_results['prediction'],
-            'method': male_results['method']
-        })
-
-        female_viz_df = pd.DataFrame({
-            'protein1': female_results['gene1'],
-            'protein2': female_results['gene2'],
-            'prediction': female_results['prediction'],
-            'method': female_results['method']
-        })
-
-        # Compare the networks
-        network_metrics = compare_networks(male_viz_df, female_viz_df, output_dir=comp_dir)
-
-        # Save metrics
-        network_metrics.to_csv(f"{comp_dir}/network_metrics.csv", index=False)
-
-    # Save embedding cache before finishing
-    print("\nSaving embedding cache...")
-    with open(embedding_cache_file, 'wb') as f:
-        pickle.dump(dl_model.embedding_cache, f)
-
-    # Save run parameters for reproducibility
-    with open(f"{out_dir}/run_parameters.json", 'w') as f:
-        json.dump(run_params, f, indent=2)
-
-    print("\nDL-PPI prediction pipeline completed for both sexes.")
-    print(f"Results saved to {out_dir}")
-    print(f"Run parameters saved to {out_dir}/run_parameters.json")
+    print("\nPipeline completed successfully!")
+    return {
+        'dl_model': dl_model,
+        'male_results': male_results,
+        'female_results': female_results,
+        'comparison': comparison
+    }
 
 
 if __name__ == "__main__":
