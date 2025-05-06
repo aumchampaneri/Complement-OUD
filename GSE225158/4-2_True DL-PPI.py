@@ -311,21 +311,48 @@ def create_complement_training_data(output_dir="DL-PPI outputs"):
         protein_sequences = {}
         for protein_id in tqdm(proteins, desc="Downloading protein sequences"):
             try:
-                response = requests.get(f"https://www.uniprot.org/uniprot/{protein_id}.fasta")
+                # Check if it's a STRING ID (has 9606.ENSP format)
+                if protein_id.startswith('9606.ENSP'):
+                    # Extract the Ensembl ID part
+                    ensembl_id = protein_id.split('.')[1]
 
-                # Handle UniProt API changes
-                if response.status_code != 200:
-                    # Try alternative URL format
-                    response = requests.get(f"https://rest.uniprot.org/uniprotkb/{protein_id}.fasta")
+                    # Use mygene to convert Ensembl ID to UniProt
+                    from mygene import MyGeneInfo
+                    mg = MyGeneInfo()
+                    result = mg.query(ensembl_id, scopes='ensembl.protein', fields='uniprot', species='human')
 
-                if response.status_code == 200:
-                    lines = response.text.strip().split('\n')
-                    sequence = ''.join(lines[1:])
-                    protein_sequences[protein_id] = sequence
+                    if result['hits'] and 'uniprot' in result['hits'][0]:
+                        # Get the UniProt ID
+                        if 'Swiss-Prot' in result['hits'][0]['uniprot']:
+                            uniprot_id = result['hits'][0]['uniprot']['Swiss-Prot']
+                        elif isinstance(result['hits'][0]['uniprot'], list) and len(result['hits'][0]['uniprot']) > 0:
+                            uniprot_id = result['hits'][0]['uniprot'][0]
+                        else:
+                            print(f"No Swiss-Prot entry found for {protein_id}")
+                            continue
+
+                        # Download sequence using proper UniProt ID
+                        response = requests.get(f"https://rest.uniprot.org/uniprotkb/{uniprot_id}.fasta")
+                        if response.status_code == 200:
+                            lines = response.text.strip().split('\n')
+                            sequence = ''.join(lines[1:])
+                            protein_sequences[protein_id] = sequence
+                        else:
+                            print(
+                                f"Could not retrieve sequence for mapped ID {uniprot_id}, status: {response.status_code}")
+                    else:
+                        print(f"Could not map {protein_id} to UniProt")
                 else:
-                    print(f"Could not retrieve sequence for {protein_id}, status: {response.status_code}")
+                    # Try original method for non-Ensembl IDs (assumed to be UniProt)
+                    response = requests.get(f"https://rest.uniprot.org/uniprotkb/{protein_id}.fasta")
+                    if response.status_code == 200:
+                        lines = response.text.strip().split('\n')
+                        sequence = ''.join(lines[1:])
+                        protein_sequences[protein_id] = sequence
+                    else:
+                        print(f"Could not retrieve sequence for {protein_id}, status: {response.status_code}")
             except Exception as e:
-                print(f"Error downloading {protein_id}: {e}")
+                print(f"Error processing {protein_id}: {e}")
 
         print(f"Downloaded {len(protein_sequences)} protein sequences")
 
@@ -384,6 +411,13 @@ def generate_pathway_based_pairs(gene_list, pathway_df, protein_sequences_dict, 
                 pairs.append((uniprot_ids[i], uniprot_ids[j]))
 
     print(f"Generated {len(pairs)} pathway-based protein pairs")
+
+    # After getting UniProt IDs
+    uniprot_ids = [gene_to_uniprot.get(g) for g in pathway_genes]
+    uniprot_ids_raw = [u for u in uniprot_ids if u]
+    uniprot_ids = [u for u in uniprot_ids_raw if u in protein_sequences_dict]
+    print(
+        f"Pathway {pathway}: Found {len(pathway_genes)} genes, {len(uniprot_ids_raw)} with UniProt IDs, {len(uniprot_ids)} with sequences")
     return pairs
 
 
@@ -905,21 +939,49 @@ def predict_ppi_deep_learning(protein_pairs, protein_sequences_dict, model=None,
             protein_sequences = {}
             for protein_id in tqdm(proteins, desc="Downloading protein sequences"):
                 try:
-                    response = requests.get(f"https://www.uniprot.org/uniprot/{protein_id}.fasta")
+                    # Check if it's a STRING ID (has 9606.ENSP format)
+                    if protein_id.startswith('9606.ENSP'):
+                        # Extract the Ensembl ID part
+                        ensembl_id = protein_id.split('.')[1]
 
-                    # Handle UniProt API changes
-                    if response.status_code != 200:
-                        # Try alternative URL format
-                        response = requests.get(f"https://rest.uniprot.org/uniprotkb/{protein_id}.fasta")
+                        # Use mygene to convert Ensembl ID to UniProt
+                        from mygene import MyGeneInfo
+                        mg = MyGeneInfo()
+                        result = mg.query(ensembl_id, scopes='ensembl.protein', fields='uniprot', species='human')
 
-                    if response.status_code == 200:
-                        lines = response.text.strip().split('\n')
-                        sequence = ''.join(lines[1:])
-                        protein_sequences[protein_id] = sequence
+                        if result['hits'] and 'uniprot' in result['hits'][0]:
+                            # Get the UniProt ID
+                            if 'Swiss-Prot' in result['hits'][0]['uniprot']:
+                                uniprot_id = result['hits'][0]['uniprot']['Swiss-Prot']
+                            elif isinstance(result['hits'][0]['uniprot'], list) and len(
+                                    result['hits'][0]['uniprot']) > 0:
+                                uniprot_id = result['hits'][0]['uniprot'][0]
+                            else:
+                                print(f"No Swiss-Prot entry found for {protein_id}")
+                                continue
+
+                            # Download sequence using proper UniProt ID
+                            response = requests.get(f"https://rest.uniprot.org/uniprotkb/{uniprot_id}.fasta")
+                            if response.status_code == 200:
+                                lines = response.text.strip().split('\n')
+                                sequence = ''.join(lines[1:])
+                                protein_sequences[protein_id] = sequence
+                            else:
+                                print(
+                                    f"Could not retrieve sequence for mapped ID {uniprot_id}, status: {response.status_code}")
+                        else:
+                            print(f"Could not map {protein_id} to UniProt")
                     else:
-                        print(f"Could not retrieve sequence for {protein_id}, status: {response.status_code}")
+                        # Try original method for non-Ensembl IDs (assumed to be UniProt)
+                        response = requests.get(f"https://rest.uniprot.org/uniprotkb/{protein_id}.fasta")
+                        if response.status_code == 200:
+                            lines = response.text.strip().split('\n')
+                            sequence = ''.join(lines[1:])
+                            protein_sequences[protein_id] = sequence
+                        else:
+                            print(f"Could not retrieve sequence for {protein_id}, status: {response.status_code}")
                 except Exception as e:
-                    print(f"Error downloading {protein_id}: {e}")
+                    print(f"Error processing {protein_id}: {e}")
 
             print(f"Downloaded {len(protein_sequences)} protein sequences")
 
@@ -1554,14 +1616,31 @@ def predict_ppi_deep_learning(protein_pairs, protein_sequences_dict, model=None,
         female_genes = load_sex_specific_genes("F")
         print(f"Loaded {len(male_genes)} male-specific and {len(female_genes)} female-specific genes")
 
-        # Map genes to UniProt IDs - do this ONCE for all genes
+        # More comprehensive filtering before mapping
         print("\nMapping genes to UniProt IDs...")
         from mygene import MyGeneInfo
+        import re
         mg = MyGeneInfo()
 
-        # Get mappings for all genes at once
+        # Get all genes
         all_genes = set(all_pathway_genes + male_genes + female_genes)
-        gene_info = mg.querymany(all_genes, scopes='symbol', fields='uniprot', species='human', returnall=True)
+
+        # More aggressive filtering for non-coding RNAs
+        filtered_genes = []
+        for gene in all_genes:
+            # Skip any gene that matches non-coding RNA patterns
+            if (isinstance(gene, str) and
+                    not re.match(r'^(AC|AL|AP|RP|LINC|LOC\d+|.*-AS\d+|.*-IT\d+|.*\.\d+)', gene) and
+                    not '-AS' in gene and
+                    not gene.startswith(('MIR', 'SNORD', 'SNORA', 'TCONS_', 'XLOC_')) and
+                    len(gene) > 1):  # Skip single-character entries
+                filtered_genes.append(gene)
+
+        print(f"Filtered out {len(all_genes) - len(filtered_genes)} non-protein coding entries")
+        print(f"Proceeding with {len(filtered_genes)} potential protein-coding genes")
+
+        # Query only the filtered genes
+        gene_info = mg.querymany(filtered_genes, scopes='symbol', fields='uniprot', species='human', returnall=True)
 
         # Process results
         gene_to_uniprot = {}
