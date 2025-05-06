@@ -1614,7 +1614,12 @@ def predict_ppi_deep_learning(protein_pairs, protein_sequences_dict, model=None,
         # Load sex-specific DEGs
         male_genes = load_sex_specific_genes("M")
         female_genes = load_sex_specific_genes("F")
+
         print(f"Loaded {len(male_genes)} male-specific and {len(female_genes)} female-specific genes")
+
+        # Before generating pairs, map all genes and download sequences
+        all_genes = list(set(pathway_df['gene'].tolist() + male_genes + female_genes))
+        gene_to_uniprot, protein_sequences_dict = map_genes_and_download_sequences(all_genes, protein_sequences_dict)
 
         # More comprehensive filtering before mapping
         print("\nMapping genes to UniProt IDs...")
@@ -2073,6 +2078,57 @@ def compare_networks(male_df, female_df, output_dir="DL-PPI outputs/comparison")
     print(f"All visualizations saved to {output_dir}")
     return metrics_df
 
+
+def map_genes_and_download_sequences(gene_list, protein_sequences_dict=None):
+    """Map gene symbols to UniProt IDs and download their sequences"""
+    if protein_sequences_dict is None:
+        protein_sequences_dict = {}
+
+    gene_to_uniprot = {}
+
+    print(f"Mapping and downloading sequences for {len(gene_list)} genes...")
+    # Use mygene to map genes to UniProt IDs
+    from mygene import MyGeneInfo
+    mg = MyGeneInfo()
+
+    # Process in batches to avoid API limits
+    batch_size = 100
+    for i in range(0, len(gene_list), batch_size):
+        batch = gene_list[i:i+batch_size]
+        try:
+            # Query for UniProt IDs
+            results = mg.querymany(batch, scopes='symbol', fields='uniprot', species='human')
+
+            for result in results:
+                if 'uniprot' in result and not 'notfound' in result:
+                    gene = result['query']
+                    # Extract Swiss-Prot ID if available
+                    if isinstance(result['uniprot'], dict) and 'Swiss-Prot' in result['uniprot']:
+                        uniprot_id = result['uniprot']['Swiss-Prot']
+                        gene_to_uniprot[gene] = uniprot_id
+                    elif isinstance(result['uniprot'], list) and len(result['uniprot']) > 0:
+                        uniprot_id = result['uniprot'][0]
+                        gene_to_uniprot[gene] = uniprot_id
+
+                    # Download the sequence if we have a UniProt ID
+                    if gene in gene_to_uniprot and gene_to_uniprot[gene] not in protein_sequences_dict:
+                        try:
+                            import requests
+                            response = requests.get(f"https://rest.uniprot.org/uniprotkb/{gene_to_uniprot[gene]}.fasta")
+                            if response.status_code == 200:
+                                # Parse FASTA format
+                                lines = response.text.strip().split('\n')
+                                sequence = ''.join(lines[1:])
+                                protein_sequences_dict[gene_to_uniprot[gene]] = sequence
+                        except Exception as e:
+                            print(f"Error downloading sequence for {gene} ({gene_to_uniprot[gene]}): {e}")
+        except Exception as e:
+            print(f"Error in batch query: {e}")
+
+    print(f"Successfully mapped {len(gene_to_uniprot)} genes to UniProt IDs")
+    print(f"Downloaded {len(protein_sequences_dict)} protein sequences")
+
+    return gene_to_uniprot, protein_sequences_dict
 
 # Main function to run both sexes in a single pass
 def main():
