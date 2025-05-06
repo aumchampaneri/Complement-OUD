@@ -2096,7 +2096,7 @@ def map_genes_and_download_sequences(gene_list, protein_sequences_dict=None):
     # Process in batches to avoid API limits
     batch_size = 100
     for i in range(0, len(gene_list), batch_size):
-        batch = gene_list[i:i + batch_size]
+        batch = gene_list[i:i+batch_size]
         try:
             # Query for UniProt IDs
             results = mg.querymany(batch, scopes='symbol', fields='uniprot', species='human')
@@ -2107,41 +2107,26 @@ def map_genes_and_download_sequences(gene_list, protein_sequences_dict=None):
                     # Extract Swiss-Prot ID if available
                     if isinstance(result['uniprot'], dict) and 'Swiss-Prot' in result['uniprot']:
                         uniprot_id = result['uniprot']['Swiss-Prot']
+                        if isinstance(uniprot_id, list) and uniprot_id:
+                            uniprot_id = uniprot_id[0]  # Take the first one if multiple
                         gene_to_uniprot[gene] = uniprot_id
                     elif isinstance(result['uniprot'], list) and len(result['uniprot']) > 0:
-                        # Try to find Swiss-Prot ID in the list
-                        swiss_prot_found = False
-                        for entry in result['uniprot']:
-                            if isinstance(entry, dict) and 'Swiss-Prot' in entry:
-                                uniprot_id = entry['Swiss-Prot']
-                                gene_to_uniprot[gene] = uniprot_id
-                                swiss_prot_found = True
-                                break
-
-                        # If no Swiss-Prot found in list, use the first one
-                        if not swiss_prot_found:
-                            if isinstance(result['uniprot'][0], dict):
-                                for key, value in result['uniprot'][0].items():
-                                    uniprot_id = value
-                                    gene_to_uniprot[gene] = uniprot_id
-                                    break
-                            else:
-                                uniprot_id = result['uniprot'][0]
-                                gene_to_uniprot[gene] = uniprot_id
+                        uniprot_id = result['uniprot'][0]  # Default to first
+                        gene_to_uniprot[gene] = uniprot_id
 
                     # Download the sequence if we have a UniProt ID
                     if gene in gene_to_uniprot and gene_to_uniprot[gene] not in protein_sequences_dict:
                         uniprot_id = gene_to_uniprot[gene]
                         try:
-                            # Use the new REST API format
-                            url = f"https://rest.uniprot.org/uniprotkb/{uniprot_id}.fasta"
-                            response = requests.get(url)
+                            # Use UniProt API to get sequence
+                            seq_url = f"https://rest.uniprot.org/uniprotkb/{uniprot_id}.fasta"
+                            response = requests.get(seq_url)
                             if response.status_code == 200:
                                 # Parse FASTA format
-                                lines = response.text.strip().split('\n')
-                                sequence = ''.join(lines[1:])
+                                fasta_lines = response.text.strip().split('\n')
+                                # Skip the header line, join the rest
+                                sequence = ''.join(fasta_lines[1:])
                                 protein_sequences_dict[uniprot_id] = sequence
-                                print(f"Downloaded sequence for {gene} ({uniprot_id}): {len(sequence)} aa")
                         except Exception as e:
                             print(f"Error downloading sequence for {uniprot_id}: {e}")
         except Exception as e:
