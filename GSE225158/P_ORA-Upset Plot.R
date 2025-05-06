@@ -3,7 +3,7 @@ library(org.Hs.eg.db)
 library(enrichplot)
 
 # Load gene list
-de_genes <- read.csv('GSE225158/DESeq2 outputs/deseq2_results_M_OUD_vs_M_None.csv')$gene
+de_genes <- read.csv('GSE225158/DESeq2 outputs/deseq2_results_F_OUD_vs_F_None.csv')$gene
 de_genes <- de_genes[!is.na(de_genes) & de_genes != ""]
 
 # Map to Entrez IDs

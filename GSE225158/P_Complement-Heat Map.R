@@ -16,6 +16,8 @@ expr_subset <- expr[rownames(expr) %in% selected_genes, ]
 
 # 3. Load sample metadata
 meta <- read_csv('GSE225158/meta.csv')
+
+# Filter to include only columns in expression data
 meta <- meta %>%
   filter(`...1` %in% colnames(expr_subset))
 
@@ -35,8 +37,16 @@ meta$celltype_simplified <- recode(meta$celltype3,
   'Oligos_Pre' = 'Oligodendrocytes',
   'Endothelial' = 'Endothelial',
   'Microglia' = 'Microglia',
-  'Mural' = 'Mural'
+  'Mural' = 'Mural',
+  'OPCs' = 'OPCs'
 )
+
+# Now filter based on the simplified cell types
+glial_celltypes <- c("Oligodendrocytes", "Astrocytes", "OPCs", "Microglia")
+meta <- meta %>%
+  filter(celltype_simplified %in% glial_celltypes)
+
+cat("Samples in meta after filtering for glial cells:", nrow(meta), "\n")
 
 # 5. Color palettes
 celltypes_simple <- unique(meta$celltype_simplified)

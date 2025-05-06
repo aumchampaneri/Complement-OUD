@@ -1,4 +1,3 @@
-# Load libraries
 library(clusterProfiler)
 library(msigdbr)
 library(dplyr)
@@ -104,4 +103,4 @@ if("p.adjust" %in% colnames(gsea_res@result)) {
 # Save inflammatory and complement pathways
 write.csv(inflammatory_complement_pathways,
           'GSE225158/GSEA outputs/gsea_M_inflammatory_complement_pathways.csv',
-          row.names = FALSE)
+          row.names = FALSE)`

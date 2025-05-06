@@ -98,7 +98,6 @@ expr_scaled <- expr_scaled[apply(expr_scaled, 1, function(x) all(is.finite(x))),
 cat("expr_scaled dim after filtering:", dim(expr_scaled), "\n")
 
 # 8. Plot heatmap with column_split
-# R
 
 # Calculate dynamic sizes
 heatmap_height <- unit(nrow(expr_scaled) * 0.3, "cm")

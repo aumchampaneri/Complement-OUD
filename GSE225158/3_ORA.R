@@ -16,7 +16,12 @@ dir.create("GSE225158/ORA outputs/visualizations", recursive = TRUE, showWarning
 kegg_dir <- "GSE225158/ORA outputs/visualizations/kegg_data"
 dir.create(kegg_dir, recursive = TRUE, showWarnings = FALSE)
 
-# Define a safe pathview function with error handling
+# Function to set up high-quality PNG output
+create_high_res_png <- function(filename, width_in = 8, height_in = 6, dpi = 300) {
+  png(filename, width = width_in, height = height_in, units = "in", res = dpi)
+}
+
+# Define a safe pathview function with error handling and improved quality
 pathview_safe <- function(gene_fc, pathway_id, pathway_name, contrast, kegg_dir, out_dir) {
   tryCatch({
     cat(sprintf("Processing pathway %s (%s)...\n", pathway_id, pathway_name))
@@ -26,7 +31,15 @@ pathview_safe <- function(gene_fc, pathway_id, pathway_name, contrast, kegg_dir,
       species = "hsa",
       out.suffix = paste0(contrast, "_", pathway_name),
       kegg.dir = kegg_dir,
-      out.dir = out_dir
+      out.dir = out_dir,
+      node.sum = "mean",
+      limit = list(gene = 2, cpd = 1),
+      low = list(gene = "blue", cpd = "blue"),
+      mid = list(gene = "white", cpd = "white"),
+      high = list(gene = "red", cpd = "red"),
+      same.layer = TRUE,
+      new.signature = FALSE,
+      pdf.size = c(10, 8)  # Creates larger PDF output
     )
     cat("Success!\n")
   }, error = function(e) {
@@ -34,45 +47,72 @@ pathview_safe <- function(gene_fc, pathway_id, pathway_name, contrast, kegg_dir,
   })
 }
 
-# Function to create MA plot
+# Function to create MA plot with improved resolution
 create_ma_plot <- function(res, contrast, out_dir) {
   tryCatch({
     cat("Creating MA plot...\n")
     res_ma <- res[res$baseMean > 0, ]
+
+    # High-res PNG
     plot_file <- file.path(out_dir, paste0('MA_plot_', contrast, '.png'))
-    png(plot_file, width=800, height=600)
+    create_high_res_png(plot_file, width_in = 8, height_in = 6, dpi = 300)
     with(res_ma, plot(baseMean, log2FoldChange, pch=20, cex=0.5, log='x',
-         main=paste('MA Plot:', contrast), xlab='Mean Expression', ylab='log2 Fold Change'))
+         main=paste('MA Plot:', contrast), xlab='Mean Expression', ylab='log2 Fold Change',
+         cex.axis = 1.2, cex.lab = 1.2, cex.main = 1.4))
     abline(h=0, col='red')
     dev.off()
+
+    # PDF version
+    pdf_file <- file.path(out_dir, paste0('MA_plot_', contrast, '.pdf'))
+    pdf(pdf_file, width = 8, height = 6)
+    with(res_ma, plot(baseMean, log2FoldChange, pch=20, cex=0.5, log='x',
+         main=paste('MA Plot:', contrast), xlab='Mean Expression', ylab='log2 Fold Change',
+         cex.axis = 1.2, cex.lab = 1.2, cex.main = 1.4))
+    abline(h=0, col='red')
+    dev.off()
+
     cat("Success!\n")
   }, error = function(e) {
     cat(sprintf("Error creating MA plot: %s\n", e$message))
   })
 }
 
-# Function to create Volcano plot
+# Function to create Volcano plot with improved resolution
 create_volcano_plot <- function(res, contrast, out_dir) {
   tryCatch({
     cat("Creating Volcano plot...\n")
     res$padj[is.na(res$padj)] <- 1
     res$significant <- res$padj < 0.05
-    plot_file <- file.path(out_dir, paste0('Volcano_plot_', contrast, '.png'))
-    png(plot_file, width=800, height=600)
+
+    # Base plot with improved aesthetics
     p <- ggplot(res, aes(x=log2FoldChange, y=-log10(padj), color=significant)) +
-      geom_point(alpha=0.6) +
+      geom_point(alpha=0.6, size=1.2) +
       scale_color_manual(values=c('grey','red')) +
-      theme_minimal() +
+      theme_minimal(base_size = 14) +
+      theme(
+        panel.grid.minor = element_blank(),
+        legend.position = "right",
+        plot.title = element_text(size=16, face="bold"),
+        axis.title = element_text(size=14, face="bold"),
+        axis.text = element_text(size=12)
+      ) +
       labs(title=paste('Volcano Plot:', contrast), x='log2 Fold Change', y='-log10 Adjusted p-value')
-    print(p)
-    dev.off()
+
+    # High-res PNG
+    plot_file <- file.path(out_dir, paste0('Volcano_plot_', contrast, '.png'))
+    ggsave(plot_file, p, width=8, height=7, dpi=300)
+
+    # PDF version
+    pdf_file <- file.path(out_dir, paste0('Volcano_plot_', contrast, '.pdf'))
+    ggsave(pdf_file, p, width=8, height=7)
+
     cat("Success!\n")
   }, error = function(e) {
     cat(sprintf("Error creating Volcano plot: %s\n", e$message))
   })
 }
 
-# Function to create enrichment barplot
+# Function to create enrichment barplot with improved resolution
 create_barplot <- function(enrich_obj, term_type, contrast, out_dir) {
   tryCatch({
     cat(sprintf("Creating barplot for %s...\n", term_type))
@@ -81,19 +121,32 @@ create_barplot <- function(enrich_obj, term_type, contrast, out_dir) {
       return()
     }
 
-    plot_file <- file.path(out_dir, paste0('Barplot_', term_type, '_', contrast, '.png'))
-    png(plot_file, width=1000, height=800)
+    # Create enhanced barplot with better styling
     p <- barplot(enrich_obj, showCategory=20) +
-         ggtitle(paste0("Enriched ", term_type, " Terms: ", contrast))
-    print(p)
-    dev.off()
+         ggtitle(paste0("Enriched ", term_type, " Terms: ", contrast)) +
+         theme_minimal(base_size = 14) +
+         theme(
+           plot.title = element_text(size=16, face="bold"),
+           axis.title = element_text(size=14, face="bold"),
+           axis.text.y = element_text(size=10),
+           axis.text.x = element_text(size=12)
+         )
+
+    # High-res PNG
+    plot_file <- file.path(out_dir, paste0('Barplot_', term_type, '_', contrast, '.png'))
+    ggsave(plot_file, p, width=10, height=10, dpi=300)
+
+    # PDF version
+    pdf_file <- file.path(out_dir, paste0('Barplot_', term_type, '_', contrast, '.pdf'))
+    ggsave(pdf_file, p, width=10, height=10)
+
     cat("Success!\n")
   }, error = function(e) {
     cat(sprintf("Error creating barplot: %s\n", e$message))
   })
 }
 
-# Function to create enrichment dotplot
+# Function to create enrichment dotplot with improved resolution
 create_dotplot <- function(enrich_obj, term_type, contrast, out_dir) {
   tryCatch({
     cat(sprintf("Creating dotplot for %s...\n", term_type))
@@ -102,19 +155,32 @@ create_dotplot <- function(enrich_obj, term_type, contrast, out_dir) {
       return()
     }
 
-    plot_file <- file.path(out_dir, paste0('Dotplot_', term_type, '_', contrast, '.png'))
-    png(plot_file, width=1000, height=800)
     p <- dotplot(enrich_obj, showCategory=20) +
-         ggtitle(paste0("Enriched ", term_type, " Terms: ", contrast))
-    print(p)
-    dev.off()
+         ggtitle(paste0("Enriched ", term_type, " Terms: ", contrast)) +
+         theme_minimal(base_size = 14) +
+         theme(
+           plot.title = element_text(size=16, face="bold"),
+           axis.title = element_text(size=14, face="bold"),
+           axis.text.y = element_text(size=10),
+           axis.text.x = element_text(size=12),
+           legend.title = element_text(size=12, face="bold")
+         )
+
+    # High-res PNG
+    plot_file <- file.path(out_dir, paste0('Dotplot_', term_type, '_', contrast, '.png'))
+    ggsave(plot_file, p, width=10, height=10, dpi=300)
+
+    # PDF version
+    pdf_file <- file.path(out_dir, paste0('Dotplot_', term_type, '_', contrast, '.pdf'))
+    ggsave(pdf_file, p, width=10, height=10)
+
     cat("Success!\n")
   }, error = function(e) {
     cat(sprintf("Error creating dotplot: %s\n", e$message))
   })
 }
 
-# Function to create enrichment map
+# Function to create enrichment map with improved resolution
 create_emapplot <- function(enrich_obj, term_type, contrast, out_dir) {
   tryCatch({
     cat(sprintf("Creating emapplot for %s...\n", term_type))
@@ -130,18 +196,26 @@ create_emapplot <- function(enrich_obj, term_type, contrast, out_dir) {
       enrich_obj_subset <- enrich_obj
     }
 
+    emap <- emapplot(pairwise_termsim(enrich_obj_subset), showCategory=30, node_label_size=4,
+                    edge_width=0.5, label_format=30) +
+            theme(legend.title=element_text(size=14, face="bold"),
+                  legend.text=element_text(size=12))
+
+    # High-res PNG
     plot_file <- file.path(out_dir, paste0('Emapplot_', term_type, '_', contrast, '.png'))
-    png(plot_file, width=1200, height=1000)
-    emap <- emapplot(pairwise_termsim(enrich_obj_subset), showCategory=30)
-    print(emap)
-    dev.off()
+    ggsave(plot_file, emap, width=12, height=10, dpi=300)
+
+    # PDF version
+    pdf_file <- file.path(out_dir, paste0('Emapplot_', term_type, '_', contrast, '.pdf'))
+    ggsave(pdf_file, emap, width=12, height=10)
+
     cat("Success!\n")
   }, error = function(e) {
     cat(sprintf("Error creating emapplot: %s\n", e$message))
   })
 }
 
-# Function to create concept network plot
+# Function to create concept network plot with improved resolution
 create_cnetplot <- function(enrich_obj, term_type, contrast, out_dir) {
   tryCatch({
     cat(sprintf("Creating cnetplot for %s...\n", term_type))
@@ -150,11 +224,19 @@ create_cnetplot <- function(enrich_obj, term_type, contrast, out_dir) {
       return()
     }
 
+    cnet <- cnetplot(enrich_obj, showCategory=10, foldChange=NULL,
+                    node_label_size=4, node_label_fontface="bold") +
+            theme(legend.title=element_text(size=14, face="bold"),
+                 legend.text=element_text(size=12))
+
+    # High-res PNG
     plot_file <- file.path(out_dir, paste0('Cnetplot_', term_type, '_', contrast, '.png'))
-    png(plot_file, width=1200, height=1000)
-    cnet <- cnetplot(enrich_obj, showCategory=10, foldChange=NULL)
-    print(cnet)
-    dev.off()
+    ggsave(plot_file, cnet, width=12, height=10, dpi=300)
+
+    # PDF version
+    pdf_file <- file.path(out_dir, paste0('Cnetplot_', term_type, '_', contrast, '.pdf'))
+    ggsave(pdf_file, cnet, width=12, height=10)
+
     cat("Success!\n")
   }, error = function(e) {
     cat(sprintf("Error creating cnetplot: %s\n", e$message))
@@ -164,9 +246,9 @@ create_cnetplot <- function(enrich_obj, term_type, contrast, out_dir) {
 # List of contrasts to analyze
 contrast_names <- c(
   "F_OUD_vs_F_None",
-  "M_OUD_vs_M_None",
-  "F_OUD_vs_M_OUD",
-  "F_None_vs_M_None"
+  "M_OUD_vs_M_None"
+  # "F_OUD_vs_M_OUD",
+  # "F_None_vs_M_None"
 )
 
 # Process each contrast
