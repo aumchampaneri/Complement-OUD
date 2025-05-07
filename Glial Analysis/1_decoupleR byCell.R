@@ -12,9 +12,20 @@ library(limma)
 library(tibble)
 library(stringr)
 
+# Force use of dplyr functions without conflicts
+select <- dplyr::select
+filter <- dplyr::filter
+arrange <- dplyr::arrange
+rename <- dplyr::rename
+mutate <- dplyr::mutate
+slice_head <- dplyr::slice_head
+bind_rows <- dplyr::bind_rows
+top_n <- dplyr::top_n
+
 # Check if required packages are installed and install if needed
 required_packages <- c("decoupleR", "dplyr", "tidyr", "ggplot2", "ComplexHeatmap",
-                      "circlize", "org.Hs.eg.db", "msigdbr", "pheatmap", "limma", "tibble", "stringr")
+                       "circlize", "org.Hs.eg.db", "msigdbr", "pheatmap", "limma",
+                       "tibble", "stringr", "InteractiveComplexHeatmap")
 
 missing_packages <- required_packages[!requireNamespace(required_packages, quietly = TRUE)]
 if(length(missing_packages) > 0) {
@@ -27,7 +38,7 @@ if(length(missing_packages) > 0) {
 set.seed(123)
 
 # Main output directory
-base_output_dir <- '/Users/aumchampaneri/PycharmProjects/Complement-OUD/Glial Analysis/decoupleR_results/'
+base_output_dir <- '/Users/aumchampaneri/PycharmProjects/Complement-OUD/Glial Analysis/decoupleR_results-ByCell/'
 dir.create(base_output_dir, showWarnings = FALSE, recursive = TRUE)
 
 # Load metadata once
@@ -101,7 +112,7 @@ if ("weight" %in% colnames(progeny_human)) {
 # Add likelihood column if missing
 if (!"likelihood" %in% colnames(progeny_human)) {
   progeny_human <- progeny_human %>%
-    mutate(likelihood = 1)
+    dplyr::mutate(likelihood = 1)
 }
 
 # b. DoRothEA for transcription factor activities
@@ -116,7 +127,7 @@ if ("weight" %in% colnames(dorothea_human)) {
 # Add likelihood column if missing for DoRothEA
 if (!"likelihood" %in% colnames(dorothea_human)) {
   dorothea_human <- dorothea_human %>%
-    mutate(likelihood = 1)
+    dplyr::mutate(likelihood = 1)
 }
 
 # c. Custom MSigDB gene sets focused on relevant pathways
@@ -126,8 +137,8 @@ msigdb_collections <- list(
 
 # Get all C2 collection and filter by name pattern instead of using subcollections
 c2_all <- msigdbr(species = "Homo sapiens", collection = "C2")
-msigdb_collections$kegg <- c2_all %>% filter(grepl("^KEGG", gs_name))
-msigdb_collections$reactome <- c2_all %>% filter(grepl("^REACTOME", gs_name))
+msigdb_collections$kegg <- c2_all %>% dplyr::filter(grepl("^KEGG", gs_name))
+msigdb_collections$reactome <- c2_all %>% dplyr::filter(grepl("^REACTOME", gs_name))
 
 # Get GO:BP collection
 msigdb_collections$go_bp <- msigdbr(species = "Homo sapiens", collection = "C5", subcollection = "GO:BP")
@@ -174,27 +185,27 @@ pathways_of_interest <- c(
 custom_gs <- bind_rows(lapply(names(msigdb_collections), function(coll) {
   df <- msigdb_collections[[coll]]
   df %>%
-    filter(grepl(paste(pathways_of_interest, collapse="|"), gs_name, ignore.case=TRUE) |
-           grepl("complement|inflam|microglia|astro|glia|oligo|immune|cytokine|neuro", gs_name, ignore.case=TRUE)) %>%
-    mutate(collection = coll)
+    dplyr::filter(grepl(paste(pathways_of_interest, collapse="|"), gs_name, ignore.case=TRUE) |
+             grepl("complement|inflam|microglia|astro|glia|oligo|immune|cytokine|neuro", gs_name, ignore.case=TRUE)) %>%
+    dplyr::mutate(collection = coll)
 }))
 
 # Format for decoupleR
 custom_net <- custom_gs %>%
   dplyr::select(gs_name, gene_symbol) %>%
   dplyr::rename(source = gs_name, target = gene_symbol) %>%
-  mutate(mor = 1) %>%
+  dplyr::mutate(mor = 1) %>%
   distinct(source, target, .keep_all = TRUE)  # Remove duplicate edges
 
 # Add likelihood column to custom_net if missing
 if(!"likelihood" %in% colnames(custom_net)) {
   custom_net <- custom_net %>%
-    mutate(likelihood = 1)
+    dplyr::mutate(likelihood = 1)
 }
 
 # Prepare network for sample-level pathway analysis
 minimal_net <- custom_net %>%
-  filter(grepl("COMPLEMENT|MICROGLIA|ASTRO|OLIGO|INFLAM|IMMUNE|NEURON", source, ignore.case = TRUE))
+  dplyr::filter(grepl("COMPLEMENT|MICROGLIA|ASTRO|OLIGO|INFLAM|IMMUNE|NEURON", source, ignore.case = TRUE))
 
 cat("Created custom networks with", nrow(custom_net), "total edges and",
     nrow(minimal_net), "focused edges for minimal network\n\n")
@@ -267,48 +278,28 @@ for(cell_type in cell_types) {
     # Debug info about file structure
     cat("Preview of input file columns:", paste(colnames(edger_results), collapse=", "), "\n")
 
-  # Ensure we have proper gene column
-  gene_col <- intersect(c("GeneSymbol", "Symbol", "Gene", "gene_symbol", "SYMBOL", "gene", "gene_name", "X"),
-                       colnames(edger_results))[1]
+    # Ensure we have proper gene column
+    gene_col <- intersect(c("GeneSymbol", "Symbol", "Gene", "gene_symbol", "SYMBOL", "gene", "gene_name", "X"),
+                          colnames(edger_results))[1]
 
-  if(is.na(gene_col)) {
-    cat("Warning: No standard gene symbol column found in", file_path, "\n")
-    # Debug - show available columns
-    cat("Available columns:", paste(colnames(edger_results), collapse=", "), "\n")
-    cat("First few rows of data:\n")
-    print(head(edger_results[, 1:min(5, ncol(edger_results))]))
+    if(is.na(gene_col)) {
+      cat("Warning: No standard gene symbol column found in", file_path, "\n")
+      # Debug - show available columns
+      cat("Available columns:", paste(colnames(edger_results), collapse=", "), "\n")
+      cat("First few rows of data:\n")
+      print(head(edger_results[, 1:min(5, ncol(edger_results))]))
 
-    # Try first column if it looks like gene symbols
-    first_col <- colnames(edger_results)[1]
-    if(!is.null(first_col) &&
-       all(grepl("^[A-Za-z0-9]", as.character(edger_results[[first_col]])))) {
-      gene_col <- first_col
-      cat("Using first column as gene symbols:", gene_col, "\n")
-    } else {
-      cat("Error: Cannot process file without gene symbols\n")
-      next
+      # Try first column if it looks like gene symbols
+      first_col <- colnames(edger_results)[1]
+      if(!is.null(first_col) &&
+        all(grepl("^[A-Za-z0-9]", as.character(edger_results[[first_col]])))) {
+        gene_col <- first_col
+        cat("Using first column as gene symbols:", gene_col, "\n")
+      } else {
+        cat("Error: Cannot process file without gene symbols\n")
+        next
+      }
     }
-  }
-
-  # Prepare input matrix for decoupleR
-  # Use logFC column for decoupleR input - check for different naming conventions
-  logfc_col <- intersect(c("logFC", "log2FoldChange", "log2FC"), colnames(edger_results))[1]
-  pval_col <- intersect(c("FDR", "padj", "PValue", "pvalue", "P.Value"), colnames(edger_results))[1]
-
-  if(is.na(logfc_col)) {
-    cat("Error: No logFC column found in", file_path, "\n")
-    next
-  }
-
-  # Create input matrix
-  input <- edger_results %>%
-    dplyr::select(all_of(c(gene_col, logfc_col))) %>%
-    dplyr::rename(gene = all_of(gene_col), score = all_of(logfc_col)) %>%
-    dplyr::filter(!is.na(score))
-
-  # MOVED: Put diagnostic output AFTER creating the input matrix
-  cat("Found", nrow(input), "genes with score values\n")
-  cat("Sample genes:", paste(head(input$gene), collapse=", "), "\n")
 
     # Prepare input matrix for decoupleR
     # Use logFC column for decoupleR input - check for different naming conventions
@@ -325,6 +316,10 @@ for(cell_type in cell_types) {
       dplyr::select(all_of(c(gene_col, logfc_col))) %>%
       dplyr::rename(gene = all_of(gene_col), score = all_of(logfc_col)) %>%
       dplyr::filter(!is.na(score))
+
+    # MOVED: Put diagnostic output AFTER creating the input matrix
+    cat("Found", nrow(input), "genes with score values\n")
+    cat("Sample genes:", paste(head(input$gene), collapse=", "), "\n")
 
     # Apply standard preprocessing
     rownames(input) <- input$gene
@@ -358,11 +353,25 @@ for(cell_type in cell_types) {
     cat("Running PROGENy for pathway analysis...\n")
     progeny_success <- FALSE
 
-    # Try with progressively smaller minsize values
+    # Debug the input matrix
+    cat("Input matrix data types:\n")
+    cat("Class of input:", class(input), "\n")
+    cat("Class of input$score:", class(input$score), "\n")
+    cat("Sample of input$score:", paste(head(input$score), collapse=", "), "\n")
+
+    # Ensure numeric scores
+    input$score <- as.numeric(as.character(input$score))
+
+    # Create a proper matrix format that all methods expect
+    input_matrix <- matrix(input$score, ncol=1)
+    rownames(input_matrix) <- input$gene
+    colnames(input_matrix) <- "logFC"
+
+    # Try PROGENy with progressively smaller minsize values
     for(try_size in c(5, 3, 2, 1)) {
       tryCatch({
         progeny_activities <- run_wmean(
-          mat = input,
+          mat = input_matrix,
           network = progeny_human,
           .source = "source",
           .target = "target",
@@ -370,7 +379,8 @@ for(cell_type in cell_types) {
           .likelihood = "likelihood",
           times = 100,
           minsize = try_size
-        )
+        ) %>% as_tibble()
+
         cat("PROGENy analysis successful with minsize =", try_size, "\n")
         progeny_success <- TRUE
         break
@@ -379,38 +389,30 @@ for(cell_type in cell_types) {
       })
     }
 
-    # FIXED: Remove duplicate check
-    if(!progeny_success) {
-      cat("ERROR: PROGENy analysis failed. Skipping this contrast.\n")
-      next
-    }
-
     # Run DoRothEA analysis with fallback to smaller minsize
     cat("Running DoRothEA for transcription factor analysis...\n")
     dorothea_success <- FALSE
 
+    # DoRothEA analysis with proper matrix format
     for(try_size in c(5, 3, 2, 1)) {
       tryCatch({
+        # Explicitly pass the same matrix format that worked for PROGENy
         dorothea_activities <- run_ulm(
-          mat = input,
+          mat = input_matrix,
           network = dorothea_human,
           .source = "source",
           .target = "target",
           .mor = "mor",
           .likelihood = "likelihood",
           minsize = try_size
-        )
+        ) %>% as_tibble()
+
         cat("DoRothEA analysis successful with minsize =", try_size, "\n")
         dorothea_success <- TRUE
         break
       }, error = function(e) {
         cat("DoRothEA attempt failed with minsize =", try_size, ":", conditionMessage(e), "\n")
       })
-    }
-
-    if(!dorothea_success) {
-      cat("ERROR: DoRothEA analysis failed. Trying to continue without TF analysis.\n")
-      dorothea_activities <- data.frame(source=character(), target=character(), score=numeric(), statistic=character())
     }
 
     # Run custom gene set analysis with fallback to smaller minsize
@@ -420,7 +422,7 @@ for(cell_type in cell_types) {
     for(try_size in c(5, 3, 2, 1)) {
       tryCatch({
         custom_activities <- run_wmean(
-          mat = input,
+          mat = input_matrix,
           network = custom_net,
           .source = "source",
           .target = "target",
@@ -428,7 +430,8 @@ for(cell_type in cell_types) {
           .likelihood = "likelihood",
           times = 100,
           minsize = try_size
-        )
+        ) %>% as_tibble()
+
         cat("Custom pathway analysis successful with minsize =", try_size, "\n")
         custom_success <- TRUE
         break
@@ -487,9 +490,9 @@ for(cell_type in cell_types) {
       dplyr::rename(pathway = source)
 
     if(nrow(combined_df) == 0) {
-      combined_df <- combined_entry
+      combined_df <- dplyr::bind_rows(combined_df, combined_entry)
     } else {
-      combined_df <- bind_rows(combined_df, combined_entry)
+      combined_df <- dplyr::bind_rows(combined_df, combined_entry)
     }
 
     # Write to combined CSV file
@@ -518,8 +521,8 @@ for(cell_type in cell_types) {
                             labels = c("TRUE" = "Up", "FALSE" = "Down"),
                             name = "Direction") +
           labs(title = paste0("Top TFs - ", contrast_name),
-              x = "Transcription Factor",
-              y = "Activity Score") +
+               x = "Transcription Factor",
+               y = "Activity Score") +
           theme_minimal() +
           theme(
             axis.text.y = element_text(size = 9),
@@ -567,10 +570,10 @@ for(cell_type in cell_types) {
     # Add top pathways to summary report
     cat("### Top Upregulated Pathways:\n", file = summary_file, append = TRUE)
     top_up <- pathways_result %>%
-      filter(statistic == "norm_wmean") %>%
-      filter(score > 0) %>%
-      top_n(10, score) %>%
-      arrange(desc(score))
+      dplyr::filter(statistic == "norm_wmean") %>%
+      dplyr::filter(score > 0) %>%
+      dplyr::top_n(10, score) %>%
+      dplyr::arrange(desc(score))
 
     for(i in 1:nrow(top_up)) {
       cat("- ", top_up$source[i], ": score =", round(top_up$score[i], 3),
@@ -582,10 +585,10 @@ for(cell_type in cell_types) {
     # Top downregulated pathways
     cat("### Top Downregulated Pathways:\n", file = summary_file, append = TRUE)
     top_down <- pathways_result %>%
-      filter(statistic == "norm_wmean") %>%
-      filter(score < 0) %>%
-      top_n(10, abs(score)) %>%
-      arrange(score)
+      dplyr::filter(statistic == "norm_wmean") %>%
+      dplyr::filter(score < 0) %>%
+      dplyr::top_n(10, abs(score)) %>%
+      dplyr::arrange(score)
 
     for(i in 1:nrow(top_down)) {
       cat("- ", top_down$source[i], ": score =", round(top_down$score[i], 3),
@@ -610,9 +613,9 @@ for(cell_type in cell_types) {
           file = summary_file, append = TRUE)
 
       top_tfs <- tf_result %>%
-        filter(statistic == tf_stat_value) %>%
-        top_n(15, abs(score)) %>%
-        arrange(desc(abs(score)))
+        dplyr::filter(statistic == tf_stat_value) %>%
+        dplyr::top_n(15, abs(score)) %>%
+        dplyr::arrange(desc(abs(score)))
 
       for(i in 1:min(nrow(top_tfs), 15)) {
         direction <- ifelse(top_tfs$score[i] > 0, "up", "down")
@@ -631,9 +634,9 @@ for(cell_type in cell_types) {
   if(length(all_methods_results) > 1) {
     # Create a matrix of pathway scores for all contrasts
     pathway_matrix <- lapply(names(all_methods_results), function(contrast) {
-      pathway_df <- all_methods_results[[contrast]]$pathways %>%
-        filter(statistic == "norm_wmean") %>%
-        select(source, score)
+      pathway_df <- as_tibble(all_methods_results[[contrast]]$pathways) %>%
+        dplyr::filter(statistic == "norm_wmean") %>%
+        dplyr::select(source, score)
 
       # Set rownames to pathway names for this contrast column
       pathway_scores <- pathway_df$score
@@ -658,228 +661,104 @@ for(cell_type in cell_types) {
       rownames(pathway_matrix) <- gsub("_", " ", rownames(pathway_matrix))
 
       # Create colormap
-      col_fun <- colorRamp2(c(min(pathway_matrix, na.rm = TRUE),
-                             0,
-                             max(pathway_matrix, na.rm = TRUE)),
-                          c("blue", "white", "red"))
+      col_fun <- colorRamp2(
+        c(min(pathway_matrix, na.rm = TRUE), 0, max(pathway_matrix, na.rm = TRUE)),
+        c("blue", "white", "red")
+      )
 
-# Generate heatmap
-      ht <- Heatmap(pathway_matrix,
-                   name = "Score",
-                   cluster_rows = TRUE,
-                   cluster_columns = TRUE,
-                   show_row_names = TRUE,
-                   show_column_names = TRUE,
-                   col = col_fun,
-                   row_names_gp = gpar(fontsize = 10),
-                   column_names_gp = gpar(fontsize = 10),
-                   heatmap_legend_param = list(title = "Activity Score"))
+      # Create the heatmap
+      ht <- Heatmap(
+        pathway_matrix,
+        name = "Score",
+        col = col_fun,
+        cluster_rows = TRUE,
+        cluster_columns = TRUE,
+        show_row_names = TRUE,
+        show_column_names = TRUE,
+        row_names_gp = gpar(fontsize = 10),
+        column_names_gp = gpar(fontsize = 10),
+        heatmap_legend_param = list(
+          title = "Activity Score",
+          at = c(min(pathway_matrix, na.rm = TRUE), 0, max(pathway_matrix, na.rm = TRUE)),
+          labels = c("Low", "Neutral", "High")
+        ),
+        width = unit(8, "cm"),
+        height = unit(12, "cm")
+      )
 
-      # Save heatmap
-      pdf(paste0(output_dir, "pathway_heatmap.pdf"), width = 10, height = 12)
+      # Save heatmap as PDF
+      pdf(paste0(output_dir, "pathway_heatmap.pdf"), width = 10, height = 10)
       draw(ht)
       dev.off()
-    }
-  }
 
-  # Collect sample-level activities for variability analysis if available
-  if(exists("sample_activities")) {
-    # Get pathway variability
-    path_var <- sample_activities %>%
-      dplyr::filter(statistic == "norm_wmean") %>%
-      dplyr::group_by(source) %>%
-      dplyr::summarize(
-        mean_score = mean(score, na.rm = TRUE),
-        var_score = var(score, na.rm = TRUE)
-      ) %>%
-      dplyr::arrange(desc(var_score)) %>%
-      dplyr::slice_head(n = 20)
+      # Try to create interactive heatmap if package available
+      if(requireNamespace("InteractiveComplexHeatmap", quietly = TRUE)) {
+        tryCatch({
+          InteractiveComplexHeatmap::saveHeatmap(ht, paste0(output_dir, "interactive_heatmap.html"))
+        }, error = function(e) {
+          cat("Failed to create interactive heatmap:", conditionMessage(e), "\n")
+        })
+      } else {
+        cat("InteractiveComplexHeatmap package not installed. Skipping interactive visualization.\n")
+      }
+    }  # End of heatmap condition
+  }  # End of multi-contrast check
+}  # End of cell-type loop
 
-    if(nrow(path_var) > 0) {
-      # Create bar plot of most variable pathways with wrapped labels
-      p1 <- ggplot(path_var, aes(x = reorder(source, var_score), y = var_score)) +
-        geom_col(fill = "steelblue") +
-        coord_flip() +
-        labs(title = paste0("Most Variable Pathways - ", cell_type),
-             x = "Pathway", y = "Variance") +
-        theme_minimal() +
-        theme(
-          axis.text.y = element_text(size = 8),
-          plot.title = element_text(hjust = 0.5)
-        ) +
-        scale_x_discrete(labels = function(x) str_wrap(x, width = 40))
-
-      ggsave(paste0(output_dir, "pathway_variance_barplot.pdf"), p1, width = 12, height = 8)
-    }
-  }
-
-  # Generate sample count analysis if multiple contrasts
-  if(length(all_methods_results) > 1) {
-    # Count how many samples each pathway appears in the top 50
-    pathway_counts <- lapply(names(all_methods_results), function(contrast) {
-      paths <- all_methods_results[[contrast]]$pathways %>%
-        filter(statistic == "norm_wmean") %>%
-        arrange(desc(abs(score))) %>%
-        slice_head(n = 50) %>%
-        pull(source)
-
-      return(data.frame(source = paths, contrast = contrast))
-    })
-
-    # Combine all contrasts
-    pathway_counts <- bind_rows(pathway_counts)
-
-    # Count occurrences of each pathway
-    pathway_counts <- pathway_counts %>%
-      group_by(source) %>%
-      summarize(count = n()) %>%
-      arrange(desc(count)) %>%
-      slice_head(n = 30)
-
-    # Format pathway names
-    pathway_counts$source <- gsub("_", " ", pathway_counts$source)
-    pathway_counts$wrapped_source <- str_wrap(pathway_counts$source, width = 40)
-
-    # Create count plot
-    if(nrow(pathway_counts) > 0) {
-      p2 <- ggplot(pathway_counts, aes(x = reorder(wrapped_source, count), y = count)) +
-        geom_col(fill = "darkgreen") +
-        coord_flip() +
-        labs(title = paste0("Pathways by Contrast Count - ", cell_type),
-             x = "Pathway", y = "Number of Contrasts") +
-        theme_minimal() +
-        theme(
-          axis.text.y = element_text(size = 8),
-          plot.title = element_text(hjust = 0.5)
-        )
-
-      # Save plot
-      ggsave(paste0(output_dir, "pathway_counts.pdf"), p2, width = 12, height = 8)
-
-      # Simple dotplot - extremely robust
-      p_simple <- ggplot(pathway_counts, aes(x = count, y = reorder(wrapped_source, count))) +
-        geom_point(size = 3, color = "darkblue") +
-        theme_minimal() +
-        labs(title = paste0("Pathways by Sample Count - ", cell_type),
-             x = "Number of Contrasts", y = "Pathway") +
-        theme(
-          axis.text.y = element_text(size = 8),
-          plot.title = element_text(hjust = 0.5)
-        )
-
-      ggsave(paste0(output_dir, "pathway_dotplot.pdf"), p_simple, width = 10, height = 8)
-    }
-  }
-
-  # Add closing message for this cell type
-  cat("decoupleR analysis for", cell_type, "complete! Results saved to:", output_dir, "\n")
-}  # End of cell type loop
-
-# Create combined heatmap of top pathways across all cell types if multiple cell types
-if(length(cell_types) > 1 && !first_write) {
-  # Read the combined results for heatmap creation
-  combined_results <- read.csv(combined_file)
-
-  # Get top pathways by absolute score
-  top_pathways <- combined_results %>%
-    group_by(pathway) %>%
-    summarize(mean_abs_score = mean(abs(score), na.rm = TRUE)) %>%
-    top_n(30, mean_abs_score) %>%
-    pull(pathway)
-
-  # Filter results to these top pathways
-  filtered_results <- combined_results %>%
-    filter(pathway %in% top_pathways)
-
-  # Create a matrix for heatmap
-  matrix_data <- filtered_results %>%
-    pivot_wider(
-      id_cols = pathway,
+# Create cross-cell type summary heatmap
+if(nrow(combined_df) > 0) {
+  # Create a wide matrix for heatmap visualization
+  heatmap_data <- combined_df %>%
+    dplyr::select(cell_type, contrast, pathway, score) %>%
+    tidyr::pivot_wider(
       names_from = c(cell_type, contrast),
       values_from = score,
-      names_sep = "_"
+      values_fill = 0
     )
+
+  # Extract pathway names
+  pathways <- heatmap_data$pathway
 
   # Convert to matrix
-  pathway_matrix <- as.matrix(matrix_data[, -1])
-  rownames(pathway_matrix) <- matrix_data$pathway
+  heatmap_matrix <- as.matrix(heatmap_data[, -1])
+  rownames(heatmap_matrix) <- pathways
 
-  # Format pathway names
-  rownames(pathway_matrix) <- gsub("_", " ", rownames(pathway_matrix))
-
-  # Create heatmap if data exists
-  if(nrow(pathway_matrix) > 0 && ncol(pathway_matrix) > 1) {
-    col_fun <- colorRamp2(c(min(pathway_matrix, na.rm = TRUE),
-                           0,
-                           max(pathway_matrix, na.rm = TRUE)),
-                        c("blue", "white", "red"))
-
-    # Generate combined heatmap
-    ht <- Heatmap(pathway_matrix,
-                 name = "Score",
-                 cluster_rows = TRUE,
-                 cluster_columns = TRUE,
-                 show_row_names = TRUE,
-                 show_column_names = TRUE,
-                 col = col_fun,
-                 row_names_gp = gpar(fontsize = 10),
-                 column_names_gp = gpar(fontsize = 8),
-                 column_names_rot = 45,
-                 heatmap_legend_param = list(title = "Activity Score"))
-
-    # Save heatmap
-    pdf(paste0(base_output_dir, "combined_pathway_heatmap.pdf"), width = 14, height = 12)
-    draw(ht)
-    dev.off()
-
-    # Create interactive heatmap version if ComplexHeatmap has interactive capabilities
-    # Note: This requires the InteractiveComplexHeatmap package
-    if(requireNamespace("InteractiveComplexHeatmap", quietly = TRUE)) {
-      InteractiveComplexHeatmap::saveHeatmap(ht, paste0(base_output_dir, "interactive_heatmap.html"))
-    }
+  # Filter to top variable pathways
+  if(nrow(heatmap_matrix) > 40) {
+    path_vars <- apply(heatmap_matrix, 1, var, na.rm = TRUE)
+    top_paths <- names(sort(path_vars, decreasing = TRUE))[1:40]
+    heatmap_matrix <- heatmap_matrix[top_paths, , drop = FALSE]
   }
 
-  # Create bubble plot for combined visualization
-  filtered_results <- filtered_results %>%
-    mutate(
-      significance = -log10(p_value),
-      direction = ifelse(score > 0, "Up", "Down"),
-      contrast_label = paste(cell_type, contrast, sep = "_")
-    )
+  # Clean rownames
+  rownames(heatmap_matrix) <- gsub("_", " ", rownames(heatmap_matrix))
 
-  # Replace Inf values
-  filtered_results$significance[is.infinite(filtered_results$significance)] <-
-    max(filtered_results$significance[!is.infinite(filtered_results$significance)], na.rm = TRUE) * 1.1
+  # Create final heatmap
+  col_fun_final <- colorRamp2(
+    c(min(heatmap_matrix, na.rm = TRUE), 0, max(heatmap_matrix, na.rm = TRUE)),
+    c("blue", "white", "red")
+  )
 
-  # Create bubble plot
-  bubble_plot <- ggplot(filtered_results,
-                      aes(x = contrast_label, y = pathway,
-                          size = abs(score), color = score,
-                          alpha = significance)) +
-    geom_point() +
-    scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
-    scale_alpha(range = c(0.3, 1)) +
-    scale_size(range = c(1, 8)) +
-    theme_minimal() +
-    theme(
-      axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
-      axis.text.y = element_text(size = 9),
-      panel.grid.major = element_line(color = "grey90"),
-      panel.grid.minor = element_blank(),
-      legend.position = "right"
-    ) +
-    labs(
-      title = "Pathway Activities Across Cell Types and Contrasts",
-      x = "",
-      y = "",
-      size = "Absolute\nScore",
-      color = "Score",
-      alpha = "-log10(p-value)"
-    )
+  final_ht <- Heatmap(
+    heatmap_matrix,
+    name = "Score",
+    col = col_fun_final,
+    cluster_rows = TRUE,
+    cluster_columns = TRUE,
+    column_names_gp = gpar(fontsize = 8),
+    row_names_gp = gpar(fontsize = 8),
+    width = unit(10, "cm"),
+    height = unit(15, "cm")
+  )
 
-  # Save bubble plot
-  ggsave(paste0(base_output_dir, "combined_bubble_plot.pdf"),
-         bubble_plot, width = 14, height = 12)
+  # Save final heatmap
+  pdf(paste0(base_output_dir, "all_celltypes_pathway_heatmap.pdf"), width = 12, height = 14)
+  draw(final_ht)
+  dev.off()
 }
 
-cat("\nAll cell type analyses completed successfully!\n")
+# Print completion summary
+cat("\nAnalysis completed successfully!\n")
+cat("Results saved to:", base_output_dir, "\n")
+cat("Summary report saved to:", summary_file, "\n")
+cat("Combined results saved to:", combined_file, "\n")
