@@ -171,7 +171,8 @@ for(contrast_name in names(contrast_results)) {
     } else if("ID" %in% colnames(degs)) {
       degs$gene <- degs$ID
     } else {
-      stop("Cannot find gene identifier column in contrast results")
+      cat("ERROR: Cannot find gene identifier column in contrast results\n")
+      next
     }
   }
 
@@ -179,7 +180,8 @@ for(contrast_name in names(contrast_results)) {
     if("log2FoldChange" %in% colnames(degs)) {
       degs$logFC <- degs$log2FoldChange
     } else {
-      stop("Cannot find log fold change column in contrast results")
+      cat("ERROR: Cannot find logFC column in contrast results\n")
+      next
     }
   }
 
@@ -235,9 +237,8 @@ for(contrast_name in names(all_methods_results)) {
       scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
       theme_minimal() +
       labs(title = paste0("Top Pathway Activities - ", contrast_name),
-           x = "",
-           y = "Pathway",
-           fill = "Score") +
+           x = "", y = "",
+           subtitle = "Normalized weighted means method") +
       theme(axis.text.y = element_text(size = 10))
 
     ggsave(paste0(contrast_viz_dir, "top_pathways.pdf"), p1, width = 10, height = 8)
@@ -252,17 +253,21 @@ for(contrast_name in names(all_methods_results)) {
       scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
       theme_minimal() +
       labs(title = paste0("PROGENy Pathway Activities - ", contrast_name),
-           x = "Method",
-           y = "Pathway",
-           fill = "Score") +
+           x = "Method", y = "Pathway") +
       theme(axis.text.y = element_text(size = 10))
 
     ggsave(paste0(contrast_viz_dir, "progeny_pathways.pdf"), p2, width = 8, height = 6)
   }
 
   # Top TFs - with error checking
+  # Check TF results structure first
+  cat("TF results columns for", contrast_name, ":", paste(colnames(results$tfs), collapse=", "), "\n")
+
+  # Use the correct statistic column value
+  tf_stat_value <- if("norm_ulm" %in% unique(results$tfs$statistic)) "norm_ulm" else "ulm"
+
   top_tfs <- results$tfs %>%
-    filter(statistic == "norm_ulm") %>%
+    filter(statistic == tf_stat_value) %>%
     top_n(30, abs(score)) %>%
     arrange(desc(abs(score)))
 
@@ -272,9 +277,8 @@ for(contrast_name in names(all_methods_results)) {
       scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
       theme_minimal() +
       labs(title = paste0("Transcription Factor Activities - ", contrast_name),
-           x = "",
-           y = "Transcription Factor",
-           fill = "Score") +
+           x = "", y = "",
+           subtitle = paste0("Using ", tf_stat_value, " statistic")) +
       theme(axis.text.y = element_text(size = 10))
 
     ggsave(paste0(contrast_viz_dir, "top_tfs.pdf"), p3, width = 10, height = 10)
@@ -284,113 +288,210 @@ for(contrast_name in names(all_methods_results)) {
 # 4. Generate integrated sample-level pathway activity scores for visualization
 cat("Running sample-level pathway activities. This may take time...\n")
 
-# First transpose counts - run_wmean expects samples in rows, genes in columns
-counts_for_scoring <- t(norm_counts)
+# Prepare counts for scoring - try with transposed orientation (samples as columns)
+mat_counts <- as.matrix(norm_counts)
 
-# Check gene overlap explicitly
-gene_symbols_in_data <- colnames(counts_for_scoring)
+# Get overlapping genes
+gene_symbols_in_data <- rownames(mat_counts)
 network_genes <- unique(custom_net$target)
 overlap_genes <- intersect(gene_symbols_in_data, network_genes)
 
+# Print diagnostic information
 cat("Expression data has", length(gene_symbols_in_data), "genes\n")
 cat("Network has", length(network_genes), "genes\n")
 cat("Overlap:", length(overlap_genes), "genes\n")
 
-# Only proceed if we have sufficient overlap
-if(length(overlap_genes) < 50) {
-  cat("ERROR: Insufficient gene overlap! Check gene naming conventions.\n")
+# Filter matrix and network to only include overlapping genes
+net_filtered <- custom_net[custom_net$target %in% overlap_genes, ]
 
-  # Try to fix by standardizing gene names
-  counts_for_scoring_fixed <- counts_for_scoring
-  colnames(counts_for_scoring_fixed) <- toupper(colnames(counts_for_scoring))
+# Count genes per pathway
+pathway_counts <- table(net_filtered$source)
+cat("After filtering, pathways have between", min(pathway_counts), "and", max(pathway_counts), "genes\n")
+cat("Number of pathways with ≥1 gene:", sum(pathway_counts >= 1), "\n")
+cat("Number of pathways with ≥2 genes:", sum(pathway_counts >= 2), "\n")
+cat("Number of pathways with ≥3 genes:", sum(pathway_counts >= 3), "\n")
 
-  custom_net_fixed <- custom_net
-  custom_net_fixed$target <- toupper(custom_net_fixed$target)
-
-  # Check overlap again
-  new_overlap <- intersect(colnames(counts_for_scoring_fixed), custom_net_fixed$target)
-  cat("After standardizing names, overlap:", length(new_overlap), "genes\n")
-
-  if(length(new_overlap) >= 50) {
-    counts_for_scoring <- counts_for_scoring_fixed
-    custom_net <- custom_net_fixed
-    overlap_genes <- new_overlap
-  } else {
-    cat("Cannot proceed with sample-level pathway scoring - insufficient gene overlap\n")
-  }
-}
-
-# CRITICAL FIX: Keep only genes that overlap with network instead of top variable genes
-# This maximizes our chance of keeping pathway genes intact
-counts_for_scoring <- counts_for_scoring[, overlap_genes]
-cat("Using", ncol(counts_for_scoring), "genes after filtering to network overlap\n")
-
-# Keep only pathways with at least 2 genes (reduced from 5)
-keep_sources <- custom_net %>%
-  filter(target %in% overlap_genes) %>%
-  group_by(source) %>%
-  summarize(gene_count = n()) %>%
-  filter(gene_count >= 2) %>%  # Reduced from 5 to 2
-  pull(source)
-
-cat("Found", length(keep_sources), "pathways with ≥2 genes\n")
-
-filtered_net <- custom_net %>%
-  filter(source %in% keep_sources,
-         target %in% overlap_genes)
-
-cat("Using", length(keep_sources), "pathways and", length(overlap_genes), "genes\n")
-
-# Run the pathway scoring with error handling
 tryCatch({
-  sample_pathway_activities <- run_wmean(counts_for_scoring,
-                                       network = filtered_net,
-                                       .source = "source",
-                                       .target = "target",
-                                       .mor = "mor",
-                                       times = 100,
-                                       minsize = 2)  # Reduced from 3 to 2
+  # First attempt with full network
+  sample_activities <- decoupleR::run_wmean(
+    mat = mat_counts,
+    network = net_filtered,
+    .source = "source",
+    .target = "target",
+    .mor = "mor",
+    minsize = 1
+  )
 
   # Save results
-  write.csv(sample_pathway_activities,
-            file = paste0(output_dir, "sample_pathway_activities.csv"),
-            row.names = FALSE)
+  write.csv(sample_activities,
+           file = paste0(output_dir, "sample_pathway_activities.csv"),
+           row.names = FALSE)
 
-  # Get top variable pathways for heatmap
-  path_var <- sample_pathway_activities %>%
-    filter(statistic == "norm_wmean") %>%
-    group_by(source) %>%
-    summarize(variance = var(score)) %>%
-    arrange(desc(variance)) %>%
-    head(50) %>%
-    pull(source)
+  # Create heatmap of sample-level pathway activities
+  # Get top variable pathways
+  top_var_paths <- sample_activities %>%
+    dplyr::filter(statistic == "norm_wmean") %>%
+    dplyr::group_by(source) %>%
+    dplyr::summarize(variance = var(score)) %>%
+    dplyr::top_n(30, variance) %>%
+    dplyr::pull(source)
 
-  # Create pathway activity heatmap if data available
-  if(length(path_var) > 0) {
-    # Create matrix for heatmap
-    path_matrix <- sample_pathway_activities %>%
-      filter(statistic == "norm_wmean", source %in% path_var) %>%
-      pivot_wider(id_cols = "sample", names_from = "source", values_from = "score") %>%
-      column_to_rownames("sample")
+  # Extract scores for heatmap
+  path_matrix <- sample_activities %>%
+    dplyr::filter(statistic == "norm_wmean" & source %in% top_var_paths) %>%
+    tidyr::pivot_wider(id_cols = "source", names_from = "condition", values_from = "score") %>%
+    tibble::column_to_rownames("source") %>%
+    as.matrix()
 
-    # Save path matrix for heatmap creation
-    write.csv(path_matrix, file = paste0(output_dir, "path_matrix_for_heatmap.csv"))
+  # Create annotation for samples
+  sample_anno <- meta_glial %>%
+    dplyr::select(Sex, Dx_OUD) %>%
+    as.data.frame()
 
-    # Try to generate heatmap
-    tryCatch({
-      pdf(paste0(output_dir, "pathway_heatmap.pdf"), width=12, height=10)
-      pheatmap(path_matrix,
-               annotation_row = meta_glial[, c("Sex", "Dx_OUD", "Sex_Dx_OUD")],
-               scale = "row",
-               clustering_method = "ward.D2",
-               main = "Sample-level Pathway Activities")
-      dev.off()
-    }, error = function(e) {
-      cat("Error generating heatmap:", conditionMessage(e), "\n")
-    })
+  # Create heatmap
+  pdf(paste0(output_dir, "sample_pathway_heatmap.pdf"), width = 12, height = 10)
+  pheatmap(path_matrix,
+          annotation_col = sample_anno,
+          show_colnames = FALSE,
+          main = "Sample-level Pathway Activities",
+          color = colorRampPalette(c("blue", "white", "red"))(100))
+  dev.off()
+
+  cat("Sample-level pathway analysis complete! Results saved.\n")
+}, error = function(e) {
+  cat("ERROR in sample-level pathway analysis:", conditionMessage(e), "\n")
+
+  # If the above fails, try with minimal network
+  tryCatch({
+    # Create a minimal network with only the top 50 pathways
+    top_pathways <- names(sort(pathway_counts, decreasing = TRUE)[1:50])
+    minimal_net <- net_filtered[net_filtered$source %in% top_pathways, ]
+
+    # Try with smaller feature set
+    sample_activities <- decoupleR::run_wmean(
+      mat = mat_counts,
+      network = minimal_net,
+      .source = "source",
+      .target = "target",
+      .mor = "mor"
+    )
+
+    write.csv(sample_activities,
+              file = paste0(output_dir, "sample_pathway_activities_minimal.csv"),
+              row.names = FALSE)
+    cat("Sample-level analysis with minimal network succeeded!\n")
+  }, error = function(e2) {
+    cat("Second attempt failed:", conditionMessage(e2), "\n")
+    cat("Proceeding with contrast-level results only.\n")
+  })
+})
+
+# Add visualization for the successful minimal network analysis - WITH FIXES
+tryCatch({
+  # Check if minimal network results exist
+  if(file.exists(paste0(output_dir, "sample_pathway_activities_minimal.csv"))) {
+    # Load the saved sample activities
+    sample_activities <- read.csv(paste0(output_dir, "sample_pathway_activities_minimal.csv"))
+
+    # Simple summary plots that won't fail with the 'gpar' error
+    cat("Creating robust summary visualizations...\n")
+
+    # 1. Simple barplot of most variable pathways
+    if(nrow(sample_activities) > 0) {
+      # Get pathway variability
+      path_var <- sample_activities %>%
+        dplyr::filter(statistic == "norm_wmean") %>%
+        dplyr::group_by(source) %>%
+        dplyr::summarize(
+          mean_score = mean(score, na.rm = TRUE),
+          var_score = var(score, na.rm = TRUE)
+        ) %>%
+        dplyr::arrange(desc(var_score)) %>%
+        dplyr::slice_head(n = 20)
+
+      if(nrow(path_var) > 0) {
+        # Create bar plot of most variable pathways
+        p1 <- ggplot(path_var, aes(x = reorder(source, var_score), y = var_score)) +
+          geom_col(fill = "steelblue") +
+          coord_flip() +
+          labs(title = "Most Variable Pathways Across Samples",
+               x = "Pathway", y = "Variance") +
+          theme_minimal()
+
+        ggsave(paste0(output_dir, "pathway_variance_barplot.pdf"), p1, width = 10, height = 8)
+
+        # 2. Mean pathway activity
+        p2 <- ggplot(path_var, aes(x = reorder(source, mean_score), y = mean_score)) +
+          geom_col(fill = ifelse(path_var$mean_score >= 0, "red", "blue")) +
+          coord_flip() +
+          labs(title = "Mean Pathway Activity",
+               x = "Pathway", y = "Mean Activity Score") +
+          theme_minimal()
+
+        ggsave(paste0(output_dir, "pathway_mean_barplot.pdf"), p2, width = 10, height = 8)
+
+        # 3. Create a faceted boxplot of pathway activities by condition
+        path_data <- sample_activities %>%
+          dplyr::filter(statistic == "norm_wmean" & source %in% path_var$source)
+
+        # Add metadata for faceting
+        meta_minimal <- data.frame(
+          condition = colnames(norm_counts),
+          Sex = meta_glial$Sex,
+          Dx_OUD = meta_glial$Dx_OUD
+        )
+
+        path_data <- path_data %>%
+          dplyr::left_join(meta_minimal, by = "condition")
+
+        # Boxplot of top pathways by experimental group
+        p3 <- ggplot(path_data, aes(x = Dx_OUD, y = score, fill = Sex)) +
+          geom_boxplot() +
+          facet_wrap(~source, scales = "free_y", ncol = 4) +
+          theme_minimal() +
+          theme(
+            axis.text.x = element_text(angle = 45, hjust = 1),
+            strip.text = element_text(size = 8)
+          ) +
+          labs(title = "Pathway Activities by Condition", y = "Activity Score")
+
+        ggsave(paste0(output_dir, "pathway_boxplots.pdf"), p3, width = 12, height = 10)
+
+        cat("Successfully created alternative visualizations!\n")
+      } else {
+        cat("Warning: No variable pathways found for visualization\n")
+      }
+    } else {
+      cat("Warning: No data available in sample_activities\n")
+    }
+  } else {
+    cat("No minimal network results file found, skipping visualization\n")
   }
 }, error = function(e) {
-  cat("ERROR in sample pathway activity calculation:", conditionMessage(e), "\n")
+  cat("Error creating visualizations:", conditionMessage(e), "\n")
+
+  # Final fallback to ensure at least one visualization works
+  tryCatch({
+    sample_act <- read.csv(paste0(output_dir, "sample_pathway_activities_minimal.csv"))
+
+    # Count number of samples per pathway
+    pathway_counts <- sample_act %>%
+      dplyr::filter(statistic == "norm_wmean") %>%
+      dplyr::group_by(source) %>%
+      dplyr::summarize(count = n())
+
+    # Simple dotplot - extremely robust
+    p_simple <- ggplot(pathway_counts, aes(x = count, y = reorder(source, count))) +
+      geom_point(size = 3) +
+      labs(title = "Number of Samples per Pathway",
+           x = "Count", y = "Pathway") +
+      theme_minimal()
+
+    ggsave(paste0(output_dir, "absolute_minimal_plot.pdf"), p_simple, width = 8, height = 10)
+    cat("Created absolute minimal plot as last resort\n")
+  }, error = function(e2) {
+    cat("All visualization attempts failed\n")
+  })
 })
 
 # 5. Generate summary report of key findings for each contrast
@@ -437,19 +538,31 @@ for(contrast_name in names(all_methods_results)) {
 
   # Top significant TFs
   cat("### Key Transcription Factors:\n")
+
+  # Check TF results and get columns
   tf_result <- all_methods_results[[contrast_name]]$tfs
 
-  # Check if padj exists, otherwise use p_value for TFs
-  tf_p_value_col <- if("padj" %in% colnames(tf_result)) "padj" else "p_value"
+  if(nrow(tf_result) > 0) {
+    cat("Available columns in TF results:", paste(colnames(tf_result), collapse=", "), "\n\n")
 
-  top_tfs <- tf_result %>%
-    filter(statistic == "norm_ulm") %>%
-    arrange(!!sym(tf_p_value_col), desc(abs(score))) %>%
-    head(10)
+    # Check which statistic value is present
+    tf_stat_value <- if("norm_ulm" %in% unique(tf_result$statistic)) "norm_ulm" else "ulm"
+    cat("Using statistic value:", tf_stat_value, "\n\n")
 
-  for(i in 1:nrow(top_tfs)) {
-    cat(sprintf("%d. %s (score = %.3f, p-value = %.3e)\n",
-                i, top_tfs$source[i], top_tfs$score[i], top_tfs[[tf_p_value_col]][i]))
+    # Check if padj exists, otherwise use p_value for TFs
+    tf_p_value_col <- if("padj" %in% colnames(tf_result)) "padj" else "p_value"
+
+    top_tfs <- tf_result %>%
+      filter(statistic == tf_stat_value) %>%
+      arrange(desc(abs(score))) %>%
+      head(10)
+
+    for(i in 1:nrow(top_tfs)) {
+      cat(sprintf("%d. %s (score = %.3f, p-value = %.3e)\n",
+                  i, top_tfs$source[i], top_tfs$score[i], top_tfs[[tf_p_value_col]][i]))
+    }
+  } else {
+    cat("No transcription factor results available for this contrast.\n")
   }
   cat("\n\n")
 }
