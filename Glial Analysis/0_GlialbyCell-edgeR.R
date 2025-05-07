@@ -5,10 +5,10 @@ counts <- read.csv('/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE22515
 meta <- read.csv('/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/meta.csv', row.names=1, check.names=FALSE)
 
 # Glial subtypes to process
-glial_types <- c("Microglia", "Astrocytes", "OPCs", "Oligos", "Oligos_Pre")
+glial_types <- c("Microglia", "Astrocytes", "Oligos", "Oligos_Pre")
 
 # Output folder
-base_out_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/Glial Analysis/edge R Per_Celltype"
+base_out_dir <- "/Glial Analysis/edgeR Per_Celltype"
 
 for (glial in glial_types) {
   cat("Processing:", glial, "\n")
