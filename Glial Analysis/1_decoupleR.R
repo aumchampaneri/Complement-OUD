@@ -225,6 +225,9 @@ for(contrast_name in names(all_methods_results)) {
   contrast_viz_dir <- paste0(output_dir, contrast_name, "/")
   dir.create(contrast_viz_dir, showWarnings = FALSE)
 
+  # Format pathway names by replacing underscores with spaces
+  results$pathways$source <- gsub("_", " ", results$pathways$source)
+
   # Top pathways heatmap - with error checking
   top_pathways <- results$pathways %>%
     filter(statistic == "norm_wmean") %>%
@@ -248,6 +251,9 @@ for(contrast_name in names(all_methods_results)) {
 
   # Apply similar checks to other visualizations
   if(nrow(results$progeny) > 0) {
+    # Replace underscores in PROGENy pathway names
+    results$progeny$source <- gsub("_", " ", results$progeny$source)
+
     p2 <- ggplot(results$progeny, aes(x = statistic, y = source, fill = score)) +
       geom_tile() +
       scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
@@ -265,6 +271,9 @@ for(contrast_name in names(all_methods_results)) {
 
   # Use the correct statistic column value
   tf_stat_value <- if("norm_ulm" %in% unique(results$tfs$statistic)) "norm_ulm" else "ulm"
+
+  # Replace underscores in TF names
+  results$tfs$source <- gsub("_", " ", results$tfs$source)
 
   top_tfs <- results$tfs %>%
     filter(statistic == tf_stat_value) %>%
@@ -393,6 +402,9 @@ tryCatch({
     # Load the saved sample activities
     sample_activities <- read.csv(paste0(output_dir, "sample_pathway_activities_minimal.csv"))
 
+    # Format pathway names - replace underscores with spaces for better readability
+    sample_activities$source <- gsub("_", " ", sample_activities$source)
+
     # Simple summary plots that won't fail with the 'gpar' error
     cat("Creating robust summary visualizations...\n")
 
@@ -410,13 +422,17 @@ tryCatch({
         dplyr::slice_head(n = 20)
 
       if(nrow(path_var) > 0) {
-        # Create bar plot of most variable pathways
+        # Create bar plot of most variable pathways with wrapped labels
         p1 <- ggplot(path_var, aes(x = reorder(source, var_score), y = var_score)) +
           geom_col(fill = "steelblue") +
           coord_flip() +
           labs(title = "Most Variable Pathways Across Samples",
                x = "Pathway", y = "Variance") +
-          theme_minimal()
+          theme_minimal() +
+          theme(
+            axis.text.y = element_text(size = 9, lineheight = 0.8),
+            plot.margin = margin(10, 20, 10, 10)
+          )
 
         ggsave(paste0(output_dir, "pathway_variance_barplot.pdf"), p1, width = 10, height = 8)
 
@@ -426,7 +442,11 @@ tryCatch({
           coord_flip() +
           labs(title = "Mean Pathway Activity",
                x = "Pathway", y = "Mean Activity Score") +
-          theme_minimal()
+          theme_minimal() +
+          theme(
+            axis.text.y = element_text(size = 9, lineheight = 0.8),
+            plot.margin = margin(10, 20, 10, 10)
+          )
 
         ggsave(paste0(output_dir, "pathway_mean_barplot.pdf"), p2, width = 10, height = 8)
 
@@ -444,18 +464,33 @@ tryCatch({
         path_data <- path_data %>%
           dplyr::left_join(meta_minimal, by = "condition")
 
-        # Boxplot of top pathways by experimental group
+        # Boxplot of top pathways by experimental group - with wrapping
         p3 <- ggplot(path_data, aes(x = Dx_OUD, y = score, fill = Sex)) +
           geom_boxplot() +
-          facet_wrap(~source, scales = "free_y", ncol = 4) +
+          facet_wrap(~source, scales = "free_y", ncol = 3) +
           theme_minimal() +
           theme(
             axis.text.x = element_text(angle = 45, hjust = 1),
-            strip.text = element_text(size = 8)
+            strip.text = element_text(size = 8, lineheight = 0.8),
+            strip.background = element_rect(fill = "lightyellow"),
+            panel.spacing = unit(1, "lines")
           ) +
           labs(title = "Pathway Activities by Condition", y = "Activity Score")
 
         ggsave(paste0(output_dir, "pathway_boxplots.pdf"), p3, width = 12, height = 10)
+
+        # 4. Create a dotplot showing pathway scores by condition and sex
+        p4 <- ggplot(path_data, aes(x = score, y = source, color = Dx_OUD, shape = Sex)) +
+          geom_point(size = 2, alpha = 0.7) +
+          scale_color_brewer(palette = "Set1") +
+          theme_minimal() +
+          theme(
+            axis.text.y = element_text(size = 9),
+            legend.position = "right"
+          ) +
+          labs(title = "Pathway Activity by Group", x = "Activity Score", y = "Pathway")
+
+        ggsave(paste0(output_dir, "pathway_dotplot.pdf"), p4, width = 10, height = 8)
 
         cat("Successfully created alternative visualizations!\n")
       } else {
@@ -474,18 +509,26 @@ tryCatch({
   tryCatch({
     sample_act <- read.csv(paste0(output_dir, "sample_pathway_activities_minimal.csv"))
 
+    # Replace underscores with spaces in pathway names
+    sample_act$source <- gsub("_", " ", sample_act$source)
+
     # Count number of samples per pathway
     pathway_counts <- sample_act %>%
       dplyr::filter(statistic == "norm_wmean") %>%
-      dplyr::group_by(source) %>%
-      dplyr::summarize(count = n())
+      dplyr::count(source) %>%
+      dplyr::arrange(desc(n)) %>%
+      dplyr::rename(count = n)
 
     # Simple dotplot - extremely robust
     p_simple <- ggplot(pathway_counts, aes(x = count, y = reorder(source, count))) +
-      geom_point(size = 3) +
-      labs(title = "Number of Samples per Pathway",
-           x = "Count", y = "Pathway") +
-      theme_minimal()
+      geom_point(size = 3, color = "darkblue") +
+      theme_minimal() +
+      labs(title = "Pathways by Sample Count",
+           x = "Number of Samples", y = "Pathway") +
+      theme(
+        axis.text.y = element_text(size = 8, lineheight = 0.8),
+        panel.grid.minor = element_blank()
+      )
 
     ggsave(paste0(output_dir, "absolute_minimal_plot.pdf"), p_simple, width = 8, height = 10)
     cat("Created absolute minimal plot as last resort\n")
