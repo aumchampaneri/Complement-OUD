@@ -748,7 +748,16 @@ if(nrow(combined_df) > 0) {
     column_names_gp = gpar(fontsize = 8),
     row_names_gp = gpar(fontsize = 8),
     width = unit(10, "cm"),
-    height = unit(15, "cm")
+    height = unit(15, "cm"),
+    heatmap_legend_param = list(
+      title = "Activity Score",
+      at = c(min(heatmap_matrix, na.rm = TRUE), 0, max(heatmap_matrix, na.rm = TRUE)),
+      labels = c("Low", "Neutral", "High"),
+      legend_direction = "horizontal",
+      legend_width = unit(5, "cm"),
+      title_position = "topcenter",
+      position = "left"  # Moves legend to bottom of plot
+    )
   )
 
   # Save final heatmap
