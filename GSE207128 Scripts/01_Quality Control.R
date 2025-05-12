@@ -106,6 +106,10 @@ for (i in 1:length(rds_files)) {
 # Save QC stats
 write.csv(qc_stats, file.path(qc_dir, "qc_filtering_stats.csv"), row.names = FALSE)
 
+
+
+##### Here on down failed on computer due to memory issues -> use 02_Harmony.R instead
+
 # Integrate datasets (using Seurat v4 approach)
 cat("Performing dataset integration...\n")
 
