@@ -1,12 +1,13 @@
 from bioservices import KEGG
 import csv
+import os
+import datetime
 
 # Initialize KEGG client
 kegg = KEGG()
 kegg.organism = "mmu"  # Mus musculus (mouse)
 
 # Define KEGG pathways of interest for mice
-# Note: Same pathways but with "mmu" prefix instead of "hsa"
 mouse_inflammation_pathways = {
     "complement_cascade": "mmu04610",
     "nfkb_pathway": "mmu04064",
@@ -46,19 +47,39 @@ for name, kegg_id in mouse_inflammation_pathways.items():
     except Exception as e:
         print(f"Error fetching {name}: {e}")
 
+# Create a unique timestamp-based directory
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+output_dir = f"/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE207128/kegg_outputs_{timestamp}"
+
+# Create the directory if it doesn't exist
+os.makedirs(output_dir, exist_ok=True)
+
 # Export full pathway-gene mapping to CSV
-with open("KEGG outputs/mouse_kegg_inflammatory_pathways.csv", "w", newline="") as f:
+pathway_file = os.path.join(output_dir, "GSE207128_mouse_inflammatory_pathways_gene_mapping.csv")
+with open(pathway_file, "w", newline="") as f:
     writer = csv.DictWriter(f, fieldnames=["pathway", "gene"])
     writer.writeheader()
     writer.writerows(rows)
 
 # Export unique gene list to CSV
-with open("KEGG outputs/mouse_kegg_unique_genes.csv", "w", newline="") as f:
+unique_file = os.path.join(output_dir, "GSE207128_mouse_inflammatory_unique_genes.csv")
+with open(unique_file, "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow(["gene"])
     for gene in sorted(unique_genes):
         writer.writerow([gene])
 
-print("\n✅ Exported:")
-print(" - mouse_kegg_inflammatory_pathways.csv (pathway-gene pairs)")
-print(" - mouse_kegg_unique_genes.csv (unique gene symbols)")
+# Export pathway-specific gene lists (one file per pathway)
+for pathway in mouse_inflammation_pathways:
+    pathway_genes = [row["gene"] for row in rows if row["pathway"] == pathway]
+    pathway_file = os.path.join(output_dir, f"GSE207128_mouse_{pathway}_genes.csv")
+    with open(pathway_file, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["gene"])
+        for gene in sorted(pathway_genes):
+            writer.writerow([gene])
+
+print(f"\n✅ Results exported to: {output_dir}")
+print(f" - GSE207128_mouse_inflammatory_pathways_gene_mapping.csv (all pathway-gene pairs)")
+print(f" - GSE207128_mouse_inflammatory_unique_genes.csv (all unique genes across pathways)")
+print(" - Individual pathway gene lists (one file per pathway)")
