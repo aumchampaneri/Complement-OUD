@@ -1,82 +1,133 @@
-# Script to add gene symbols to Seurat object with Ensembl IDs
+# GSE207128 - Pseudobulk Analysis by Treatment Condition
+# This script creates pseudobulk profiles by opioid dependence status
 
-# Load required libraries
 library(Seurat)
-library(biomaRt)
 library(dplyr)
+library(readr)
 
-# Load the filtered Seurat object
-seurat_filtered <- readRDS("/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE207128/harmony_results/singleR_annotation/seurat_filtered.rds")
+#----- 1. Set up paths and load data -----#
+base_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE207128"
+seurat_path <- file.path(base_dir, "harmony_results/singleR_annotation/seurat_filtered_with_mapping.rds")
+output_dir <- file.path(base_dir, "pseudobulk_results")
+dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
-# Basic data inspection
-cat("Data dimensions:", dim(seurat_filtered), "\n")
-cat("First few gene IDs:", head(rownames(seurat_filtered)), "\n")
+# Load Seurat object
+cat("Loading Seurat object...\n")
+seurat_obj <- readRDS(seurat_path)
+gene_mapping <- seurat_obj@misc$gene_mapping
 
-# Check if gene names are Ensembl IDs
-ensembl_pattern <- "^ENSMUS"
-gene_ids <- rownames(seurat_filtered)
-is_ensembl <- any(grepl(ensembl_pattern, gene_ids))
+#----- 2. Create treatment condition variable -----#
+# Extract sample information from sample_names
+cat("Creating treatment condition variable...\n")
 
-if(!is_ensembl) {
-  cat("Gene IDs don't appear to be Ensembl IDs. No conversion needed.\n")
+# Check if sample_names column exists
+if("sample_names" %in% colnames(seurat_obj@meta.data)) {
+  # Map samples to conditions based on the information provided
+  treatment_map <- list(
+    # Normal/control samples
+    "GSM6278819_N1" = "Normal",
+    "GSM6278820_N2" = "Normal",
+    "GSM6278821_N3" = "Normal",
+    # Opioid dependence samples
+    "GSM6278822_D1" = "OpioidDependence",
+    "GSM6278823_D2" = "OpioidDependence",
+    "GSM6278824_D3" = "OpioidDependence"
+  )
+
+  # Create treatment condition variable
+  seurat_obj$treatment_condition <- sapply(seurat_obj$sample_names,
+                                          function(x) treatment_map[[x]])
+
+  # Show distribution
+  cat("\nTreatment condition distribution:\n")
+  print(table(seurat_obj$treatment_condition))
 } else {
-  cat("Converting Ensembl IDs to gene symbols...\n")
+  # If sample_names doesn't exist, look for other potential identifiers
+  # like orig.ident that might contain the sample information
+  if("orig.ident" %in% colnames(seurat_obj@meta.data)) {
+    cat("\nSample identifiers (orig.ident):\n")
+    print(table(seurat_obj$orig.ident))
 
-  # Connect to BioMart
-  cat("Connecting to BioMart...\n")
-  mart <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+    # Try to infer treatment from orig.ident
+    seurat_obj$treatment_condition <- ifelse(
+      grepl("D[1-3]$", seurat_obj$orig.ident),
+      "OpioidDependence",
+      ifelse(grepl("N[1-3]$", seurat_obj$orig.ident), "Normal", NA)
+    )
 
-  # Get mapping between Ensembl IDs and gene symbols
-  cat("Fetching gene symbol mapping...\n")
-  mapping <- getBM(
-    attributes = c("ensembl_gene_id", "external_gene_name", "description"),
-    filters = "ensembl_gene_id",
-    values = gene_ids,
-    mart = mart
-  )
-
-  cat("Found mappings for", nrow(mapping), "out of", length(gene_ids), "Ensembl IDs\n")
-
-  # Create mapping dataframe
-  gene_mapping <- data.frame(
-    ensembl_id = gene_ids,
-    gene_symbol = NA,
-    description = NA,
-    stringsAsFactors = FALSE
-  )
-  rownames(gene_mapping) <- gene_ids
-
-  # Fill in gene symbols and descriptions
-  matched_idx <- match(mapping$ensembl_gene_id, gene_ids)
-  gene_mapping$gene_symbol[matched_idx] <- mapping$external_gene_name
-  gene_mapping$description[matched_idx] <- mapping$description
-
-  # Use Ensembl ID for genes without a symbol
-  missing_symbols <- is.na(gene_mapping$gene_symbol) | gene_mapping$gene_symbol == ""
-  gene_mapping$gene_symbol[missing_symbols] <- gene_ids[missing_symbols]
-
-  # Add the mapping to the Seurat object
-  seurat_filtered@misc$gene_mapping <- gene_mapping
-
-  # Save outputs
-  output_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE207128/harmony_results/singleR_annotation"
-  write.csv(gene_mapping, file.path(output_dir, "gene_id_symbol_mapping.csv"))
-  saveRDS(seurat_filtered, file.path(output_dir, "seurat_filtered_with_mapping.rds"))
-
-  # Print sample of mapping
-  cat("\nSample of gene ID to symbol mapping:\n")
-  print(head(gene_mapping, 10))
+    cat("\nInferred treatment condition distribution:\n")
+    print(table(seurat_obj$treatment_condition, useNA = "ifany"))
+  } else {
+    stop("Could not find sample_names or orig.ident columns to determine treatment conditions")
+  }
 }
 
-# Check other metadata
-cat("\n==== Sample Metadata ====\n")
-meta_cols <- colnames(seurat_filtered@meta.data)
-cat("Available metadata columns:", paste(meta_cols, collapse=", "), "\n\n")
+#----- 3. Define pseudobulk function -----#
+create_pseudobulk <- function(seurat_obj, group_by_col) {
+  # Get normalized expression data
+  expr_matrix <- GetAssayData(seurat_obj, slot = "data", assay = "RNA")
 
-# Check for potential pseudobulking variables
-if("orig.ident" %in% meta_cols) {
-  cat("Sample identifiers (orig.ident):\n")
-  print(table(seurat_filtered$orig.ident))
+  # Get grouping values
+  groups <- seurat_obj@meta.data[[group_by_col]]
+
+  # Initialize pseudobulk matrix
+  unique_groups <- unique(groups)
+  pseudobulk <- matrix(0, nrow = nrow(expr_matrix), ncol = length(unique_groups))
+  rownames(pseudobulk) <- rownames(expr_matrix)
+  colnames(pseudobulk) <- unique_groups
+
+  # Calculate mean expression for each group
+  for(group in unique_groups) {
+    cells <- which(groups == group)
+    pseudobulk[, group] <- rowMeans(expr_matrix[, cells, drop = FALSE])
+    cat(sprintf("Group %s: %d cells\n", group, length(cells)))
+  }
+
+  return(pseudobulk)
 }
 
-cat("\nData ready for pseudobulking with gene symbols now accessible!\n")
+#----- 4. Generate pseudobulk matrices -----#
+# Create pseudobulk by treatment condition
+cat("\nCreating pseudobulk profiles by treatment condition...\n")
+pseudobulk_condition <- create_pseudobulk(seurat_obj, "treatment_condition")
+cat("Pseudobulk matrix dimensions (by treatment condition):", dim(pseudobulk_condition), "\n")
+
+# Optional: Create pseudobulk by cell type within each treatment condition
+cat("\nCreating pseudobulk profiles by cell type within each treatment condition...\n")
+seurat_obj$celltype_treatment <- paste(seurat_obj$singler_label,
+                                      seurat_obj$treatment_condition, sep="_")
+pseudobulk_celltype_condition <- create_pseudobulk(seurat_obj, "celltype_treatment")
+cat("Pseudobulk matrix dimensions (celltype within treatment):",
+    dim(pseudobulk_celltype_condition), "\n")
+
+#----- 5. Map gene IDs to symbols -----#
+# Map Ensembl IDs to gene symbols
+gene_symbols <- gene_mapping$gene_symbol[match(rownames(pseudobulk_condition),
+                                             gene_mapping$ensembl_id)]
+names(gene_symbols) <- rownames(pseudobulk_condition)
+
+# Create a data frame with both IDs and symbols
+id_symbol_mapping <- data.frame(
+  ensembl_id = rownames(pseudobulk_condition),
+  gene_symbol = gene_symbols,
+  stringsAsFactors = FALSE
+)
+
+#----- 6. Save results -----#
+# Save the condition pseudobulk matrix
+saveRDS(pseudobulk_condition,
+        file.path(output_dir, "GSE207128_pseudobulk_by_treatment.rds"))
+
+# Save the cell type within condition pseudobulk matrix
+saveRDS(pseudobulk_celltype_condition,
+        file.path(output_dir, "GSE207128_pseudobulk_celltype_by_treatment.rds"))
+
+# Save the gene mapping
+write_csv(id_symbol_mapping,
+          file.path(output_dir, "GSE207128_pseudobulk_gene_mapping.csv"))
+
+cat("\nPseudobulk generation complete. Files saved to:", output_dir, "\n")
+cat("Files saved:\n")
+cat("- GSE207128_pseudobulk_by_treatment.rds\n")
+cat("- GSE207128_pseudobulk_celltype_by_treatment.rds\n")
+cat("- GSE207128_pseudobulk_gene_mapping.csv\n")
