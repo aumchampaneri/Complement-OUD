@@ -224,16 +224,48 @@ ggsave(file.path(output_dir, "harmony_umap_samples.png"), p_samples, width = 10,
 # Find marker genes for each cluster
 cat("Finding marker genes...\n")
 DefaultAssay(seurat_harmony) <- "RNA"
+
+# Join layers for Seurat v5 - required for marker detection
+if (is_seurat_v5) {
+  cat("Joining layers for Seurat v5...\n")
+  seurat_harmony <- JoinLayers(seurat_harmony, assay = "RNA")
+}
+
+# Run FindAllMarkers
 harmony_markers <- FindAllMarkers(seurat_harmony, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+
+# Save all markers
 write.csv(harmony_markers, file.path(output_dir, "harmony_cluster_markers.csv"), row.names = FALSE)
 
-# Save top 10 markers per cluster (using version-aware approach)
-if (packageVersion("dplyr") >= numeric_version("1.0.0")) {
-  top10 <- harmony_markers %>% group_by(cluster) %>% slice_max(n = 10, order_by = avg_log2FC)
+# Check columns and save top markers
+if (nrow(harmony_markers) > 0) {
+  # Determine the cluster column name - in Seurat v5 it's often called "group"
+  cluster_col <- if ("cluster" %in% colnames(harmony_markers)) {
+    "cluster"
+  } else if ("group" %in% colnames(harmony_markers)) {
+    "group"
+  } else {
+    cat("Warning: Neither 'cluster' nor 'group' column found in marker results\n")
+    cat("Available columns:", paste(colnames(harmony_markers), collapse=", "), "\n")
+    NULL
+  }
+
+  if (!is.null(cluster_col)) {
+    # Save top 10 markers per cluster using version-aware approach
+    if (packageVersion("dplyr") >= numeric_version("1.0.0")) {
+      top10 <- harmony_markers %>%
+        group_by(across(all_of(cluster_col))) %>%
+        slice_max(n = 10, order_by = avg_log2FC)
+    } else {
+      top10 <- harmony_markers %>%
+        group_by(across(all_of(cluster_col))) %>%
+        top_n(n = 10, wt = avg_log2FC)
+    }
+    write.csv(top10, file.path(output_dir, "harmony_top10_markers_per_cluster.csv"), row.names = FALSE)
+  }
 } else {
-  top10 <- harmony_markers %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+  cat("Warning: No marker genes were found\n")
 }
-write.csv(top10, file.path(output_dir, "harmony_top10_markers_per_cluster.csv"), row.names = FALSE)
 
 # Save integrated object
 saveRDS(seurat_harmony, file.path(output_dir, "seurat_harmony_integrated.rds"))
