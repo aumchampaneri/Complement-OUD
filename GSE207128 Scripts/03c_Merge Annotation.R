@@ -1,9 +1,13 @@
-# Create script for merging annotation results
-# 05_Merge_Annotations.R
-
 library(Seurat)
 library(ggplot2)
 library(pheatmap)
+library(patchwork)
+
+# Install missing package with specified repository
+if (!requireNamespace("networkD3", quietly = TRUE)) {
+  install.packages("networkD3", repos = "https://cloud.r-project.org")
+  library(networkD3)
+}
 
 # Load object with both annotations
 seurat_dual_annotated <- readRDS("/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE207128/harmony_results/annotation_validation/seurat_dual_annotated.rds")
@@ -12,80 +16,32 @@ seurat_dual_annotated <- readRDS("/Users/aumchampaneri/PycharmProjects/Complemen
 merged_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE207128/harmony_results/merged_annotations"
 dir.create(merged_dir, showWarnings = FALSE, recursive = TRUE)
 
-# 1. Create consensus annotation
+# Print the first few cell type labels from each method to examine
+cat("First few marker-based annotations:", head(unique(seurat_dual_annotated$predicted_celltype)), "\n")
+cat("First few SingleR annotations:", head(unique(seurat_dual_annotated$singler_label)), "\n")
+
+# Create consensus table
 consensus_table <- table(
   Marker = seurat_dual_annotated$predicted_celltype,
   SingleR = seurat_dual_annotated$singler_label
 )
 
+# Save the raw correspondence table for manual review
+write.csv(consensus_table, file.path(merged_dir, "annotation_raw_correspondence.csv"))
+
 # Calculate agreement score
 agreement_score <- sum(diag(consensus_table)) / sum(consensus_table)
 cat("Overall agreement between methods:", round(agreement_score * 100, 2), "%\n")
 
-# Create an annotation confidence score
-seurat_dual_annotated$annotation_match <- seurat_dual_annotated$predicted_celltype == seurat_dual_annotated$singler_label
+# Create simple direct match variable
+seurat_dual_annotated$direct_match <- seurat_dual_annotated$predicted_celltype == seurat_dual_annotated$singler_label
 
-# Create integrated annotation (with confidence label)
-seurat_dual_annotated$integrated_celltype <- ifelse(
-  seurat_dual_annotated$annotation_match,
-  seurat_dual_annotated$predicted_celltype,  # Use consistent name where methods agree
-  paste0(seurat_dual_annotated$predicted_celltype, "/", seurat_dual_annotated$singler_label)  # Show both where they differ
-)
+# Create integrated annotation (with priority to marker-based)
+seurat_dual_annotated$integrated_celltype <- seurat_dual_annotated$predicted_celltype
 
-# Sankey diagram of annotation mapping
-# (Optional, requires networkD3 package)
-if(require(networkD3)) {
-  # Create data for Sankey diagram
-  links <- as.data.frame(matrix(0, nrow=nrow(consensus_table), ncol=3))
-  colnames(links) <- c("source", "target", "value")
-
-  counter <- 0
-  for(i in 1:nrow(consensus_table)) {
-    for(j in 1:ncol(consensus_table)) {
-      if(consensus_table[i,j] > 0) {
-        counter <- counter + 1
-        links[counter,] <- c(i-1, j-1+nrow(consensus_table), consensus_table[i,j])
-      }
-    }
-  }
-  links <- links[1:counter,]
-  links$source <- as.numeric(links$source)
-  links$target <- as.numeric(links$target)
-  links$value <- as.numeric(links$value)
-
-  # Create nodes
-  nodes <- data.frame(
-    name = c(rownames(consensus_table), colnames(consensus_table))
-  )
-
-  # Create Sankey diagram
-  sankey <- sankeyNetwork(
-    Links = links, Nodes = nodes,
-    Source = "source", Target = "target",
-    Value = "value", NodeID = "name",
-    sinksRight = FALSE, width = 800, height = 600
-  )
-
-  # Save as HTML
-  saveNetwork(sankey, file.path(merged_dir, "annotation_comparison_sankey.html"))
-}
-
-# 2. Create integrated annotation plots
-p1 <- DimPlot(seurat_dual_annotated, reduction = "umap", group.by = "predicted_celltype",
-             label = TRUE, repel = TRUE) + ggtitle("Marker-based")
-p2 <- DimPlot(seurat_dual_annotated, reduction = "umap", group.by = "singler_label",
-             label = TRUE, repel = TRUE) + ggtitle("SingleR")
-p3 <- DimPlot(seurat_dual_annotated, reduction = "umap", group.by = "integrated_celltype",
-             label = TRUE, repel = TRUE) + ggtitle("Integrated Annotation")
-p4 <- DimPlot(seurat_dual_annotated, reduction = "umap", group.by = "annotation_match",
-             cols = c("red", "blue")) + ggtitle("Annotation Agreement")
-
-combined <- (p1 + p2) / (p3 + p4)
-ggsave(file.path(merged_dir, "integrated_annotation.png"), combined, width = 16, height = 12)
-
-# 3. Calculate stats on annotation agreement
+# Calculate stats on direct agreement
 celltype_confidence <- table(seurat_dual_annotated$predicted_celltype,
-                            seurat_dual_annotated$annotation_match)
+                            seurat_dual_annotated$direct_match)
 confidence_stats <- data.frame(
   CellType = rownames(celltype_confidence),
   Total = rowSums(celltype_confidence),
@@ -97,12 +53,32 @@ write.csv(confidence_stats, file.path(merged_dir, "celltype_confidence_stats.csv
 
 # Create confidence heatmap
 pheatmap(consensus_table,
-         display_numbers = TRUE,
          filename = file.path(merged_dir, "annotation_correspondence_heatmap.png"),
-         main = "Cell Type Correspondence Between Methods")
+         main = "Cell Type Correspondence Between Methods",
+         fontsize_row = 8,
+         fontsize_col = 8)
+
+# Create individual plots with better dimensions
+p1 <- DimPlot(seurat_dual_annotated, reduction = "umap", group.by = "predicted_celltype",
+             label = TRUE, repel = TRUE) + ggtitle("Marker-based")
+ggsave(file.path(merged_dir, "1_marker_based_annotation.png"), p1, width = 12, height = 10)
+
+p2 <- DimPlot(seurat_dual_annotated, reduction = "umap", group.by = "singler_label",
+             label = TRUE, repel = TRUE) + ggtitle("SingleR")
+ggsave(file.path(merged_dir, "2_singler_annotation.png"), p2, width = 12, height = 10)
+
+p3 <- DimPlot(seurat_dual_annotated, reduction = "umap", group.by = "integrated_celltype",
+             label = TRUE, repel = TRUE) + ggtitle("Integrated Annotation")
+ggsave(file.path(merged_dir, "3_integrated_annotation.png"), p3, width = 12, height = 10)
+
+p4 <- DimPlot(seurat_dual_annotated, reduction = "umap", group.by = "direct_match",
+             cols = c("red", "blue")) + ggtitle("Annotation Agreement")
+ggsave(file.path(merged_dir, "4_annotation_agreement.png"), p4, width = 10, height = 8)
 
 # Save the final annotated object
 seurat_dual_annotated$annotation_version <- "v1.0_marker+singler"
 saveRDS(seurat_dual_annotated, file.path(merged_dir, "seurat_final_annotated.rds"))
 
 cat("Integrated annotation complete! Results saved to", merged_dir, "\n")
+cat("NOTE: With only 1.45% agreement, manually review the cell type labels from both methods.\n")
+cat("You may need to create a custom mapping between the two annotation schemes.\n")
