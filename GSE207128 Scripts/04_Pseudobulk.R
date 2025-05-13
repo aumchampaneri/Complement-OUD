@@ -1,9 +1,10 @@
 # GSE207128 - Pseudobulk Analysis by Treatment Condition
-# This script creates pseudobulk profiles by opioid dependence status
+# Optimized for DESeq2 compatibility
 
 library(Seurat)
 library(dplyr)
 library(readr)
+library(Matrix)
 
 #----- 1. Set up paths and load data -----#
 base_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE207128"
@@ -17,12 +18,10 @@ seurat_obj <- readRDS(seurat_path)
 gene_mapping <- seurat_obj@misc$gene_mapping
 
 #----- 2. Create treatment condition variable -----#
-# Extract sample information from sample_names
 cat("Creating treatment condition variable...\n")
 
-# Check if sample_names column exists
+# Map samples to conditions
 if("sample_names" %in% colnames(seurat_obj@meta.data)) {
-  # Map samples to conditions based on the information provided
   treatment_map <- list(
     # Normal/control samples
     "GSM6278819_N1" = "Normal",
@@ -34,100 +33,132 @@ if("sample_names" %in% colnames(seurat_obj@meta.data)) {
     "GSM6278824_D3" = "OpioidDependence"
   )
 
-  # Create treatment condition variable
-  seurat_obj$treatment_condition <- sapply(seurat_obj$sample_names,
-                                          function(x) treatment_map[[x]])
-
-  # Show distribution
-  cat("\nTreatment condition distribution:\n")
-  print(table(seurat_obj$treatment_condition))
+  # Add treatment and ensure sample ID is preserved
+  seurat_obj$treatment_condition <- sapply(seurat_obj$sample_names, function(x) treatment_map[[x]])
+  seurat_obj$sample_id <- seurat_obj$sample_names
+} else if("orig.ident" %in% colnames(seurat_obj@meta.data)) {
+  seurat_obj$treatment_condition <- ifelse(
+    grepl("D[1-3]$", seurat_obj$orig.ident),
+    "OpioidDependence",
+    ifelse(grepl("N[1-3]$", seurat_obj$orig.ident), "Normal", NA)
+  )
+  seurat_obj$sample_id <- seurat_obj$orig.ident
 } else {
-  # If sample_names doesn't exist, look for other potential identifiers
-  # like orig.ident that might contain the sample information
-  if("orig.ident" %in% colnames(seurat_obj@meta.data)) {
-    cat("\nSample identifiers (orig.ident):\n")
-    print(table(seurat_obj$orig.ident))
-
-    # Try to infer treatment from orig.ident
-    seurat_obj$treatment_condition <- ifelse(
-      grepl("D[1-3]$", seurat_obj$orig.ident),
-      "OpioidDependence",
-      ifelse(grepl("N[1-3]$", seurat_obj$orig.ident), "Normal", NA)
-    )
-
-    cat("\nInferred treatment condition distribution:\n")
-    print(table(seurat_obj$treatment_condition, useNA = "ifany"))
-  } else {
-    stop("Could not find sample_names or orig.ident columns to determine treatment conditions")
-  }
+  stop("Could not find sample identifiers")
 }
 
-#----- 3. Define pseudobulk function -----#
-create_pseudobulk <- function(seurat_obj, group_by_col) {
-  # Get normalized expression data
-  expr_matrix <- GetAssayData(seurat_obj, slot = "data", assay = "RNA")
+# Show distribution
+cat("\nTreatment condition distribution:\n")
+print(table(seurat_obj$treatment_condition))
+cat("\nSample distribution:\n")
+print(table(seurat_obj$sample_id))
 
-  # Get grouping values
-  groups <- seurat_obj@meta.data[[group_by_col]]
+#----- 3. Filter very low-expressed genes -----#
+cat("\nFiltering low-expressed genes...\n")
+counts <- GetAssayData(seurat_obj, slot = "counts", assay = "RNA")
+genes_to_keep <- rownames(counts)[rowSums(counts > 0) >= 10]
+cat("Keeping", length(genes_to_keep), "of", nrow(counts), "genes after filtering\n")
+
+#----- 4. Define improved pseudobulk function -----#
+create_pseudobulk_for_deseq2 <- function(seurat_obj, genes_to_keep = NULL) {
+  # Get raw count data
+  counts <- GetAssayData(seurat_obj, slot = "counts", assay = "RNA")
+
+  # Filter genes if requested
+  if (!is.null(genes_to_keep)) {
+    counts <- counts[genes_to_keep, ]
+  }
+
+  # Prepare aggregation groups - by sample_id + cell type
+  groups <- paste(seurat_obj$sample_id, seurat_obj$singler_label, sep = "_")
+  unique_groups <- unique(groups)
 
   # Initialize pseudobulk matrix
-  unique_groups <- unique(groups)
-  pseudobulk <- matrix(0, nrow = nrow(expr_matrix), ncol = length(unique_groups))
-  rownames(pseudobulk) <- rownames(expr_matrix)
+  pseudobulk <- matrix(0, nrow = nrow(counts), ncol = length(unique_groups))
+  rownames(pseudobulk) <- rownames(counts)
   colnames(pseudobulk) <- unique_groups
 
-  # Calculate mean expression for each group
+  # Sum counts for each group
+  cat("Creating pseudobulk profiles by summing counts within groups:\n")
   for(group in unique_groups) {
     cells <- which(groups == group)
-    pseudobulk[, group] <- rowMeans(expr_matrix[, cells, drop = FALSE])
-    cat(sprintf("Group %s: %d cells\n", group, length(cells)))
+    pseudobulk[, group] <- rowSums(counts[, cells, drop = FALSE])
+    cat(sprintf("Group %s: %d cells, total counts: %.1f million\n",
+               group, length(cells), sum(pseudobulk[, group])/1e6))
   }
 
-  return(pseudobulk)
+  # Create metadata for the pseudobulk samples
+  meta <- data.frame(
+    sample_name = unique_groups,
+    sample_id = gsub("^(.+?)_(.+)$", "\\1", unique_groups),
+    celltype = gsub("^(.+?)_(.+)$", "\\2", unique_groups)
+  )
+
+  # Add treatment condition
+  treatment_lookup <- setNames(
+    seurat_obj$treatment_condition,
+    seurat_obj$sample_id
+  )
+  meta$condition <- treatment_lookup[meta$sample_id]
+
+  # Ensure pseudobulk columns and metadata rows match
+  meta <- meta[match(colnames(pseudobulk), meta$sample_name), ]
+
+  return(list(
+    counts = pseudobulk,
+    metadata = meta
+  ))
 }
 
-#----- 4. Generate pseudobulk matrices -----#
-# Create pseudobulk by treatment condition
-cat("\nCreating pseudobulk profiles by treatment condition...\n")
-pseudobulk_condition <- create_pseudobulk(seurat_obj, "treatment_condition")
-cat("Pseudobulk matrix dimensions (by treatment condition):", dim(pseudobulk_condition), "\n")
+#----- 5. Generate pseudobulk data -----#
+cat("\nCreating pseudobulk data optimized for DESeq2...\n")
+pseudobulk_data <- create_pseudobulk_for_deseq2(seurat_obj, genes_to_keep)
 
-# Optional: Create pseudobulk by cell type within each treatment condition
-cat("\nCreating pseudobulk profiles by cell type within each treatment condition...\n")
-seurat_obj$celltype_treatment <- paste(seurat_obj$singler_label,
-                                      seurat_obj$treatment_condition, sep="_")
-pseudobulk_celltype_condition <- create_pseudobulk(seurat_obj, "celltype_treatment")
-cat("Pseudobulk matrix dimensions (celltype within treatment):",
-    dim(pseudobulk_celltype_condition), "\n")
+# Check the structure
+cat("\nPseudobulk matrix dimensions:", dim(pseudobulk_data$counts), "\n")
+cat("Pseudobulk metadata rows:", nrow(pseudobulk_data$metadata), "\n")
 
-#----- 5. Map gene IDs to symbols -----#
-# Map Ensembl IDs to gene symbols
-gene_symbols <- gene_mapping$gene_symbol[match(rownames(pseudobulk_condition),
-                                             gene_mapping$ensembl_id)]
-names(gene_symbols) <- rownames(pseudobulk_condition)
+# Create additional columns for DESeq2
+pseudobulk_data$metadata$celltype_condition <- paste(
+  pseudobulk_data$metadata$celltype,
+  pseudobulk_data$metadata$condition,
+  sep = "_"
+)
 
-# Create a data frame with both IDs and symbols
+#----- 6. Map gene IDs to symbols -----#
+# Map Ensembl IDs to gene symbols for retained genes
+gene_symbols <- gene_mapping$gene_symbol[match(rownames(pseudobulk_data$counts),
+                                            gene_mapping$ensembl_id)]
 id_symbol_mapping <- data.frame(
-  ensembl_id = rownames(pseudobulk_condition),
+  ensembl_id = rownames(pseudobulk_data$counts),
   gene_symbol = gene_symbols,
   stringsAsFactors = FALSE
 )
 
-#----- 6. Save results -----#
-# Save the condition pseudobulk matrix
-saveRDS(pseudobulk_condition,
-        file.path(output_dir, "GSE207128_pseudobulk_by_treatment.rds"))
+#----- 7. Save results -----#
+# Save the pseudobulk data
+saveRDS(pseudobulk_data$counts,
+       file.path(output_dir, "GSE207128_pseudobulk_counts_for_deseq2.rds"))
 
-# Save the cell type within condition pseudobulk matrix
-saveRDS(pseudobulk_celltype_condition,
-        file.path(output_dir, "GSE207128_pseudobulk_celltype_by_treatment.rds"))
+# Save the metadata
+saveRDS(pseudobulk_data$metadata,
+       file.path(output_dir, "GSE207128_pseudobulk_metadata_for_deseq2.rds"))
+write_csv(pseudobulk_data$metadata,
+         file.path(output_dir, "GSE207128_pseudobulk_metadata_for_deseq2.csv"))
 
 # Save the gene mapping
 write_csv(id_symbol_mapping,
-          file.path(output_dir, "GSE207128_pseudobulk_gene_mapping.csv"))
+         file.path(output_dir, "GSE207128_pseudobulk_gene_mapping.csv"))
+
+# Also create backward-compatible versions for existing scripts
+saveRDS(pseudobulk_data$counts,
+       file.path(output_dir, "GSE207128_pseudobulk_celltype_by_treatment.rds"))
 
 cat("\nPseudobulk generation complete. Files saved to:", output_dir, "\n")
-cat("Files saved:\n")
-cat("- GSE207128_pseudobulk_by_treatment.rds\n")
-cat("- GSE207128_pseudobulk_celltype_by_treatment.rds\n")
-cat("- GSE207128_pseudobulk_gene_mapping.csv\n")
+cat("Key improvements for DESeq2 compatibility:\n")
+cat("- Used raw counts instead of normalized data\n")
+cat("- Summed counts rather than averaging\n")
+cat("- Preserved biological replicates (per sample)\n")
+cat("- Pre-filtered very low-expressed genes\n")
+cat("- Created proper metadata for DESeq2 design formula\n")
+cat("- Maintained integer counts required by DESeq2\n")

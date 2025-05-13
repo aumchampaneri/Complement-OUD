@@ -1,211 +1,109 @@
-# DESeq2 Analysis for GSE207128 Pseudobulk Data
+# DESeq2 Analysis for GSE207128 using gene-wise dispersion estimates
 
 library(DESeq2)
 library(dplyr)
-library(tibble)
 library(readr)
-library(ggplot2)
-library(pheatmap)
 
 # Set base directory
 base_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD"
 output_dir <- file.path(base_dir, "GSE207128/DESeq2_outputs")
 dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
-# Load pseudobulk data (using the celltype_by_treatment version)
+# Load pseudobulk data and ensure integer counts
 pseudobulk_path <- file.path(base_dir, "GSE207128/pseudobulk_results/GSE207128_pseudobulk_celltype_by_treatment.rds")
-pseudobulk_data <- readRDS(pseudobulk_path)
-counts <- as.matrix(pseudobulk_data)
-
-# Add a small pseudocount to avoid zeros (helps with size factor estimation)
-counts <- counts + 1
+raw_counts <- readRDS(pseudobulk_path)
+counts <- round(as.matrix(raw_counts))  # Round to integers for DESeq2
 
 # Create metadata from column names
 sample_names <- colnames(counts)
 meta <- data.frame(
-  sample_id = sample_names,
+  row.names = sample_names,
   celltype = gsub("^(.+)_(.+)$", "\\1", sample_names),
-  condition = gsub("^(.+)_(.+)$", "\\2", sample_names),
-  row.names = sample_names
+  condition = gsub("^(.+)_(.+)$", "\\2", sample_names)
 )
 
-# More stringent pre-filtering to remove genes with too many zeros
-min_samples <- ceiling(ncol(counts) * 0.25)
-keep <- rowSums(counts >= 10) >= min_samples
-counts_filtered <- counts[keep, ]
-cat("Keeping", sum(keep), "out of", nrow(counts), "genes after filtering\n")
+# Print dataset info
+cat("Total samples:", nrow(meta), "\n")
+cat("Cell types:", paste(unique(meta$celltype), collapse=", "), "\n")
+cat("Conditions:", paste(unique(meta$condition), collapse=", "), "\n")
 
-# Create DESeq2 object
+# Set up DESeq2 dataset
 dds <- DESeqDataSetFromMatrix(
-  countData = round(counts_filtered),
+  countData = counts,
   colData = meta,
-  design = ~ condition
+  design = ~ celltype + condition
 )
 
-# Use alternative size factor estimation for sparse data
-dds <- estimateSizeFactors(dds, type="poscounts")
+# Handle dispersion estimates separately as recommended in error message
+dds <- estimateSizeFactors(dds)
+dds <- estimateDispersionsGeneEst(dds)
+dispersions(dds) <- mcols(dds)$dispGeneEst
+dds <- nbinomWaldTest(dds)
 
-# Run DESeq2
-dds <- DESeq(dds)
+# Get overall results
+res_overall <- results(dds, contrast=c("condition", "OpioidDependence", "Normal"))
+res_df_overall <- as.data.frame(res_overall)
+res_df_overall$gene <- rownames(res_df_overall)
 
-# Get results for OpioidDependence vs Normal
-res_all <- results(dds, contrast = c("condition", "OpioidDependence", "Normal"))
-res_all_df <- as.data.frame(res_all) %>%
-  rownames_to_column("gene_id")
+# Save overall results
+write.csv(res_df_overall, file.path(output_dir, "deseq2_results_Overall_OUD_vs_Normal.csv"), row.names=FALSE)
+cat("Overall_OUD_vs_Normal - Significant genes (padj < 0.05):", sum(res_df_overall$padj < 0.05, na.rm=TRUE), "\n")
 
-# Save results
-write.csv(res_all_df, file.path(output_dir, "deseq2_all_cells_OUD_vs_Normal.csv"), row.names = FALSE)
-
-# Run DESeq2 for each cell type separately
+# Analyze each cell type separately
 cell_types <- unique(meta$celltype)
-cell_type_results <- list()
+for (ct in cell_types) {
+  ct_samples <- rownames(meta)[meta$celltype == ct]
+  ct_meta <- meta[ct_samples, ]
 
-for (cell in cell_types) {
-  cat("Processing", cell, "\n")
-
-  # Subset data for this cell type
-  cell_samples <- rownames(meta)[meta$celltype == cell]
-  if (length(cell_samples) < 2) {
-    cat("Skipping", cell, "- not enough samples\n")
+  # Skip if only one condition is available for this cell type
+  if (length(unique(ct_meta$condition)) < 2) {
+    cat("Skipping", ct, "- only one condition available\n")
     next
   }
 
-  # Check if we have samples from both conditions
-  conditions_present <- unique(meta$condition[meta$celltype == cell])
-  if (length(conditions_present) < 2) {
-    cat("Skipping", cell, "- only one condition present\n")
-    next
-  }
+  ct_counts <- counts[, ct_samples]
 
-  # Subset the already filtered counts
-  cell_counts <- counts_filtered[, cell_samples]
-  cell_meta <- meta[cell_samples, ]
-
-  # Create DESeq2 object
-  cell_dds <- DESeqDataSetFromMatrix(
-    countData = round(cell_counts),
-    colData = cell_meta,
+  # Create cell-type specific DESeq dataset
+  ct_dds <- DESeqDataSetFromMatrix(
+    countData = ct_counts,
+    colData = ct_meta,
     design = ~ condition
   )
 
-  # Use alternative size factor estimation
-  cell_dds <- estimateSizeFactors(cell_dds, type="poscounts")
-
-  # Run DESeq2
-  cell_dds <- tryCatch({
-    DESeq(cell_dds)
-  }, error = function(e) {
-    cat("Error in DESeq for", cell, ":", e$message, "\n")
-    return(NULL)
-  })
-
-  if (is.null(cell_dds)) next
+  # Use gene-wise dispersions for cell-type specific analysis too
+  ct_dds <- estimateSizeFactors(ct_dds)
+  ct_dds <- estimateDispersionsGeneEst(ct_dds)
+  dispersions(ct_dds) <- mcols(ct_dds)$dispGeneEst
+  ct_dds <- nbinomWaldTest(ct_dds)
 
   # Get results
-  cell_res <- results(cell_dds, contrast = c("condition", "OpioidDependence", "Normal"))
-  cell_res_df <- as.data.frame(cell_res) %>%
-    rownames_to_column("gene_id")
+  ct_res <- results(ct_dds, contrast=c("condition", "OpioidDependence", "Normal"))
+  ct_res_df <- as.data.frame(ct_res)
+  ct_res_df$gene <- rownames(ct_res_df)
 
-  # Save results
-  write.csv(cell_res_df, file.path(output_dir, paste0("deseq2_", cell, "_OUD_vs_Normal.csv")), row.names = FALSE)
+  out_path <- file.path(output_dir, paste0("deseq2_results_", ct, "_OUD_vs_Normal.csv"))
+  write.csv(ct_res_df, file = out_path, row.names = FALSE)
 
-  # Store for summary
-  cell_type_results[[cell]] <- cell_res_df
+  cat(ct, "_OUD_vs_Normal - Significant genes (padj < 0.05):", sum(ct_res_df$padj < 0.05, na.rm=TRUE), "\n")
 }
 
-# Create a summary of DE genes across cell types
-create_volcano_plot <- function(res_df, title, file_name) {
-  # Handle NA values in padj
-  res_df <- res_df %>%
-    mutate(padj = ifelse(is.na(padj), 1, padj)) %>%
-    mutate(sig = ifelse(padj < 0.05,
-                        ifelse(log2FoldChange > 0.5, "Up",
-                               ifelse(log2FoldChange < -0.5, "Down", "NS")),
-                        "NS"))
+# Export normalized counts
+norm_counts <- counts(dds, normalized = TRUE)
+write.csv(norm_counts, file = file.path(output_dir, "normalized_counts.csv"))
 
-  # Create volcano plot
-  p <- ggplot(res_df, aes(x = log2FoldChange, y = -log10(pvalue), color = sig)) +
-    geom_point(alpha = 0.6) +
-    scale_color_manual(values = c("Down" = "blue", "NS" = "gray", "Up" = "red")) +
-    theme_minimal() +
-    labs(title = title,
-         x = "Log2 Fold Change",
-         y = "-Log10 P-value") +
-    theme(legend.title = element_blank())
+# Add gene symbols if mapping available
+gene_mapping_path <- file.path(base_dir, "GSE207128/pseudobulk_results/GSE207128_pseudobulk_gene_mapping.csv")
+if (file.exists(gene_mapping_path)) {
+  gene_mapping <- read_csv(gene_mapping_path, col_names = FALSE)
+  colnames(gene_mapping) <- c("ensembl_id", "gene_symbol")
 
-  # Save plot
-  ggsave(file.path(output_dir, file_name), p, width = 8, height = 6)
-}
-
-# Create volcano plot for all cells
-create_volcano_plot(res_all_df, "OUD vs Normal - All Cells", "volcano_all_cells.png")
-
-# Create volcano plots for each cell type
-for (cell in names(cell_type_results)) {
-  create_volcano_plot(
-    cell_type_results[[cell]],
-    paste0("OUD vs Normal - ", cell),
-    paste0("volcano_", cell, ".png")
-  )
-}
-
-# Examine complement pathway genes specifically
-if (file.exists(file.path(base_dir, 'GSE225158/KEGG outputs/kegg_complement_unique_genes.csv'))) {
-  complement_genes <- read_csv(file.path(base_dir, 'GSE225158/KEGG outputs/kegg_complement_unique_genes.csv'))$gene
-
-  # Extract results for complement genes from all-cell analysis
-  complement_results <- res_all_df %>%
-    filter(toupper(gene_id) %in% toupper(complement_genes))
-
-  # Save complement-specific results
-  write.csv(complement_results, file.path(output_dir, "deseq2_complement_genes_all_cells.csv"), row.names = FALSE)
-
-  # Create heatmap of log2FC for complement genes across cell types
-  if (length(cell_type_results) > 0) {
-    # Create a matrix of log2FC values
-    log2fc_matrix <- matrix(NA, nrow = length(complement_genes), ncol = length(cell_type_results))
-    rownames(log2fc_matrix) <- complement_genes
-    colnames(log2fc_matrix) <- names(cell_type_results)
-
-    # Create p-value significance matrix
-    pval_matrix <- matrix("", nrow = length(complement_genes), ncol = length(cell_type_results))
-    rownames(pval_matrix) <- complement_genes
-    colnames(pval_matrix) <- names(cell_type_results)
-
-    for (i in seq_along(cell_type_results)) {
-      cell <- names(cell_type_results)[i]
-      cell_df <- cell_type_results[[cell]]
-
-      for (gene in complement_genes) {
-        # Case-insensitive matching
-        gene_row <- which(toupper(cell_df$gene_id) == toupper(gene))
-        if (length(gene_row) > 0) {
-          log2fc_matrix[gene, cell] <- cell_df$log2FoldChange[gene_row[1]]
-
-          # Add significance marker
-          if (!is.na(cell_df$padj[gene_row[1]]) && cell_df$padj[gene_row[1]] < 0.05) {
-            pval_matrix[gene, cell] <- "*"
-          }
-        }
-      }
-    }
-
-    # Handle NAs for visualization
-    log2fc_matrix_viz <- log2fc_matrix
-    log2fc_matrix_viz[is.na(log2fc_matrix_viz)] <- 0
-
-    # Create heatmap
-    pdf(file.path(output_dir, "complement_genes_log2fc_heatmap.pdf"), width = 10, height = 12)
-    pheatmap(log2fc_matrix_viz,
-             display_numbers = pval_matrix,
-             main = "Log2FC of Complement Genes Across Cell Types",
-             color = colorRampPalette(c("blue", "white", "red"))(100),
-             cluster_rows = TRUE,
-             cluster_cols = TRUE,
-             fontsize_row = 10,
-             fontsize_col = 10,
-             angle_col = 45)
-    dev.off()
+  # Process all result files
+  result_files <- list.files(output_dir, pattern="deseq2_results_.*\\.csv", full.names=TRUE)
+  for (res_file in result_files) {
+    res_df <- read_csv(res_file)
+    gene_id_to_symbol <- setNames(gene_mapping$gene_symbol, gene_mapping$ensembl_id)
+    res_df$gene_symbol <- gene_id_to_symbol[res_df$gene]
+    write.csv(res_df, res_file, row.names = FALSE)
   }
 }
 
