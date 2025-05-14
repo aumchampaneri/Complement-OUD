@@ -1,0 +1,26 @@
+Starting memory-optimized DL-PPI pipeline for both sexes...
+Loaded 1364 gene-pathway associations
+Found 9 unique pathways
+Top 5 pathways by gene count:
+  - cytokine_signaling: 298 genes
+  - chemokine_signaling: 193 genes
+  - nod_like_receptor: 189 genes
+  - jak_stat_pathway: 168 genes
+  - tnf_signaling: 119 genes
+Found 313 genes that belong to multiple pathways
+
+Creating training data for inflammatory pathways...
+Creating training data for protein-protein interactions...
+Error creating training data: Length mismatch: Expected axis has 2 elements, new values have 3 elements
+Traceback (most recent call last):
+  File "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/4-2_True DL-PPI.py", line 1074, in <module>
+    main()
+  File "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/4-2_True DL-PPI.py", line 892, in main
+    train_pairs = list(zip(training_df['protein1'], training_df['protein2']))
+                           ~~~~~~~~~~~^^^^^^^^^^^^
+  File "/Users/aumchampaneri/.pyenv/versions/miniconda3-latest/lib/python3.12/site-packages/pandas/core/frame.py", line 4102, in __getitem__
+    indexer = self.columns.get_loc(key)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/aumchampaneri/.pyenv/versions/miniconda3-latest/lib/python3.12/site-packages/pandas/core/indexes/range.py", line 417, in get_loc
+    raise KeyError(key)
+KeyError: 'protein1'
