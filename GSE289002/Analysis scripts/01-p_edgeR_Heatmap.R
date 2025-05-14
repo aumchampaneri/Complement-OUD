@@ -1,66 +1,96 @@
 # R
-library(edgeR)
-library(pheatmap)
+
+library(ComplexHeatmap)
+library(readr)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(circlize)
+library(viridis)
+library(stringr)
 library(org.Mm.eg.db)
 library(AnnotationDbi)
 
-gene_list_path <- '/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE289002/kegg_outputs/GSE207128_mouse_complement_cascade_genes.csv'
-expr_path <- '/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE289002/QC/dge_filtered_normalized.rds'
-metadata_path <- '/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE289002/QC/metadata.rds'
-heatmap_path <- '/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE289002/DE_results/sex_treatment/plots/complement_genes_heatmap.png'
+cat("==== 0. Load gene symbol <-> Ensembl mapping ====\n")
+gene_map <- read_csv('GSE289002/ensembl_to_symbol.csv', show_col_types = FALSE)
+ensembl_to_symbol <- setNames(gene_map$gene_symbol, gene_map$ensembl_id)
+symbol_to_ensembl <- setNames(gene_map$ensembl_id, toupper(gene_map$gene_symbol))
 
-# 1. Read complement gene list
-complement_genes <- toupper(read.csv(gene_list_path)$gene)
+cat("==== 1. Load complement cascade gene list ====\n")
+comp_genes <- read_csv('GSE289002/kegg_outputs/GSE207128_mouse_complement_cascade_genes.csv', show_col_types = FALSE)$gene
+comp_genes <- toupper(comp_genes) # ensure case-insensitive matching
+ensembl_ids <- symbol_to_ensembl[comp_genes]
+ensembl_ids <- ensembl_ids[!is.na(ensembl_ids)]
+cat("Number of complement genes mapped to Ensembl IDs:", length(ensembl_ids), "\n")
 
-# 2. Load expression matrix and metadata
-dge <- readRDS(expr_path)
-metadata <- readRDS(metadata_path)
-dge <- dge[, metadata$title]
+cat("==== 2. Load expression matrix ====\n")
+expr <- read_csv('GSE289002/GSE289002_mouse_raw_counts.csv', show_col_types = FALSE) %>% column_to_rownames('...1')
+cat("expr dim:", dim(expr), "\n")
 
-# 3. Map Ensembl IDs to gene symbols
-ensembl_ids <- rownames(dge)
-gene_symbols <- mapIds(org.Mm.eg.db, keys=ensembl_ids, column="SYMBOL", keytype="ENSEMBL", multiVals="first")
-expr_matrix <- cpm(dge, log=TRUE)
-rownames(expr_matrix) <- toupper(gene_symbols)
+cat("==== 3. Subset expression matrix to complement genes ====\n")
+expr_subset <- expr[rownames(expr) %in% ensembl_ids, , drop = FALSE]
+cat("expr_subset dim:", dim(expr_subset), "\n")
+if (nrow(expr_subset) == 0) stop("No complement genes found in expression matrix.")
 
-# 4. Subset to complement genes
-expr_subset <- expr_matrix[rownames(expr_matrix) %in% complement_genes & !is.na(rownames(expr_matrix)), ]
+cat("==== 4. Load sample metadata ====\n")
+meta <- read_csv('GSE289002/mouse_metadata.csv', show_col_types = FALSE)
+meta <- meta %>% dplyr::filter(title %in% colnames(expr_subset))
+expr_subset <- expr_subset[, meta$title, drop = FALSE]
 
-# 5. Z-score scaling (row-wise)
-expr_z <- t(scale(t(expr_subset)))
+cat("==== 5. Z-score normalization (row-wise) ====\n")
+expr_scaled <- t(scale(t(as.matrix(expr_subset))))
 
-# 6. Aggregate by treatment and sex
-metadata$group <- paste(metadata$sex, metadata$treatment, sep="_")
-group_means <- aggregate(t(expr_z), by=list(metadata$group), FUN=mean)
-rownames(group_means) <- group_means$Group.1
-group_means <- t(group_means[, -1])
+cat("==== 6. Aggregate by sex and treatment ====\n")
+meta$Group <- paste(meta$sex, meta$treatment, sep = "_")
+agg_expr <- meta %>%
+  dplyr::select(title, Group) %>%
+  left_join(
+    as.data.frame(t(expr_scaled)) %>% tibble::rownames_to_column("title"),
+    by = "title"
+  ) %>%
+  dplyr::group_by(Group) %>%
+  dplyr::summarise(across(where(is.numeric), mean), .groups = "drop")
 
-# 7. Build descriptive group labels
-treatment_desc <- c(
-  "Sal" = "Saline control",
-  "Mor + 24h" = "Morphine 24h",
-  "Mor + 2W" = "Morphine 2W",
-  "Chronic mor" = "Chronic morphine"
+agg_expr_long <- agg_expr %>%
+  tidyr::pivot_longer(-Group, names_to = "Gene", values_to = "Value") %>%
+  tidyr::pivot_wider(names_from = Group, values_from = Value)
+agg_expr_mat <- as.matrix(agg_expr_long[,-1])
+rownames(agg_expr_mat) <- agg_expr_long$Gene
+
+# Set y-axis to gene symbols
+gene_symbols <- ensembl_to_symbol[rownames(agg_expr_mat)]
+gene_symbols[is.na(gene_symbols) | gene_symbols == ""] <- rownames(agg_expr_mat)[is.na(gene_symbols) | gene_symbols == ""]
+rownames(agg_expr_mat) <- gene_symbols
+
+cat("==== 7. Prepare annotation for columns ====\n")
+col_anno <- strsplit(colnames(agg_expr_mat), "_")
+anno_df <- data.frame(
+  Sex = sapply(col_anno, `[`, 1),
+  Treatment = sapply(col_anno, `[`, 2)
 )
-group_counts <- table(metadata$group)
-group_labels <- sapply(colnames(group_means), function(g) {
-  parts <- unlist(strsplit(g, "_"))
-  sex <- parts[1]
-  treatment <- paste(parts[-1], collapse="_")
-  desc <- treatment_desc[treatment]
-  n <- group_counts[g]
-  paste0(sex, ": ", desc, " (n=", n, ")")
-})
-colnames(group_means) <- group_labels
-
-# 8. Plot heatmap
-pheatmap(
-  group_means,
-  color = colorRampPalette(c("navy", "white", "firebrick"))(50),
-  cluster_rows = TRUE,
-  cluster_cols = TRUE,
-  fontsize_row = 8,
-  fontsize_col = 10,
-  main = "Complement Gene Expression (z-score)",
-  filename = heatmap_path
+sex_col <- setNames(c('black', 'grey'), unique(anno_df$Sex))
+treatment_col <- setNames(viridis(length(unique(anno_df$Treatment))), unique(anno_df$Treatment))
+column_ha <- HeatmapAnnotation(
+  Sex = anno_df$Sex,
+  Treatment = anno_df$Treatment,
+  col = list(
+    Sex = sex_col,
+    Treatment = treatment_col
+  )
 )
+
+cat("==== 8. Plot heatmap ====\n")
+dir.create('GSE289002/figures', showWarnings = FALSE, recursive = TRUE)
+pdf('GSE289002/figures/heatmap_output.pdf', width = 5, height = 10)
+Heatmap(
+  agg_expr_mat,
+  name = "Z-score",
+  top_annotation = column_ha,
+  col = colorRamp2(seq(-1, 1, length.out = 100), colorRampPalette(c("#50c878", "white", "#FF69B4"))(100)),
+  show_row_names = TRUE,
+  show_column_names = FALSE,
+  cluster_columns = TRUE,
+  cluster_rows = TRUE
+)
+dev.off()
+cat("==== DONE ====\n")
