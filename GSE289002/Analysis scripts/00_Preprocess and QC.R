@@ -204,8 +204,8 @@ dev.off()
 # 5. FILTERING AND NORMALIZATION
 # ----------------------
 
-# Filter genes by expression level - keep genes expressed in at least 3 samples with > 10 counts
-keep <- filterByExpr(dge, min.count = 10, min.total.count = 15)
+# Filter genes by expression level - specify groups for proper filtering
+keep <- filterByExpr(dge, group = metadata$treatment, min.count = 10, min.total.count = 15)
 dge_filtered <- dge[keep, , keep.lib.sizes = FALSE]
 cat("Genes before filtering:", nrow(dge), "\n")
 cat("Genes after filtering:", nrow(dge_filtered), "\n")
