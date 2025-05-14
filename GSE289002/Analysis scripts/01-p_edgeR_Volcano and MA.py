@@ -8,11 +8,21 @@ results_dir = '/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE289002/DE_
 plots_dir = os.path.join(results_dir, 'plots')
 os.makedirs(plots_dir, exist_ok=True)
 
+# Load Ensembl-to-symbol mapping
+mapping_path = '/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE289002/ensembl_to_symbol.csv'
+mapping = pd.read_csv(mapping_path)
+ensembl2symbol = mapping.set_index('ensembl_id')['gene_symbol'].to_dict()
+
+TOP_N = 10  # Number of top genes to label
+
 for fname in os.listdir(results_dir):
     if fname.endswith('.csv'):
         contrast = os.path.splitext(fname)[0]
         csv_path = os.path.join(results_dir, fname)
         df = pd.read_csv(csv_path, index_col=0)
+
+        # Add gene symbol column
+        df['gene_symbol'] = df.index.map(lambda eid: ensembl2symbol.get(eid, eid))
 
         # Volcano plot
         plt.figure(figsize=(8,6))
@@ -27,6 +37,12 @@ for fname in os.listdir(results_dir):
         plt.xlabel('log2 Fold Change')
         plt.ylabel('-log10(FDR)')
         plt.title(f'Volcano Plot: {contrast}')
+
+        # Label top N genes by FDR (using gene_symbol)
+        top_genes = df.nsmallest(TOP_N, 'FDR')
+        for _, row in top_genes.iterrows():
+            plt.text(row['logFC'], -np.log10(row['FDR']), row['gene_symbol'], fontsize=7, ha='right', va='bottom')
+
         plt.tight_layout()
         plt.savefig(os.path.join(plots_dir, f'{contrast}_volcano.png'))
         plt.close()
@@ -42,6 +58,11 @@ for fname in os.listdir(results_dir):
         plt.xlabel('logCPM')
         plt.ylabel('log2 Fold Change')
         plt.title(f'MA Plot: {contrast}')
+
+        # Label top N genes by FDR (using gene_symbol)
+        for _, row in top_genes.iterrows():
+            plt.text(row['logCPM'], row['logFC'], row['gene_symbol'], fontsize=7, ha='right', va='bottom')
+
         plt.tight_layout()
         plt.savefig(os.path.join(plots_dir, f'{contrast}_MA.png'))
         plt.close()
