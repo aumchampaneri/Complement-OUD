@@ -47,32 +47,31 @@ tryCatch({
   for (mirror in mirrors) {
     tryCatch({
       cat("Trying Ensembl mirror:", mirror, "\n")
-      mart <- useEnsembl("ensembl", dataset = "mmusculus_gene_ensembl", mirror = mirror)
+      mart <- useEnsembl(biomart = "ensembl",
+                         dataset = "mmusculus_gene_ensembl",
+                         mirror = mirror)
 
-      # Query for gene symbols with a smaller batch size
-      gene_mapping <- getBM(
-        attributes = c("ensembl_gene_id", "external_gene_name", "description"),
-        filters = "ensembl_gene_id",
-        values = ensembl_ids,
-        mart = mart,
-        uniqueRows = TRUE
-      )
+      # Get gene symbols and descriptions
+      gene_info <- getBM(attributes = c("ensembl_gene_id", "external_gene_name", "description"),
+                         filters = "ensembl_gene_id",
+                         values = ensembl_ids,
+                         mart = mart)
 
-      # If we get here, the query succeeded
+      # Create lookup tables
+      id_to_symbol <- setNames(gene_info$external_gene_name, gene_info$ensembl_gene_id)
+      id_to_description <- setNames(gene_info$description, gene_info$ensembl_gene_id)
+
+      # Handle missing mappings
+      missing_ids <- ensembl_ids[!ensembl_ids %in% gene_info$ensembl_gene_id]
+      if (length(missing_ids) > 0) {
+        id_to_symbol[missing_ids] <- missing_ids
+        id_to_description[missing_ids] <- ""
+      }
+
       cat("Successfully connected to Ensembl mirror:", mirror, "\n")
-
-      # Create lookup tables for mapping
-      id_to_symbol <- setNames(gene_mapping$external_gene_name, gene_mapping$ensembl_gene_id)
-      id_to_description <- setNames(gene_mapping$description, gene_mapping$ensembl_gene_id)
-
-      # Save the mapping for future reference
-      write.csv(gene_mapping, file.path(results_dir, "ensembl_to_gene_symbol_mapping.csv"), row.names = FALSE)
-
       gene_mapping_success <- TRUE
-      break  # Exit the loop if successful
-
     }, error = function(e) {
-      cat("Mirror", mirror, "failed:", conditionMessage(e), "\n")
+      cat("Failed to connect to Ensembl mirror:", mirror, "\n")
     })
 
     if (gene_mapping_success) break
@@ -164,7 +163,7 @@ analyze_region <- function(region) {
 
       # Move columns to beginning for better readability
       res_df <- res_df[, c("ensembl_id", "gene_symbol", "description",
-                         setdiff(colnames(res_df), c("ensembl_id", "gene_symbol", "description")))]
+                          setdiff(colnames(res_df), c("ensembl_id", "gene_symbol", "description")))]
     }
 
     # Save results to CSV
@@ -204,7 +203,7 @@ analyze_gene_set <- function(gene_set_name, gene_symbols) {
     gene_ensembl <- gene_ensembl[!is.na(gene_ensembl)]
 
     if (length(gene_ensembl) == 0) {
-      cat("No matching Ensembl IDs found for", gene_set_name, "genes\n")
+      cat("  No matching Ensembl IDs found for", gene_set_name, "genes\n")
       return(FALSE)
     }
 
@@ -219,16 +218,15 @@ analyze_gene_set <- function(gene_set_name, gene_symbols) {
 
     # Make row names unique if necessary
     if (anyDuplicated(row_labels) > 0) {
-      dups <- duplicated(row_labels) | duplicated(row_labels, fromLast = TRUE)
-      row_labels[dups] <- make.unique(as.character(row_labels[dups]))
-      cat("  Note: Made", sum(dups), "duplicate gene symbols unique by adding suffixes\n")
+      cat("  Making duplicate gene symbols unique\n")
+      row_labels <- make.unique(row_labels)
     }
 
     rownames(gene_expr) <- row_labels
 
     # Calculate average expression for each sex-treatment combination
     avg_expr <- matrix(0, nrow = nrow(gene_expr),
-                      ncol = length(unique(metadata$treatment)) * length(unique(metadata$sex)))
+                      ncol = 2 * length(unique(metadata$treatment)))
     rownames(avg_expr) <- rownames(gene_expr)
 
     # Create column names for the averaged data
@@ -237,14 +235,14 @@ analyze_gene_set <- function(gene_set_name, gene_symbols) {
 
     # First create columns for females then males to keep same ordering
     for (sex in c("female", "male")) {
-      for (treatment in levels(factor(metadata$treatment))) {
-        # Find samples matching this combination
-        samples <- which(metadata$sex == sex & metadata$treatment == treatment)
+      for (treatment in unique(metadata$treatment)) {
+        # Find samples for this sex-treatment combination
+        samples <- metadata$title[metadata$sex == sex & metadata$treatment == treatment]
 
         if (length(samples) > 0) {
-          # Calculate average
-          avg_expr[, col_idx] <- rowMeans(gene_expr[, metadata$title[samples], drop = FALSE])
-          col_names[col_idx] <- paste(sex, treatment, sep = "_")
+          # Calculate average expression for this combination
+          avg_expr[, col_idx] <- rowMeans(gene_expr[, samples, drop=FALSE])
+          col_names <- c(col_names, paste0(sex, "_", treatment))
           col_idx <- col_idx + 1
         }
       }
@@ -257,8 +255,8 @@ analyze_gene_set <- function(gene_set_name, gene_symbols) {
     # Create annotation dataframe for the averaged data
     sex_treatment <- colnames(avg_expr)
     anno <- data.frame(
-      Sex = sapply(strsplit(sex_treatment, "_"), function(x) x[1]),
-      Treatment = sapply(strsplit(sex_treatment, "_"), function(x) paste(x[-1], collapse = "_")),
+      Sex = sapply(strsplit(sex_treatment, "_"), `[`, 1),
+      Treatment = sapply(strsplit(sex_treatment, "_"), function(x) paste(x[-1], collapse="_")),
       row.names = sex_treatment
     )
 
@@ -294,13 +292,13 @@ analyze_gene_set <- function(gene_set_name, gene_symbols) {
 
     # Calculate average difference between sexes for each treatment
     for (treatment in unique(metadata$treatment)) {
-      male_samples <- which(metadata$sex == "male" & metadata$treatment == treatment)
-      female_samples <- which(metadata$sex == "female" & metadata$treatment == treatment)
+      male_samples <- metadata$title[metadata$sex == "male" & metadata$treatment == treatment]
+      female_samples <- metadata$title[metadata$sex == "female" & metadata$treatment == treatment]
 
       if (length(male_samples) > 0 && length(female_samples) > 0) {
-        female_avg <- rowMeans(gene_expr[, metadata$title[female_samples], drop=FALSE])
-        male_avg <- rowMeans(gene_expr[, metadata$title[male_samples], drop=FALSE])
-        sex_diff_by_treatment[,treatment] <- female_avg - male_avg
+        male_avg <- rowMeans(gene_expr[, male_samples, drop=FALSE])
+        female_avg <- rowMeans(gene_expr[, female_samples, drop=FALSE])
+        sex_diff_by_treatment[, treatment] <- female_avg - male_avg
       }
     }
 
@@ -396,29 +394,34 @@ create_sex_treatment_heatmap <- function(contrast_name) {
       region = character(),
       sex = character(),
       treatment = character(),
-      col_idx = integer()
+      col_idx = integer(),
+      stringsAsFactors = FALSE
     )
 
     # First create female, then male columns to maintain order
     for (region in unique_regions) {
       for (sex in c("female", "male")) {
         for (treatment in levels(factor(unique_treatments))) {
-          # Find samples matching this combination
-          samples <- which(combined_metadata$region == region &
-                          combined_metadata$sex == sex &
-                          combined_metadata$treatment == treatment)
+          # Find samples for this region-sex-treatment combination
+          samples <- combined_metadata$title[
+            combined_metadata$region == region &
+            combined_metadata$sex == sex &
+            combined_metadata$treatment == treatment
+          ]
 
           if (length(samples) > 0) {
-            # Calculate average
-            avg_expr[, col_idx] <- rowMeans(all_expr[, combined_metadata$title[samples], drop = FALSE])
-            col_names[col_idx] <- paste(region, sex, treatment, sep = "_")
+            # Calculate average expression for this combination
+            avg_expr[, col_idx] <- rowMeans(all_expr[, samples, drop=FALSE])
+            col_name <- paste(region, sex, treatment, sep="_")
+            col_names <- c(col_names, col_name)
 
-            # Save this mapping
+            # Add to condition map
             condition_map <- rbind(condition_map, data.frame(
               region = region,
               sex = sex,
               treatment = treatment,
-              col_idx = col_idx
+              col_idx = col_idx,
+              stringsAsFactors = FALSE
             ))
 
             col_idx <- col_idx + 1
@@ -436,7 +439,8 @@ create_sex_treatment_heatmap <- function(contrast_name) {
       Region = sapply(strsplit(colnames(avg_expr), "_"), `[`, 1),
       Sex = sapply(strsplit(colnames(avg_expr), "_"), `[`, 2),
       Treatment = sapply(strsplit(colnames(avg_expr), "_"), function(x) paste(x[-(1:2)], collapse = "_")),
-      row.names = colnames(avg_expr)
+      row.names = colnames(avg_expr),
+      stringsAsFactors = FALSE
     )
 
     # Define colors
@@ -473,7 +477,15 @@ create_sex_treatment_heatmap <- function(contrast_name) {
     dev.off()
 
     # Create a separate file just for the sex differences
-    sex_diff_summary <- data.frame(Gene = rownames(all_expr))
+    # Fix: Ensure row names don't contain missing values before creating data frame
+    row_names <- rownames(all_expr)
+    is_invalid <- is.na(row_names) | row_names == ""
+    if (any(is_invalid)) {
+      # Replace invalid row names with a placeholder
+      row_names[is_invalid] <- paste0("Gene_", which(is_invalid))
+      rownames(all_expr) <- row_names
+    }
+    sex_diff_summary <- data.frame(Gene = row_names, stringsAsFactors = FALSE)
 
     # Calculate and add sex differences for each region and treatment
     for (region in unique_regions) {
@@ -487,9 +499,9 @@ create_sex_treatment_heatmap <- function(contrast_name) {
                          condition_map$treatment == treatment)
 
         if (length(female_col) > 0 && length(male_col) > 0) {
-          col_name <- paste(region, treatment, "sex_diff", sep = "_")
-          sex_diff_summary[[col_name]] <- avg_expr[, condition_map$col_idx[female_col]] -
-                                         avg_expr[, condition_map$col_idx[male_col]]
+          # Calculate sex difference (female - male)
+          diff_col_name <- paste0(region, "_", treatment, "_sexDiff")
+          sex_diff_summary[[diff_col_name]] <- avg_expr[, female_col] - avg_expr[, male_col]
         }
       }
     }
