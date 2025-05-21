@@ -1,84 +1,45 @@
-# Prepare the environment
 import gget
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 import scanpy as sc
+import harmonypy  # Needed for Harmony integration
+from scanpy.experimental.pp import recipe_pearson_residuals
 
+# Download mouse brain dataset from CELLxGENE (~3.5 million cells)
 gget.setup("cellxgene")
-
-# Query the cellxgene database for glial and immune cells from normal mouse brain
-# This pulls only cells relevant to memory-constrained glia/immune-focused analyses
 adata = gget.cellxgene(
+    species="mus_musculus",
     ensembl=True,
-    verbose=True,
-    species='mus_musculus',
-    disease='normal',
-    tissue_general='brain',
-    cell_type=[
-        # Glial cells
-        "astrocyte",
-        "oligodendrocyte",
-        "oligodendrocyte precursor cell",
-        "microglial cell",
-        "Bergmann glial cell",
-        "astrocyte of the cerebellum",
-        "glioblast",
-        "macroglial cell",
-        "ependymal cell",
-        "tanycyte",
-        "immature astrocyte",
-        "hypendymal cell",
-
-        # Immune cells
-        "macrophage",
-        "CD4-positive, alpha-beta T cell",
-        "CD8-positive, alpha-beta T cell",
-        "B cell",
-        "natural killer cell",
-        "monocyte",
-        "innate lymphoid cell",
-        "meningeal macrophage",
-        "perivascular macrophage",
-        "central nervous system macrophage",
-        "plasma cell",
-        "mature NK T cell",
-        "mast cell",
-        "conventional dendritic cell",
-        "plasmacytoid dendritic cell",
-        "T cell"
-    ]
+    dataset_id=['e0ed3c55-aff6-4bb7-b6ff-98a2d90b890c',
+            '35081d47-99bf-4507-9541-735428df9a9f',
+            'dbb4e1ed-d820-4e83-981f-88ef7eb55a35',
+            '79a2344d-eddd-45b1-b376-39eddfab1899',
+            '1229ecc2-b067-4664-91da-0251aec31574',
+            '72eb2332-b308-4014-8d25-95233a9aff1e',
+            '3bbb6cf9-72b9-41be-b568-656de6eb18b5',
+            '98e5ea9f-16d6-47ec-a529-686e76515e39',
+            '58b01044-c5e5-4b0f-8a2d-6ebf951e01ff',
+            ],
+    disease="normal",
+    tissue_general="brain"
 )
 
-# Optional: Add a minimal subset of neurons for reference or QC
-# Downsample neuron cell types post-query if needed
-if "cell_type" in adata.obs.columns:
-    neuron_like = adata[adata.obs["cell_type"].str.contains("neuron", case=False, na=False)]
-    neuron_sample = neuron_like[np.random.choice(neuron_like.shape[0], size=min(5000, neuron_like.shape[0]), replace=False)]
-    adata = adata.concatenate(neuron_sample, batch_key="subset", batch_categories=["glia_immune", "neurons_subsampled"])
-
-# Save unprocessed raw data
-adata.write_h5ad("/Users/aumchampaneri/PycharmProjects/Complement-OUD/Mm Census gget Query/Data Files/Mouse_Census_Brain.h5ad")
-
-# Basic filtering and preprocessing
+# Basic filtering
 sc.pp.filter_genes(adata, min_counts=3)
 sc.pp.filter_cells(adata, min_genes=500)
-sc.pp.normalize_total(adata, target_sum=1e6)
-sc.pp.log1p(adata)
 
-# Save normalized but unscaled version
-adata.raw = adata.copy()
+# Check for required metadata
+if 'dataset_id' not in adata.obs.columns:
+    raise ValueError("Missing 'dataset_id' in adata.obs, which is needed for Harmony.")
 
-# PCA without zero-centering (to save RAM)
-sc.tl.pca(adata, zero_center=False)
+# Run Pearson residuals (replaces normalize, log1p, scale, and hvg)
+recipe_pearson_residuals(adata, batch_key='dataset_id')
 
-# Harmony integration across datasets
+# Integrate batches using Harmony
+adata.obsm["X_pca"] = adata.obsm["X_pca"]  # Harmony expects 'X_pca'
 sc.external.pp.harmony_integrate(adata, key='dataset_id')
 
-# Neighbors + UMAP
+# Neighbors, clustering, and UMAP
 sc.pp.neighbors(adata, use_rep='X_pca_harmony')
 sc.tl.umap(adata)
 
-# Save final processed object
-adata.write_h5ad("/Users/aumchampaneri/PycharmProjects/Complement-OUD/Mm Census gget Query/Data Files/Mouse_Census_Brain_PP.h5ad")
+# Save processed file
+adata.write_h5ad("/Users/aumchampaneri/PycharmProjects/Complement-OUD/Mm Census gget Query/Data Files/Mouse_Census_Brain_PP.h5ad", compression="gzip")
