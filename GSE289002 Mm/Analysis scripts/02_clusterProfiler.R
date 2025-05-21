@@ -13,7 +13,7 @@ suppressPackageStartupMessages({
   library(RColorBrewer)
 })
 
-project_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE289002"
+project_dir <- "/GSE289002 Mm"
 de_results_dir <- file.path(project_dir, "DE_results")
 enrichment_dir <- file.path(project_dir, "Enrichment_results")
 dir.create(enrichment_dir, showWarnings = FALSE, recursive = TRUE)

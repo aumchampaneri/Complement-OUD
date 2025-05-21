@@ -9,9 +9,9 @@ for (pkg in required_packages) {
 }
 
 # ===== DATA LOADING =====
-expression_data_path <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE174409/QC/logcpm_filtered_normalized.rds"
-metadata_path <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE174409/QC/metadata.rds"
-gene_mapping_path <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE174409/NeuroinflammationResults/ensembl_to_symbol_mapping.csv"
+expression_data_path <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE174409 Hs/QC/logcpm_filtered_normalized.rds"
+metadata_path <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE174409 Hs/QC/metadata.rds"
+gene_mapping_path <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE174409 Hs/NeuroinflammationResults/ensembl_to_symbol_mapping.csv"
 
 # Load data files
 if (file.exists(expression_data_path)) {

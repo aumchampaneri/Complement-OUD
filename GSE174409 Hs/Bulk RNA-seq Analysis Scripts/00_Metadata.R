@@ -206,7 +206,7 @@ print(table(metadata_df$diagnosis, metadata_df$region))
 
 # === 7. Create and save processed data for downstream analysis ===
 # Create directories for saving processed data
-base_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE174409"
+base_dir <- "/GSE174409 Hs"
 raw_dir <- file.path(base_dir, "Data")
 qc_dir <- file.path(base_dir, "QC")
 dir.create(raw_dir, showWarnings = FALSE, recursive = TRUE)

@@ -64,8 +64,8 @@ def create_metadata_df(mouse_samples):
 
 def main():
     # File paths
-    soft_file_path = '/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE289002/GSE289002_family.soft'
-    counts_file_path = '/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE289002/GSE289002_mouse_raw_counts.csv'
+    soft_file_path = '/GSE289002 Mm/GSE289002_family.soft'
+    counts_file_path = '/GSE289002 Mm/GSE289002_mouse_raw_counts.csv'
 
     # Parse SOFT file and extract mouse samples
     mouse_samples = parse_soft_file(soft_file_path)
@@ -80,7 +80,7 @@ def main():
     print(f"First few columns: {counts_df.columns[:5].tolist()}")
 
     # Save metadata to file
-    output_path = '/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE289002/mouse_metadata.csv'
+    output_path = '/GSE289002 Mm/mouse_metadata.csv'
     metadata_df.to_csv(output_path, index=False)
     print(f"Metadata saved to: {output_path}")
 

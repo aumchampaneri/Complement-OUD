@@ -23,7 +23,7 @@ suppressMessages({
 })
 
 # Set directories
-base_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE174409"
+base_dir <- "/GSE174409 Hs"
 qc_dir <- file.path(base_dir, "QC")
 output_dir <- file.path(base_dir, "NeuroinflammationResults")
 dir.create(output_dir, showWarnings = FALSE)

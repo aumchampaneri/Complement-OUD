@@ -1,4 +1,4 @@
-# Comprehensive Bulk RNA-seq QC for GSE174409
+# Comprehensive Bulk RNA-seq QC for GSE174409 Hs
 # ------------------------------------------------------------
 
 # Load required libraries
@@ -11,7 +11,7 @@ library(ggplot2)
 library(gridExtra)
 
 # Set directories
-base_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE174409"
+base_dir <- "/GSE174409 Hs"
 raw_dir <- file.path(base_dir, "Data")
 qc_dir <- file.path(base_dir, "QC")
 qc_vis_dir <- file.path(base_dir, "QC_Visualizations")
