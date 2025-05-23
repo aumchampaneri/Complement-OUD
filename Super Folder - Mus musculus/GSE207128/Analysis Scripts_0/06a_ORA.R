@@ -1,4 +1,4 @@
-# GSE207128 - Over-Representation Analysis (ORA) of DESeq2 results
+# Analysis Outputs_0 - Over-Representation Analysis (ORA) of DESeq2 results
 # This script performs pathway enrichment analysis on DEGs identified by DESeq2
 
 # Load required libraries

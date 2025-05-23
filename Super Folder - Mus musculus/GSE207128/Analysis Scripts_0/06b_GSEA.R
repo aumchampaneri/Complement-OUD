@@ -1,4 +1,4 @@
-# GSE207128 - Gene Set Enrichment Analysis (GSEA) of DESeq2 results
+# Analysis Outputs_0 - Gene Set Enrichment Analysis (GSEA) of DESeq2 results
 # This script performs pathway enrichment analysis using GSEA methodology
 
 # Load required libraries

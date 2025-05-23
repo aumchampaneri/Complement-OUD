@@ -1,4 +1,4 @@
-# GSE207128 - DESeq2 Analysis using improved pseudobulk data
+# Analysis Outputs_0 - DESeq2 Analysis using improved pseudobulk data
 # Fixed version addressing model matrix rank issues and package dependencies
 
 library(DESeq2)

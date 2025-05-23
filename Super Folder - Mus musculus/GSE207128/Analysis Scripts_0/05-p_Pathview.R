@@ -1,4 +1,4 @@
-# GSE207128 - Pathview visualization of DESeq2 results
+# Analysis Outputs_0 - Pathview visualization of DESeq2 results
 # This script visualizes gene expression data on KEGG pathways
 
 # Load required libraries

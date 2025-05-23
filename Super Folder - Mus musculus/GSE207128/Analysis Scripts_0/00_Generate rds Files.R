@@ -1,5 +1,5 @@
-# GSE207128 Data Processing Script
-# This script processes features, barcodes, and matrix files from the GSE207128 dataset
+# Analysis Outputs_0 Data Processing Script
+# This script processes features, barcodes, and matrix files from the Analysis Outputs_0 dataset
 
 # Load required libraries
 library(Seurat)
@@ -8,7 +8,7 @@ library(Matrix)
 library(ggplot2)
 library(fs)
 
-# Set working directory to the GSE207128 folder
+# Set working directory to the Analysis Outputs_0 folder
 setwd("/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE207128/GSE207128_RAW")
 
 # Create output directory if it doesn't exist

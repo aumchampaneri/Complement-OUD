@@ -1,4 +1,4 @@
-# GSE207128 - Pseudobulk Analysis by Treatment Condition
+# Analysis Outputs_0 - Pseudobulk Analysis by Treatment Condition
 # Optimized for DESeq2 compatibility
 
 library(Seurat)
