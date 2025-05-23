@@ -1,4 +1,4 @@
-# GSE225158/4_PPI_Network.py
+# GSE225158 All Cells/4_PPI_Network.py
 import pandas as pd
 import numpy as np
 import requests
@@ -974,7 +974,7 @@ def compare_to_random_networks(G, n_random=100):
 # Main function to run the analysis
 def main_pathway_analysis():
     # Set up paths
-    base_dir = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158"
+    base_dir = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells"
     data_dir = os.path.join(base_dir, "DESeq2 outputs")
     output_dir = os.path.join(base_dir, "PPI outputs")
 
@@ -994,7 +994,7 @@ def main_pathway_analysis():
     log_path = setup_logging(output_dir, pathway_name)
     output_path, orig_stdout, orig_stderr, output_file = setup_output_capture(output_dir, pathway_name)
     pathway_genes = load_pathway_genes(
-        "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/KEGG outputs/kegg_complement_unique_genes.csv")
+        "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/KEGG outputs/kegg_complement_unique_genes.csv")
     try:
         print(f"Loaded {len(pathway_genes)} {pathway_name} genes from file")
 

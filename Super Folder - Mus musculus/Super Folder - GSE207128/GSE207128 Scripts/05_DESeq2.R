@@ -11,7 +11,7 @@ library(stringr)
 library(tibble)  # Added for rownames_to_column function
 
 # Set base directory
-base_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD"
+base_dir <- "/"
 pseudobulk_dir <- file.path(base_dir, "GSE207128/pseudobulk_results")
 output_dir <- file.path(base_dir, "GSE207128/DESeq2_outputs")
 dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)

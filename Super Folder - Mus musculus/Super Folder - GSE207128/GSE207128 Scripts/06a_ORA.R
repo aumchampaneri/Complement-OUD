@@ -13,7 +13,7 @@ library(ggplot2)
 library(stringr)
 
 # Set base directory and create output directory
-base_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD"
+base_dir <- "/"
 deseq2_dir <- file.path(base_dir, "GSE207128/DESeq2_outputs")
 ora_dir <- file.path(base_dir, "GSE207128/ORA_results")
 dir.create(ora_dir, showWarnings = FALSE, recursive = TRUE)

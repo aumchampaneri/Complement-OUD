@@ -10,7 +10,7 @@ library(RColorBrewer)
 library(tibble)
 
 #----- 1. Set up paths and directories -----#
-base_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD"
+base_dir <- "/"
 heatmap_output_dir <- file.path(base_dir, "GSE207128/figures/heatmaps")
 dir.create(heatmap_output_dir, showWarnings = FALSE, recursive = TRUE)
 

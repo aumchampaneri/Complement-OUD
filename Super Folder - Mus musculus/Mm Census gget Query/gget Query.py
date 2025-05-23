@@ -44,5 +44,5 @@ sc.pp.neighbors(adata, use_rep='X_pca_harmony')
 sc.tl.umap(adata)
 
 # Save the processed file
-adata_processed_path = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/Mm Census gget Query/Data Files/Mouse_Census_Brain_PP.h5ad"
+adata_processed_path = "/Super Folder - Mus musculus/Mm Census gget Query/Data Files/Mouse_Census_Brain_PP.h5ad"
 adata.write_h5ad(adata_processed_path)

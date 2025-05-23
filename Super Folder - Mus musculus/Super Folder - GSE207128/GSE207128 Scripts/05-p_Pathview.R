@@ -10,7 +10,7 @@ library(readr)
 library(stringr)
 
 # Set base directory and create output directory
-base_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD"
+base_dir <- "/"
 deseq2_dir <- file.path(base_dir, "GSE207128/DESeq2_outputs")
 pathview_dir <- file.path(base_dir, "GSE207128/Pathview_results")
 dir.create(pathview_dir, showWarnings = FALSE, recursive = TRUE)

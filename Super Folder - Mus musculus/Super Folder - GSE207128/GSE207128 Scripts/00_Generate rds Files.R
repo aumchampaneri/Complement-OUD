@@ -20,9 +20,9 @@ read_10X_data <- function(sample_id) {
   cat("Processing sample:", sample_id, "\n")
 
   # Construct file paths with the sample ID prefix
-  feature_path <- file.path(".", paste0(sample_id, "_features.tsv.gz"))
-  barcode_path <- file.path(".", paste0(sample_id, "_barcodes.tsv.gz"))
-  matrix_path <- file.path(".", paste0(sample_id, "_matrix.mtx.gz"))
+  feature_path <- file.path("", paste0(sample_id, "_features.tsv.gz"))
+  barcode_path <- file.path("", paste0(sample_id, "_barcodes.tsv.gz"))
+  matrix_path <- file.path("", paste0(sample_id, "_matrix.mtx.gz"))
 
   if (!file.exists(feature_path) || !file.exists(barcode_path) || !file.exists(matrix_path)) {
     warning("Required files not found for sample: ", sample_id)
@@ -57,7 +57,7 @@ read_10X_data <- function(sample_id) {
 }
 
 # Get list of all files in the directory
-all_files <- list.files(".")
+all_files <- list.files("")
 
 # Extract unique sample IDs by looking at barcode files
 barcode_files <- grep("_barcodes.tsv.gz$", all_files, value = TRUE)

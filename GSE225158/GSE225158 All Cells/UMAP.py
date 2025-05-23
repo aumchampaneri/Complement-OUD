@@ -1,6 +1,6 @@
 import scanpy as sc
 '''
-This script generates UMAP plots for the GSE225158 dataset.
+This script generates UMAP plots for the GSE225158 All Cells dataset.
 '''
 
 # Load the data

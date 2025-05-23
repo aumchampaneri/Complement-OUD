@@ -166,7 +166,7 @@ if __name__ == "__main__":
 
     # Load pathway data
     try:
-        pathway_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/KEGG outputs/kegg_inflammatory_pathways.csv"
+        pathway_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/KEGG outputs/kegg_inflammatory_pathways.csv"
         pathway_df = pd.read_csv(pathway_file)
         all_pathway_genes = pathway_df.gene.unique().tolist()
     except Exception as e:
@@ -175,8 +175,8 @@ if __name__ == "__main__":
 
     # Load sex-specific genes
     try:
-        m_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/deseq2_results/male_specific_degs.csv"
-        f_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/deseq2_results/female_specific_degs.csv"
+        m_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/deseq2_results/male_specific_degs.csv"
+        f_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/deseq2_results/female_specific_degs.csv"
         male_genes = pd.read_csv(m_file)['gene'].tolist()
         female_genes = pd.read_csv(f_file)['gene'].tolist()
     except Exception as e:

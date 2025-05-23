@@ -49,7 +49,7 @@ def ensure_path(path):
 
 
 # Function to load cached protein data instead of making API calls
-def load_cached_protein_data(gene_list, cache_dir="/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/protein_cache"):
+def load_cached_protein_data(gene_list, cache_dir="/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/protein_cache"):
     """Load pre-cached protein sequences and gene-to-UniProt mappings"""
     import os
     import pickle
@@ -195,7 +195,7 @@ class DeepLearningPPI:
 
 # Enhanced function to load inflammatory pathway data
 def load_inflammatory_pathways(
-        pathway_file="/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/KEGG outputs/kegg_inflammatory_pathways.csv"):
+        pathway_file="/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/KEGG outputs/kegg_inflammatory_pathways.csv"):
     """Load inflammatory pathway data and handle multiple pathways per gene"""
     try:
         pathway_df = pd.read_csv(pathway_file)
@@ -227,9 +227,9 @@ def load_sex_specific_genes(sex="M"):
     """Load differentially expressed genes from DESeq2 results"""
     try:
         if sex.upper() == "M":
-            file_path = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DESeq2 outputs/deseq2_results_M_OUD_vs_M_None.csv"
+            file_path = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/DESeq2 outputs/deseq2_results_M_OUD_vs_M_None.csv"
         else:
-            file_path = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DESeq2 outputs/deseq2_results_F_OUD_vs_F_None.csv"
+            file_path = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/DESeq2 outputs/deseq2_results_F_OUD_vs_F_None.csv"
 
         deg_df = pd.read_csv(file_path)
         gene_list = deg_df['gene'].tolist()

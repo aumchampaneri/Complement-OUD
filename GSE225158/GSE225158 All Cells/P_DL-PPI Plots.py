@@ -14,7 +14,7 @@ import plotly.express as px
 
 
 # Load the predictions
-df = pd.read_csv("/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DL-PPI outputs/full_ppi_predictions.csv")
+df = pd.read_csv("/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/DL-PPI outputs/full_ppi_predictions.csv")
 
 
 # 1. NETWORK VISUALIZATION

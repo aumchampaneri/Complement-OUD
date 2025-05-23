@@ -300,8 +300,8 @@ def main():
     # Load gene lists
     print("\nLoading gene lists...")
     try:
-        comp_df = pd.read_csv("/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/KEGG outputs/kegg_complement_unique_genes.csv")
-        deseq_df = pd.read_csv("/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DESeq2 outputs/deseq2_results_M_OUD_vs_M_None.csv")
+        comp_df = pd.read_csv("/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/KEGG outputs/kegg_complement_unique_genes.csv")
+        deseq_df = pd.read_csv("/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/DESeq2 outputs/deseq2_results_M_OUD_vs_M_None.csv")
 
         # Get significant genes and complement genes
         sig = deseq_df[(deseq_df.padj < 0.05) & (abs(deseq_df.log2FoldChange) > 1)].gene.tolist()

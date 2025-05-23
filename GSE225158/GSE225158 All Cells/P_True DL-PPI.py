@@ -11,12 +11,12 @@ from sklearn.metrics import roc_curve, auc
 from itertools import cycle
 
 # Create output directory
-output_dir = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DL-PPI outputs/visualizations"
+output_dir = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/DL-PPI outputs/visualizations"
 os.makedirs(output_dir, exist_ok=True)
 
 # Load data - skip both header rows
-male_csv = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DL-PPI outputs/dl_ppi_viz_data_male_0.4_genes.csv"
-female_csv = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DL-PPI outputs/dl_ppi_viz_data_female_0.4_genes.csv"
+male_csv = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/DL-PPI outputs/dl_ppi_viz_data_male_0.4_genes.csv"
+female_csv = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/DL-PPI outputs/dl_ppi_viz_data_female_0.4_genes.csv"
 
 # Load data properly, skipping both problematic header rows
 male_df = pd.read_csv(male_csv,

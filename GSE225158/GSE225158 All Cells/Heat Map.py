@@ -43,7 +43,7 @@ celltypes_to_plot = [
 adata_subset = adata[adata.obs['celltype3_renamed'].isin(celltypes_to_plot), :].copy()
 
 # Load gene list
-gene_list = pd.read_csv("/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 Gene Library/gene_names.csv")
+gene_list = pd.read_csv("/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells Gene Library/gene_names.csv")
 gene_names = gene_list['Gene Name'].tolist()
 genes_present = [gene for gene in gene_names if gene in adata.var_names]
 

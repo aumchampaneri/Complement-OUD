@@ -106,7 +106,7 @@ def get_complement_proteins(csv_path="KEGG outputs/kegg_complement_unique_genes.
     try:
         # Check for absolute or relative path
         if not os.path.exists(csv_path):
-            csv_path = f"/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/{csv_path}"
+            csv_path = f"/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/{csv_path}"
             if not os.path.exists(csv_path):
                 raise FileNotFoundError(f"Could not find {csv_path}")
 
@@ -444,8 +444,8 @@ def main():
 
     # Generate test pairs from complement genes and DEGs
     print("\nGenerating test pairs from complement genes and DEGs...")
-    comp_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/KEGG outputs/kegg_complement_unique_genes.csv"
-    deg_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158/DESeq2 outputs/deseq2_results_F_OUD_vs_F_None.csv"
+    comp_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/KEGG outputs/kegg_complement_unique_genes.csv"
+    deg_file = "/Users/aumchampaneri/PycharmProjects/Complement-OUD/GSE225158 All Cells/DESeq2 outputs/deseq2_results_F_OUD_vs_F_None.csv"
 
     # Load gene lists
     try:

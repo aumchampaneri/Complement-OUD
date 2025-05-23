@@ -1,4 +1,4 @@
-# Comprehensive Bulk RNA-seq QC for GSE174409 Hs
+# Comprehensive Bulk RNA-seq QC for GSE174409
 # ------------------------------------------------------------
 
 # Load required libraries

@@ -12,7 +12,7 @@ library(ggplot2)
 library(stringr)
 
 # Set base directory and create output directory
-base_dir <- "/Users/aumchampaneri/PycharmProjects/Complement-OUD"
+base_dir <- "/"
 deseq2_dir <- file.path(base_dir, "GSE207128/DESeq2_outputs")
 gsea_dir <- file.path(base_dir, "GSE207128/GSEA_results")
 dir.create(gsea_dir, showWarnings = FALSE, recursive = TRUE)
