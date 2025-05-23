@@ -25,7 +25,7 @@ library(igraph)
 # ===== 2. Load data =====
 # Load DEG results by sex
 cat("Loading DEG results by sex and region...\n")
-deg_files <- list.files("GSE174409/NeuroinflammationResults/DEG_by_groups",
+deg_files <- list.files("GSE174409 Hs/NeuroinflammationResults/DEG_by_groups",
                         pattern = "DEG_.*\\.csv", full.names = TRUE)
 
 # Create a list to store all results
@@ -49,7 +49,7 @@ comp_genes <- read.csv(comp_genes_file)$gene
 comp_genes <- toupper(comp_genes)
 
 # Load gene mapping (ENSEMBL to Symbol)
-gene_map <- read.csv('GSE174409/NeuroinflammationResults/ensembl_to_symbol_mapping.csv')
+gene_map <- read.csv('GSE174409 Hs/NeuroinflammationResults/ensembl_to_symbol_mapping.csv')
 ensembl_to_symbol <- setNames(gene_map$Symbol, gene_map$EnsemblID)
 symbol_to_ensembl <- setNames(gene_map$EnsemblID, toupper(gene_map$Symbol))
 
@@ -134,9 +134,9 @@ annotated_genes <- merge(mapped_genes, logfc_data, by = "gene")
 # ===== 7. Plot basic PPI network =====
 cat("Generating basic PPI network...\n")
 # Create output directory if it doesn't exist
-dir.create("GSE174409/figures/ppi_networks", showWarnings = FALSE, recursive = TRUE)
+dir.create("GSE174409 Hs/figures/ppi_networks", showWarnings = FALSE, recursive = TRUE)
 
-pdf("GSE174409/figures/ppi_networks/complement_basic_ppi.pdf", width = 10, height = 8)
+pdf("GSE174409 Hs/figures/ppi_networks/complement_basic_ppi.pdf", width = 10, height = 8)
 string_db$plot_network(annotated_genes$STRING_id)
 dev.off()
 
@@ -171,7 +171,7 @@ create_colored_network <- function(condition, color_column) {
   V(g)$color <- color_gradient[round(scaled_values)]
 
   # Save to PDF
-  pdf(paste0("GSE174409/figures/ppi_networks/complement_ppi_", condition, ".pdf"),
+  pdf(paste0("GSE174409 Hs/figures/ppi_networks/complement_ppi_", condition, ".pdf"),
       width = 10, height = 10)
 
   # Plot the network
@@ -205,12 +205,42 @@ create_colored_network("Female_DLPFC", "Female_DLPFC")
 create_colored_network("Male_NAC", "Male_NAC")
 create_colored_network("Male_DLPFC", "Male_DLPFC")
 
-# ===== 9. Export data for Cytoscape =====
+# ===== 9a. Export data for Cytoscape =====
 cat("Exporting data for Cytoscape visualization...\n")
 
 # Write out node and edge files for Cytoscape
-write.csv(annotated_genes, "GSE174409/figures/ppi_networks/complement_nodes.csv", row.names = FALSE)
-write.csv(interactions, "GSE174409/figures/ppi_networks/complement_edges.csv", row.names = FALSE)
+write.csv(annotated_genes, "GSE174409 Hs/figures/ppi_networks/complement_nodes.csv", row.names = FALSE)
+write.csv(interactions, "GSE174409 Hs/figures/ppi_networks/complement_edges.csv", row.names = FALSE)
+
+# ===== 9b. Export data for Cytoscape =====
+cat("Exporting data for Cytoscape visualization...\n")
+
+# Write out node and edge files for Cytoscape
+write.csv(annotated_genes, "GSE174409 Hs/figures/ppi_networks/complement_nodes.csv", row.names = FALSE)
+write.csv(interactions, "GSE174409 Hs/figures/ppi_networks/complement_edges.csv", row.names = FALSE)
+
+# Export the network to GraphML format
+cat("Exporting network to GraphML format...\n")
+write_graph(g, "GSE174409 Hs/figures/ppi_networks/complement_network.graphml", format = "graphml")
+
+# Export GraphML for each contrast
+cat("Exporting GraphML files for each contrast...\n")
+
+contrasts <- c("Female_NAC", "Female_DLPFC", "Male_NAC", "Male_DLPFC")
+for (contrast in contrasts) {
+  # Map logFC values for the current contrast
+  idx <- match(V(g)$name, annotated_genes$STRING_id)
+  logfc_values <- annotated_genes[[contrast]][idx]
+
+  # Assign colors or other attributes if needed
+  V(g)$logFC <- logfc_values
+
+  # Export the network to GraphML
+  output_file <- paste0("GSE174409 Hs/figures/ppi_networks/complement_network_", contrast, ".graphml")
+  write_graph(g, output_file, format = "graphml")
+
+  cat("Exported:", output_file, "\n")
+}
 
 # ===== 10. Generate a README file with instructions for Cytoscape =====
 cat("Creating README with Cytoscape instructions...\n")
@@ -236,6 +266,6 @@ readme_text <- "# Complement PPI Network Visualization Instructions
 For hub gene analysis, use the NetworkAnalyzer tool (Tools -> NetworkAnalyzer -> Analyze Network)
 "
 
-writeLines(readme_text, "GSE174409/figures/ppi_networks/README.md")
+writeLines(readme_text, "GSE174409 Hs/figures/ppi_networks/README.md")
 
-cat("\nPPI analysis complete. Results saved in 'GSE174409/figures/ppi_networks/'\n")
+cat("\nPPI analysis complete. Results saved in 'GSE174409 Hs/figures/ppi_networks/'\n")
