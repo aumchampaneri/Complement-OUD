@@ -4,12 +4,12 @@ import seaborn as sns
 import numpy as np
 import os
 
-results_dir = '/GSE289002 Mm/DE_results/sex_treatment'
+results_dir = '/GSE289002/DE_results/sex_treatment'
 plots_dir = os.path.join(results_dir, 'plots')
 os.makedirs(plots_dir, exist_ok=True)
 
 # Load Ensembl-to-symbol mapping
-mapping_path = '/GSE289002 Mm/ensembl_to_symbol.csv'
+mapping_path = '/GSE289002/ensembl_to_symbol.csv'
 mapping = pd.read_csv(mapping_path)
 ensembl2symbol = mapping.set_index('ensembl_id')['gene_symbol'].to_dict()
 

@@ -6,11 +6,11 @@ import matplotlib.pyplot as plt
 import scipy.sparse
 
 # Load the processed data -- Load only the dataset you want to plot
-adata = sc.read_h5ad('/Super Folder - Mus musculus/Mm Census gget Query/Data Files/Mouse_Census_Brain_PP.h5ad')
+adata = sc.read_h5ad('/Super Folder - Mus musculus/gget census UMAP/Data Files/Mouse_Census_Brain_PP.h5ad')
 
 # Load the gene dictionary from the updated CSV file
 gene_dict = {}
-with open('/Super Folder - Mus musculus/Mm Census gget Query/Accessory Data/kegg_biomart_alignment.csv', newline='') as file:
+with open('/Super Folder - Mus musculus/gget census UMAP/Accessory Data/kegg_biomart_alignment.csv', newline='') as file:
     reader = csv.DictReader(file)  # Use DictReader to handle column names
     for row in reader:
         gene_dict[row['gene']] = row['ensembl_gene_id']  # Map 'gene' to 'ensembl_gene_id'
@@ -20,7 +20,7 @@ adata.var.set_index("feature_id", inplace=True)
 adata.raw.var.set_index("feature_id", inplace=True)
 
 # Load the tissue type dictionary from the yaml file
-with open("/Super Folder - Mus musculus/Mm Census gget Query/Accessory Data/Cell Type Groupings.yaml", "r") as file:
+with open("/Super Folder - Mus musculus/gget census UMAP/Accessory Data/Cell Type Groupings.yaml", "r") as file:
     cell_type_group = yaml.safe_load(file)
 
 # Map cell types to groups
@@ -201,19 +201,19 @@ def umap_gene_expression(adata, disease, gene1, gene2, gene_dict, save_path=None
 disease = 'normal' # Choose the disease you want to plot (AKI, CKD, Reference)
 
 # # Plot UMAP of C3 and CFH expression
-# umap_gene_expression(adata, f"{disease}", "Cfh", "C3", gene_dict, save_path=f"/Users/aumchampaneri/PycharmProjects/Complement-OUD/Mm Census gget Query/figures/{disease}_umap_CFHvC3.pdf")
+# umap_gene_expression(adata, f"{disease}", "Cfh", "C3", gene_dict, save_path=f"/Users/aumchampaneri/PycharmProjects/Complement-OUD/gget census UMAP/figures/{disease}_umap_CFHvC3.pdf")
 
 # Plot UMAP of CFH and C3ar1 expression
-# umap_gene_expression(adata, f"{disease}", "Cfh", "C3ar1", gene_dict, save_path=f"/Users/aumchampaneri/PycharmProjects/Complement-OUD/Mm Census gget Query/figures/{disease}_umap_CFHvC3ar1.pdf")
+# umap_gene_expression(adata, f"{disease}", "Cfh", "C3ar1", gene_dict, save_path=f"/Users/aumchampaneri/PycharmProjects/Complement-OUD/gget census UMAP/figures/{disease}_umap_CFHvC3ar1.pdf")
 
 # Plot UMAP of CFH and C5ar1 expression
-# umap_gene_expression(adata, f"{disease}", "Cfh", "C5ar1", gene_dict, save_path=f"/Users/aumchampaneri/PycharmProjects/Complement-OUD/Mm Census gget Query/figures/{disease}_umap_CFHvC5ar1.pdf")
+# umap_gene_expression(adata, f"{disease}", "Cfh", "C5ar1", gene_dict, save_path=f"/Users/aumchampaneri/PycharmProjects/Complement-OUD/gget census UMAP/figures/{disease}_umap_CFHvC5ar1.pdf")
 
 # Plot UMAP of CFH and C1qa expression
-# umap_gene_expression(adata, f"{disease}", "Cfh", "C1qa", gene_dict, save_path=f"/Users/aumchampaneri/PycharmProjects/Complement-OUD/Mm Census gget Query/figures/{disease}_umap_CFHvC1qa.pdf")
+# umap_gene_expression(adata, f"{disease}", "Cfh", "C1qa", gene_dict, save_path=f"/Users/aumchampaneri/PycharmProjects/Complement-OUD/gget census UMAP/figures/{disease}_umap_CFHvC1qa.pdf")
 
 # Plot UMAP of CFH and C1qb expression
-# umap_gene_expression(adata, f"{disease}", "Cfh", "C1qb", gene_dict, save_path=f"/Users/aumchampaneri/PycharmProjects/Complement-OUD/Mm Census gget Query/figures/{disease}_umap_CFHvC1qb.pdf")
+# umap_gene_expression(adata, f"{disease}", "Cfh", "C1qb", gene_dict, save_path=f"/Users/aumchampaneri/PycharmProjects/Complement-OUD/gget census UMAP/figures/{disease}_umap_CFHvC1qb.pdf")
 
 # Plot UMAP of CFH and C4a expression
-umap_gene_expression(adata, f"{disease}", "Cfh", "C4a", gene_dict, save_path=f"/Super Folder - Mus musculus/Mm Census gget Query/figures/{disease}_umap_CFHvC4a.pdf")
+umap_gene_expression(adata, f"{disease}", "Cfh", "C4a", gene_dict, save_path=f"/Super Folder - Mus musculus/gget census UMAP/figures/{disease}_umap_CFHvC4a.pdf")

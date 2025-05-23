@@ -10,4 +10,4 @@ biomart_query = sc.queries.biomart_annotations("mmusculus", # Query for Mus musc
 biomart_df = pd.DataFrame(biomart_query)
 
 # Save the DataFrame to a CSV file
-biomart_df.to_csv("/Users/aumchampaneri/PycharmProjects/Complement-OUD/Mm Census gget Query/Accessory Data/biomart_mmusculus.csv", index=False)
+biomart_df.to_csv("/Users/aumchampaneri/PycharmProjects/Complement-OUD/gget census UMAP/Accessory Data/biomart_mmusculus.csv", index=False)
