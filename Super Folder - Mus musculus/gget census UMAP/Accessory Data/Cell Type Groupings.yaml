@@ -1,0 +1,68 @@
+Excitatory Neurons:
+  - L2/3 intratelencephalic projecting glutamatergic neuron
+  - L4/5 intratelencephalic projecting glutamatergic neuron
+  - L5 intratelencephalic projecting glutamatergic neuron
+  - L5 extratelencephalic projecting glutamatergic cortical neuron
+  - L5/6 near-projecting glutamatergic neuron
+  - L6 corticothalamic-projecting glutamatergic cortical neuron
+  - L6 intratelencephalic projecting glutamatergic neuron
+  - L6b glutamatergic cortical neuron
+  - medium spiny neuron
+
+Inhibitory Interneurons:
+  - pvalb GABAergic cortical interneuron
+  - sst GABAergic cortical interneuron
+  - lamp5 GABAergic cortical interneuron
+  - VIP GABAergic cortical interneuron
+  - sncg GABAergic cortical interneuron
+  - interneuron
+
+Unclassified Neurons:
+  - neuron
+
+Astroglial Cells:
+  - astrocyte
+  - Bergmann glial cell
+
+Oligodendroglial Lineage Cells:
+  - oligodendrocyte
+  - oligodendrocyte precursor cell
+
+Microglia and Brain-Resident Macrophages:
+  - microglial cell
+  - perivascular macrophage
+  - macrophage
+
+Neural Stem and Progenitor Cells:
+  - neuroepithelial stem cell
+  - neural stem cell
+
+Vascular and Meningeal Cells:
+  - endothelial cell
+  - pericyte
+  - brain pericyte
+  - smooth muscle cell
+  - vascular leptomeningeal cell
+  - stromal cell
+
+T Lymphocytes:
+  - CD4-positive, alpha-beta T cell
+  - CD8-positive, alpha-beta T cell
+  - T cell
+  - mature NK T cell
+
+B Lymphocytes and Plasma Cells:
+  - B cell
+  - plasma cell
+
+Innate Immune Cells:
+  - natural killer cell
+  - innate lymphoid cell
+  - monocyte
+  - neutrophil
+  - mast cell
+  - conventional dendritic cell
+  - plasmacytoid dendritic cell
+
+Ependymal and Related Cells:
+  - ependymal cell
