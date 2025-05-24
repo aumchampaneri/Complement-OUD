@@ -178,3 +178,4 @@ cython_debug/
 .DS_Store
 .rds
 Super Folder - Mus musculus/GSE207128/Outputs/Processed Data/combined_seurat.rds
+.idea
