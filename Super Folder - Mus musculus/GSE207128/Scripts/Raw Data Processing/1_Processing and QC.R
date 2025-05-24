@@ -1,7 +1,7 @@
 # Processing and Quality Control of the combined Raw Data
 
 # Set working directories
-setwd("/Users/aumchampaneri/PycharmProjects/Complement-OUD/Super Folder - Mus musculus/GSE207128")
+setwd("/Users/aumchampaneri/Complement-OUD/Super Folder - Mus musculus/GSE207128")
 input_dir <- "Outputs/Processed Data"
 output_dir <- "Outputs/Processed Data/QC"
 dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
