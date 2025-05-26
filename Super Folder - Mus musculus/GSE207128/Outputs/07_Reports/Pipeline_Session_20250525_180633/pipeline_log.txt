@@ -1,0 +1,6 @@
+Pipeline started at: 2025-05-25 18:06:33 
+Configuration check completed
+Step 1 skipped - data already aggregated
+Pipeline error: Input file not found: Outputs/01_Aggregated_Data/combined_seurat.rds
+Please run 0_10x Data Aggregation.R first 
+Pipeline session ended at: 2025-05-25 18:06:36 

@@ -1,0 +1,5 @@
+"resolution","silhouette_score","n_clusters","method"
+0.4,NA,30,"Fixed thresholds (tissue-optimized)"
+0.6,NA,33,"Fixed thresholds (tissue-optimized)"
+0.8,NA,35,"Fixed thresholds (tissue-optimized)"
+1,NA,41,"Fixed thresholds (tissue-optimized)"
