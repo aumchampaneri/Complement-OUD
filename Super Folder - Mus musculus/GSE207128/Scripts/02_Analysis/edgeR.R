@@ -2,19 +2,20 @@
 # Differential Expression Analysis using edgeR
 # General genome-wide analysis for all contrasts
 # Following original study methodology (edgeRQLFDetRate)
+# Data is already batch-corrected via Harmony integration
 # ==============================================================================
 
 # Load required libraries
 library(Seurat)
 library(edgeR)
 library(dplyr)
-library(writexl)
+library(openxlsx)
 library(tidyr)
 
 # Set working directory and paths
 base_dir <- "/Users/aumchampaneri/Complement-OUD/Super Folder - Mus musculus/GSE207128"
-data_dir <- file.path(base_dir, "Outputs/02_Processed_Data")  # Updated path
-output_dir <- file.path(base_dir, "Outputs/05_Analysis_Results/DEG_Analysis")  # Updated path
+data_dir <- file.path(base_dir, "Outputs/04_Annotated_Data")
+output_dir <- file.path(base_dir, "Outputs/05_Analysis_Results/DEG_Analysis")
 
 # Create output directories
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
@@ -28,29 +29,50 @@ cat("Time:", Sys.time(), "\n\n")
 # Load Data
 # ==============================================================================
 
-cat("Loading processed Seurat object...\n")
-seurat_obj <- readRDS(file.path(data_dir, "processed_seurat.rds"))
+cat("Loading annotated Seurat object...\n")
+annotated_files <- list.files(data_dir, pattern = "*.rds", full.names = TRUE)
+cat("Available RDS files in annotated data directory:\n")
+print(annotated_files)
+
+# Load filtered annotated file (has cell type predictions and quality filtering)
+filtered_file <- grep("filtered_annotated", annotated_files, value = TRUE)
+if(length(filtered_file) > 0) {
+  seurat_obj <- readRDS(filtered_file[1])
+  cat("Loaded:", basename(filtered_file[1]), "\n")
+} else if(length(annotated_files) > 0) {
+  seurat_obj <- readRDS(annotated_files[1])
+  cat("Loaded:", basename(annotated_files[1]), "\n")
+} else {
+  stop("No RDS files found in the annotated data directory")
+}
 
 # Data summary
-cat("Data summary:\n")
+cat("\nData summary:\n")
 cat("- Total cells:", ncol(seurat_obj), "\n")
 cat("- Total genes:", nrow(seurat_obj), "\n")
-cat("- Cell types:", length(unique(seurat_obj$cell_type_final)), "\n")
+cat("- Cell types:", length(unique(seurat_obj$predicted_celltype)), "\n")
 cat("- Conditions:", paste(unique(seurat_obj$condition), collapse = ", "), "\n")
-cat("- Batches:", paste(unique(seurat_obj$batch), collapse = ", "), "\n\n")
 
-# Check cell counts per condition and cell type
+# Use predicted cell types from annotation pipeline
+seurat_obj$cell_type_final <- seurat_obj$predicted_celltype
+cat("Using predicted_celltype from annotation pipeline\n")
+
+# Display unique cell types
+cat("\nUnique cell types:\n")
+print(sort(unique(seurat_obj$cell_type_final)))
+
+# Cell counts per condition and cell type
 cell_counts <- seurat_obj@meta.data %>%
   group_by(cell_type_final, condition) %>%
   summarise(count = n(), .groups = 'drop') %>%
   tidyr::pivot_wider(names_from = condition, values_from = count, values_fill = 0)
 
-cat("Cell counts per condition and cell type:\n")
+cat("\nCell counts per condition and cell type:\n")
 print(cell_counts)
 cat("\n")
 
 # ==============================================================================
-# edgeR Analysis Function
+# edgeR Analysis Function - FIXED VERSION
 # ==============================================================================
 
 run_edgeR_analysis <- function(seurat_obj, cell_type, comparison, min_cells = 50) {
@@ -68,16 +90,16 @@ run_edgeR_analysis <- function(seurat_obj, cell_type, comparison, min_cells = 50
   
   # Set up comparison groups
   if(comparison == "Dep_vs_Naive") {
-    subset_obj <- subset(subset_obj, subset = condition %in% c("Dep", "Naive"))
-    group1 <- "Dep"
+    subset_obj <- subset(subset_obj, subset = condition %in% c("Dependent", "Naive"))
+    group1 <- "Dependent"
     group2 <- "Naive"
   } else if(comparison == "With_vs_Dep") {
-    subset_obj <- subset(subset_obj, subset = condition %in% c("With", "Dep"))
-    group1 <- "With"
-    group2 <- "Dep"
+    subset_obj <- subset(subset_obj, subset = condition %in% c("Withdrawal", "Dependent"))
+    group1 <- "Withdrawal"
+    group2 <- "Dependent"
   } else if(comparison == "With_vs_Naive") {
-    subset_obj <- subset(subset_obj, subset = condition %in% c("With", "Naive"))
-    group1 <- "With"
+    subset_obj <- subset(subset_obj, subset = condition %in% c("Withdrawal", "Naive"))
+    group1 <- "Withdrawal"
     group2 <- "Naive"
   } else {
     stop("Invalid comparison. Use 'Dep_vs_Naive', 'With_vs_Dep', or 'With_vs_Naive'")
@@ -93,19 +115,16 @@ run_edgeR_analysis <- function(seurat_obj, cell_type, comparison, min_cells = 50
     return(NULL)
   }
   
-  # Get count matrix (all genes)
-  counts <- GetAssayData(subset_obj, slot = "counts")
+  # Get count matrix - USE ORIGINAL COUNTS
+  counts <- GetAssayData(subset_obj, layer = "counts")
   
-  # Create experimental design
-  condition <- factor(subset_obj$condition, levels = c(group2, group1))  # group2 is reference
-  batch <- factor(subset_obj$batch)
+  # Create experimental design - SIMPLE DESIGN (data already batch-corrected)
+  condition <- factor(subset_obj$condition, levels = c(group2, group1))
+  design <- model.matrix(~ condition)
+  cat(paste("  Using simple design (data already batch-corrected via Harmony)\n"))
   
-  # Design matrix with batch effect (if more than one batch)
-  if(length(unique(batch)) > 1) {
-    design <- model.matrix(~ batch + condition)
-  } else {
-    design <- model.matrix(~ condition)
-  }
+  # Print design matrix column names for debugging
+  cat(paste("  Design matrix columns:", paste(colnames(design), collapse = ", "), "\n"))
   
   # Create DGEList object
   dge <- DGEList(counts = counts, group = condition)
@@ -122,11 +141,11 @@ run_edgeR_analysis <- function(seurat_obj, cell_type, comparison, min_cells = 50
   # Estimate dispersions
   dge <- estimateDisp(dge, design, robust = TRUE)
   
-  # Fit quasi-likelihood model (following original study's edgeRQLFDetRate method)
+  # Fit quasi-likelihood model
   fit <- glmQLFit(dge, design, robust = TRUE)
   
-  # Test for differential expression (condition effect)
-  qlf <- glmQLFTest(fit, coef = ncol(design))  # Test last coefficient (condition)
+  # Test for differential expression - FIXED: USE COEFFICIENT NUMBER
+  qlf <- glmQLFTest(fit, coef = 2)  # Test second coefficient (condition effect)
   
   # Extract results
   results <- topTags(qlf, n = Inf, sort.by = "PValue")$table
@@ -142,9 +161,6 @@ run_edgeR_analysis <- function(seurat_obj, cell_type, comparison, min_cells = 50
   results$effect_size[abs(results$logFC) > 0.5] <- "Medium" 
   results$effect_size[abs(results$logFC) > 1.0] <- "Large"
   
-  # Add combined significance and effect size
-  results$sig_and_effect <- paste(results$significance, results$effect_size, sep = "_")
-  
   # Add regulation direction
   results$regulation <- "Not Significant"
   results$regulation[results$FDR < 0.05 & results$logFC > 0] <- "Upregulated"
@@ -153,19 +169,20 @@ run_edgeR_analysis <- function(seurat_obj, cell_type, comparison, min_cells = 50
   # Add metadata
   results$cell_type <- cell_type
   results$comparison <- comparison
-  results$group1 <- group1  # Numerator (tested group)
-  results$group2 <- group2  # Denominator (reference group)
+  results$group1 <- group1
+  results$group2 <- group2
   results$total_cells <- ncol(subset_obj)
   results$group1_cells <- sum(subset_obj$condition == group1)
   results$group2_cells <- sum(subset_obj$condition == group2)
   results$genes_tested <- nrow(results)
   results$analysis_date <- Sys.Date()
   
-  # Reorder columns for clarity
+  # Reorder columns
   results <- results[, c("gene", "logFC", "logCPM", "F", "PValue", "FDR", 
-                        "significance", "effect_size", "regulation", "sig_and_effect",
+                        "significance", "effect_size", "regulation",
                         "cell_type", "comparison", "group1", "group2", 
-                        "total_cells", "group1_cells", "group2_cells", "genes_tested", "analysis_date")]
+                        "total_cells", "group1_cells", "group2_cells", 
+                        "genes_tested", "analysis_date")]
   
   # Sort by FDR
   results <- results[order(results$FDR), ]
@@ -182,7 +199,7 @@ run_edgeR_analysis <- function(seurat_obj, cell_type, comparison, min_cells = 50
 
 # Define analysis parameters
 cell_types <- unique(seurat_obj$cell_type_final)
-cell_types <- cell_types[!is.na(cell_types)]  # Remove any NA values
+cell_types <- cell_types[!is.na(cell_types)]
 comparisons <- c("Dep_vs_Naive", "With_vs_Dep", "With_vs_Naive")
 
 cat("Running analysis for:\n")
@@ -257,8 +274,7 @@ for(analysis_name in names(all_results)) {
 # Create comprehensive Excel workbook
 excel_data <- all_results
 excel_data[["Summary"]] <- summary_stats
-
-write_xlsx(excel_data, file.path(output_dir, "Tables", "edgeR_comprehensive_results.xlsx"))
+write.xlsx(excel_data, file.path(output_dir, "Tables", "edgeR_comprehensive_results.xlsx"))
 
 # ==============================================================================
 # Generate Quick Report
@@ -269,7 +285,6 @@ cat("QUICK ANALYSIS REPORT\n")
 cat(rep("=", 60), "\n")
 
 # Overall statistics
-total_analyses <- nrow(summary_stats)
 successful_analyses <- length(all_results)
 
 cat("OVERVIEW:\n")
@@ -277,7 +292,7 @@ cat("- Planned analyses:", length(cell_types) * length(comparisons), "\n")
 cat("- Successful analyses:", successful_analyses, "\n")
 cat("- Failed analyses (insufficient cells):", (length(cell_types) * length(comparisons)) - successful_analyses, "\n\n")
 
-# Top results by comparison
+# Results by comparison
 cat("RESULTS BY COMPARISON:\n")
 for(comp in comparisons) {
   comp_data <- summary_stats[summary_stats$comparison == comp, ]
@@ -289,7 +304,7 @@ for(comp in comparisons) {
   }
 }
 
-# Top cell types by number of significant genes
+# Top cell types by significant genes
 cat("\nTOP CELL TYPES (by significant genes):\n")
 celltype_totals <- summary_stats %>%
   group_by(cell_type) %>%
@@ -299,22 +314,11 @@ celltype_totals <- summary_stats %>%
 
 print(head(celltype_totals, 10))
 
-# Files created
-cat("\nFILES CREATED:\n")
-cat("- R objects: edgeR_all_results.rds, edgeR_summary_stats.rds\n")
-cat("- Excel workbook: edgeR_comprehensive_results.xlsx\n")
-cat("- Summary CSV: edgeR_summary.csv\n")
-cat("- Individual analysis CSVs: [cell_type]_[comparison]_edgeR.csv\n")
-cat("- Output directory:", output_dir, "\n")
-
-cat("\nAnalysis complete! Results ready for downstream pathway analysis.\n")
-
-# Optional: Display most significant genes across all analyses
+# Top genes across all analyses
 cat("\n" , rep("=", 60), "\n")
 cat("TOP GENES ACROSS ALL ANALYSES\n")
 cat(rep("=", 60), "\n")
 
-# Combine all results for overview
 if(length(all_results) > 0) {
   all_combined <- do.call(rbind, all_results)
   top_genes <- all_combined %>%
@@ -332,4 +336,13 @@ if(length(all_results) > 0) {
   print(head(top_genes, 15))
 }
 
-cat("\nScript completed successfully!\n")
+# Files created
+cat("\nFILES CREATED:\n")
+cat("- R objects: edgeR_all_results.rds, edgeR_summary_stats.rds\n")
+cat("- Excel workbook: edgeR_comprehensive_results.xlsx\n")
+cat("- Summary CSV: edgeR_summary.csv\n")
+cat("- Individual analysis CSVs: [cell_type]_[comparison]_edgeR.csv\n")
+cat("- Output directory:", output_dir, "\n")
+
+cat("\nAnalysis complete! Results ready for downstream pathway analysis.\n")
+cat("Script completed successfully!\n")
