@@ -197,17 +197,14 @@ cython_debug/
 # Project-Specific Data Files
 # ==============================================================================
 
-# R data files
+# ignore all data files
 *.rds
 *.h5seurat
 *.h5ad
-
-# Raw data files
 *.gz
-
-# Pdf files
 *.pdf
 *.xlsx
+*.RData
 
 # Jupyter notebooks and journals
 /Jupyter Journal/
