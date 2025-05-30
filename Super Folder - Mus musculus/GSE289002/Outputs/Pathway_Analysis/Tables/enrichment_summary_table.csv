@@ -1,0 +1,10 @@
+"Analysis","Total_Pathways","GO_Terms","KEGG_Pathways"
+"acute_vs_control",2488,2362,126
+"short_vs_control",738,715,23
+"chronic_vs_control",7045,6737,308
+"short_vs_acute",2104,1985,119
+"chronic_vs_acute",2366,2191,175
+"chronic_vs_short",6568,6265,303
+"acute_specific",1025,993,32
+"chronic_specific",6907,6601,306
+"shared_acute_chronic",1923,1814,109

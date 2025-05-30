@@ -1,0 +1,223 @@
+================================================================
+COMPREHENSIVE PATHWAY ENRICHMENT ANALYSIS REPORT
+================================================================
+
+Analysis Date: 2025-05-29 23:16:44.722942 
+Gene Lists Analyzed: 9 
+Gene ID Format: Ensembl IDs (converted) 
+
+ENRICHMENT SUMMARY:
+              Analysis GO_BP GO_MF GO_CC KEGG DO
+1     acute_vs_control  1982   253   127  126  0
+2     short_vs_control   570   111    34   23  0
+3   chronic_vs_control  5136  1014   587  308  0
+4       short_vs_acute  1534   318   133  119  0
+5     chronic_vs_acute  1765   263   163  175  0
+6     chronic_vs_short  4781   957   527  303  0
+7       acute_specific   838    96    59   32  0
+8     chronic_specific  5024   993   584  306  0
+9 shared_acute_chronic  1541   187    86  109  0
+
+TOP PATHWAYS BY ANALYSIS:
+
+=== ACUTE_VS_CONTROL ===
+
+Top GO Biological Processes:
+1. stem cell division (p=6.69e-06)
+2. negative regulation of nucleotide catabolic process (p=3e-05)
+3. negative regulation of purine nucleotide catabolic process (p=3e-05)
+4. negative regulation of glycolytic process (p=3e-05)
+5. positive regulation of ossification (p=3.19e-05)
+
+Top KEGG Pathways:
+1. NA (p=NA)
+0.  (p=)
+
+=== SHORT_VS_CONTROL ===
+
+Top GO Biological Processes:
+1. pyrimidine nucleoside metabolic process (p=4.57e-05)
+2. regulation of protein complex stability (p=6.83e-05)
+3. ribonucleoside catabolic process (p=7.68e-05)
+4. pyrimidine-containing compound catabolic process (p=0.000116)
+5. nucleoside catabolic process (p=0.000127)
+
+Top KEGG Pathways:
+1. Arginine and proline metabolism (p=0.00199)
+
+=== CHRONIC_VS_CONTROL ===
+
+Top GO Biological Processes:
+1. small GTPase-mediated signal transduction (p=6.48e-11)
+2. postsynapse organization (p=1.45e-10)
+3. regulation of autophagy (p=1.02e-09)
+4. Golgi vesicle transport (p=1.64e-09)
+5. response to insulin (p=4.23e-09)
+
+Top KEGG Pathways:
+1. Phosphatidylinositol signaling system (p=1.84e-07)
+2. Inositol phosphate metabolism (p=2.28e-05)
+3. Non-small cell lung cancer (p=0.000114)
+4. Hepatocellular carcinoma (p=0.000196)
+5. Endocytosis (p=0.000451)
+
+=== SHORT_VS_ACUTE ===
+
+Top GO Biological Processes:
+1. NA (p=NA)
+0.  (p=)
+
+Top KEGG Pathways:
+1. NA (p=NA)
+0.  (p=)
+
+=== CHRONIC_VS_ACUTE ===
+
+Top GO Biological Processes:
+1. regulation of RNA splicing (p=1.17e-07)
+2. regulation of mRNA splicing, via spliceosome (p=1.77e-06)
+3. regulation of mRNA processing (p=5.38e-06)
+4. RNA splicing (p=9.68e-06)
+5. RNA splicing, via transesterification reactions (p=4.14e-05)
+
+Top KEGG Pathways:
+1. Kaposi sarcoma-associated herpesvirus infection (p=0.000339)
+2. Antigen processing and presentation (p=0.000498)
+3. Viral myocarditis (p=0.000668)
+
+=== CHRONIC_VS_SHORT ===
+
+Top GO Biological Processes:
+1. regulation of apoptotic signaling pathway (p=1.09e-08)
+2. regulation of neurogenesis (p=3.82e-07)
+3. negative regulation of protein modification process (p=6.39e-07)
+4. regulation of mRNA metabolic process (p=9.95e-07)
+5. cellular response to starvation (p=1.2e-06)
+
+Top KEGG Pathways:
+1. NA (p=NA)
+0.  (p=)
+
+=== ACUTE_SPECIFIC ===
+
+Top GO Biological Processes:
+1. NA (p=NA)
+0.  (p=)
+
+Top KEGG Pathways:
+1. NA (p=NA)
+0.  (p=)
+
+=== CHRONIC_SPECIFIC ===
+
+Top GO Biological Processes:
+1. small GTPase-mediated signal transduction (p=3.98e-11)
+2. postsynapse organization (p=1.34e-10)
+3. Golgi vesicle transport (p=1.72e-09)
+4. Golgi organization (p=2.63e-09)
+5. regulation of autophagy (p=4.1e-09)
+
+Top KEGG Pathways:
+1. Phosphatidylinositol signaling system (p=5.86e-08)
+2. Inositol phosphate metabolism (p=1.03e-05)
+3. Hepatocellular carcinoma (p=0.000229)
+4. Endocytosis (p=0.000373)
+
+=== SHARED_ACUTE_CHRONIC ===
+
+Top GO Biological Processes:
+1. epithelial tube morphogenesis (p=5.13e-06)
+2. negative regulation of carbohydrate metabolic process (p=7.35e-06)
+3. negative regulation of nucleotide catabolic process (p=7.98e-06)
+4. negative regulation of purine nucleotide catabolic process (p=7.98e-06)
+5. negative regulation of glycolytic process (p=7.98e-06)
+
+Top KEGG Pathways:
+1. NA (p=NA)
+0.  (p=)
+
+ADDICTION-RELATED PATHWAYS:
+
+=== ACUTE_VS_CONTROL ===
+go_bp: 3 addiction-related terms
+  1. feeding behavior
+  2. male mating behavior
+  3. reproductive behavior
+go_mf: 8 addiction-related terms
+  1. death domain binding
+  2. RNA polymerase II-specific DNA-binding transcription factor binding
+  3. toxic substance binding
+
+=== SHORT_VS_CONTROL ===
+go_mf: 1 addiction-related terms
+  1. iron ion binding
+
+=== CHRONIC_VS_CONTROL ===
+go_bp: 116 addiction-related terms
+  1. small GTPase-mediated signal transduction
+  2. postsynapse organization
+  3. regulation of postsynapse organization
+go_mf: 45 addiction-related terms
+  1. small GTPase binding
+  2. GTPase binding
+  3. U1 snRNP binding
+go_cc: 22 addiction-related terms
+  1. asymmetric synapse
+  2. postsynaptic density
+  3. presynaptic membrane
+kegg: 1 addiction-related terms
+  1. Phosphatidylinositol signaling system
+
+=== CHRONIC_VS_ACUTE ===
+go_bp: 4 addiction-related terms
+  1. regulation of TORC1 signaling
+  2. TORC1 signaling
+  3. positive regulation of TORC1 signaling
+go_mf: 13 addiction-related terms
+  1. T cell receptor binding
+  2. beta-2-microglobulin binding
+  3. MHC class I protein binding
+
+=== CHRONIC_VS_SHORT ===
+go_bp: 36 addiction-related terms
+  1. regulation of apoptotic signaling pathway
+  2. signal transduction by p53 class mediator
+  3. regulation of signal transduction by p53 class mediator
+go_mf: 28 addiction-related terms
+  1. RNA polymerase II-specific DNA-binding transcription factor binding
+  2. ubiquitin-like protein ligase binding
+  3. ubiquitin protein ligase binding
+
+=== ACUTE_SPECIFIC ===
+go_mf: 2 addiction-related terms
+  1. toxic substance binding
+  2. G protein-coupled receptor binding
+
+=== CHRONIC_SPECIFIC ===
+go_bp: 94 addiction-related terms
+  1. small GTPase-mediated signal transduction
+  2. postsynapse organization
+  3. regulation of postsynapse organization
+go_mf: 42 addiction-related terms
+  1. small GTPase binding
+  2. GTPase binding
+  3. U1 snRNP binding
+go_cc: 22 addiction-related terms
+  1. asymmetric synapse
+  2. postsynaptic density
+  3. presynaptic membrane
+kegg: 1 addiction-related terms
+  1. Phosphatidylinositol signaling system
+
+=== SHARED_ACUTE_CHRONIC ===
+go_bp: 2 addiction-related terms
+  1. neural tube formation
+  2. negative regulation of Notch signaling pathway
+go_mf: 7 addiction-related terms
+  1. death domain binding
+  2. BH domain binding
+  3. RNA polymerase II-specific DNA-binding transcription factor binding
+
+================================================================
+ANALYSIS COMPLETE
+================================================================

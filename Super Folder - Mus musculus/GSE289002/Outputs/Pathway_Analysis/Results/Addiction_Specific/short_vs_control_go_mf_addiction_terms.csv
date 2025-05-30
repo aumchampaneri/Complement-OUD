@@ -1,0 +1,2 @@
+"ID","Description","GeneRatio","BgRatio","RichFactor","FoldEnrichment","zScore","pvalue","p.adjust","qvalue","geneID","Count"
+"GO:0005506","iron ion binding","3/21","178/28366",0.0168539325842697,22.7656500802568,7.9288887307617,0.000297329688509462,0.0110011984748501,0.00813744410657475,"Nfu1/Cyp2u1/P4ha1",3

@@ -1,0 +1,2 @@
+"category","subcategory","ID","Description","GeneRatio","BgRatio","RichFactor","FoldEnrichment","zScore","pvalue","p.adjust","qvalue","geneID","Count"
+"Environmental Information Processing","Signal transduction","mmu04070","Phosphatidylinositol signaling system","17/380","96/9577",0.177083333333333,4.46296600877193,6.93134547526128,1.84498598722032e-07,5.68255684063857e-05,4.87464718728736e-05,"56077/74302/18711/212111/72469/227333/19211/16331/327655/380921/224020/18710/269180/170749/18706/18750/320127",17

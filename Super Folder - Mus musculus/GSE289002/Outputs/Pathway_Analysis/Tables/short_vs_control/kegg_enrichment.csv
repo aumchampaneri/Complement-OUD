@@ -1,0 +1,2 @@
+"category","subcategory","ID","Description","GeneRatio","BgRatio","RichFactor","FoldEnrichment","zScore","pvalue","p.adjust","qvalue","geneID","Count"
+"Metabolism","Amino acid metabolism","mmu00330","Arginine and proline metabolism","2/12","54/9577",0.037037037037037,29.5586419753086,7.45397178040561,0.00198643517873363,0.0456880091108735,0.0418196879733396,"66194/18451",2
