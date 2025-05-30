@@ -1,0 +1,7 @@
+"Comparison","Total_Genes","Significant_Genes","Upregulated","Downregulated","Max_LogFC_Up","Max_LogFC_Down","Min_FDR"
+"Acute_vs_Control",15473,85,45,40,3.822,-2.439,6.18361862437838e-07
+"Short_vs_Control",15473,32,14,18,2.709,-7.845,1.44958560426993e-08
+"Chronic_vs_Control",15473,951,564,387,4.892,-3.974,6.21861355179192e-10
+"Short_vs_Acute",15473,117,56,61,3.294,-8.363,1.85647503364133e-08
+"Chronic_vs_Acute",15473,92,35,57,3.606,-2.839,3.52544644004128e-08
+"Chronic_vs_Short",15473,900,432,468,9.327,-3.316,5.10027805380632e-12

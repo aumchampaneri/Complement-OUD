@@ -1,0 +1,112 @@
+================================================================
+COMPREHENSIVE DIFFERENTIAL EXPRESSION ANALYSIS REPORT
+================================================================
+
+Analysis Information:
+- Date: 2025-05-29 22:49:03.045954 
+- Dataset: 15473 genes x 55 samples
+- Treatment groups: Chronic mor, Mor + 24h, Mor + 2W, Sal 
+- Brain regions: NAc, PFC 
+- Sex groups: female, male 
+
+=== MAIN DIFFERENTIAL EXPRESSION RESULTS ===
+
+Summary of all comparisons:
+                           Comparison Total_Genes Significant_Genes Upregulated
+Acute_vs_Control     Acute_vs_Control       15473                85          45
+Short_vs_Control     Short_vs_Control       15473                32          14
+Chronic_vs_Control Chronic_vs_Control       15473               951         564
+Short_vs_Acute         Short_vs_Acute       15473               117          56
+Chronic_vs_Acute     Chronic_vs_Acute       15473                92          35
+Chronic_vs_Short     Chronic_vs_Short       15473               900         432
+                   Downregulated Max_LogFC_Up Max_LogFC_Down      Min_FDR
+Acute_vs_Control              40        3.822         -2.439 6.183619e-07
+Short_vs_Control              18        2.709         -7.845 1.449586e-08
+Chronic_vs_Control           387        4.892         -3.974 6.218614e-10
+Short_vs_Acute                61        3.294         -8.363 1.856475e-08
+Chronic_vs_Acute              57        3.606         -2.839 3.525446e-08
+Chronic_vs_Short             468        9.327         -3.316 5.100278e-12
+
+=== QUESTION 1: ACUTE vs CHRONIC RESPONSE GENES ===
+
+Acute vs Chronic Response Analysis:
+       Category Count
+1    Acute only    31
+2  Chronic only   897
+3        Shared    54
+4   Total acute    85
+5 Total chronic   951
+
+Key findings:
+- Acute-specific genes: 31 
+- Chronic-specific genes: 897 
+- Shared acute/chronic genes: 54 
+
+=== QUESTION 2: REGION-SPECIFIC RESPONSES ===
+
+PFC vs NAc Response Comparison:
+          Comparison PFC_only NAc_only Shared Total_PFC Total_NAc
+1   Acute_vs_Control       21        7      2        23         9
+2   Short_vs_Control        0        3      0         0         3
+3 Chronic_vs_Control       70      173     17        87       190
+
+Key findings:
+- Region-specific responses vary by treatment duration
+- See individual Venn diagrams for detailed overlaps
+
+=== QUESTION 3: SEX-SPECIFIC RESPONSES ===
+
+Male vs Female Response Comparison:
+          Comparison Male_only Female_only Shared Total_Male Total_Female
+1   Acute_vs_Control        49          66      1         50           67
+2   Short_vs_Control        36          15      2         38           17
+3 Chronic_vs_Control       105         245     18        123          263
+
+Key findings:
+- Sex differences in morphine response patterns
+- See individual analyses for sex-specific gene lists
+
+=== QUESTION 4: TEMPORAL EXPRESSION PATTERNS ===
+
+Time Course Expression Patterns:
+
+ Acute_and_chronic         Acute_only       Chronic_only     Early_response 
+                52                 27                887                  4 
+     Late_response         Short_only Sustained_response 
+                10                 16                  2 
+
+Key findings:
+- Sustained response genes: 2 
+- Acute-only response genes: 27 
+- Chronic-only response genes: 887 
+
+=== FILES GENERATED ===
+
+Main Results:
+- DE_analysis_summary.csv: Overview of all comparisons
+- Individual comparison results in Tables/ directory
+- Volcano plots for all comparisons in Plots/ directory
+
+Question-Specific Analyses:
+- acute_specific_genes.csv, chronic_specific_genes.csv
+- Region-specific results in Region_Specific/ directory
+- Sex-specific results in Sex_Specific/ directory
+- Temporal patterns in Time_Course/ directory
+
+Visualizations:
+- Volcano plots for all comparisons
+- Venn diagrams for overlaps
+- Heatmap of top DE genes
+- Temporal pattern plots
+
+=== RECOMMENDATIONS FOR FURTHER ANALYSIS ===
+
+1. Pathway enrichment analysis on gene sets
+2. Gene ontology analysis for biological processes
+3. Network analysis of co-expressed genes
+4. Validation of top candidates by qPCR
+5. Investigation of transcription factor networks
+
+================================================================
+ANALYSIS COMPLETE
+================================================================
