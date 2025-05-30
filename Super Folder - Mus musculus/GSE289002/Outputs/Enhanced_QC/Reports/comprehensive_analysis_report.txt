@@ -1,0 +1,84 @@
+===============================================
+ENHANCED BULK RNA-SEQ PREPROCESSING REPORT
+===============================================
+
+Analysis Information:
+- Date: 2025-05-29 22:23:33.610885 
+- R Version: R version 4.5.0 (2025-04-11) 
+- Script: Enhanced Processing and QC Pipeline
+
+Dataset Overview:
+- Original samples: 62 
+- Final samples: 55 
+- Samples removed: 7 
+- Original genes: 46085 
+- Final genes: 15473 
+- Genes filtered: 30612 
+
+Outlier Analysis:
+- Samples removed: PFC_10, PFC_27, NAc_7, NAc_23, PFC_3, PFC_8, PFC_18 
+- Removal reasons: See outlier_detection_summary.csv
+
+Experimental Design:
+             
+              female male
+  Chronic mor      5   10
+  Mor + 24h        7    9
+  Mor + 2W         4    9
+  Sal              5    6
+
+Power Analysis (minimum group size: 4 ):
+   effect_size      power
+1  small (0.2) 0.05666808
+2 medium (0.5) 0.09228238
+3  large (0.8) 0.16011344
+
+Quality Control Metrics:
+- Library size range: 29.09 50.31 million reads
+- Mean library size: 39.86 million reads
+- Genes detected range: 19137 21148 
+- Mean genes detected: 20197 
+
+Principal Component Analysis:
+- PC1 variance explained: 54.73 %
+- PC2 variance explained: 8.5 %
+- PC1+PC2 cumulative: 63.23 %
+
+Normalization:
+- Method: TMM (Trimmed Mean of M-values)
+- Alternative methods compared: RLE, Upper Quartile
+
+Sample-Level Analysis:
+- Treatment explains PC1 variance: 0.99 %
+- Region explains PC1 variance: 98.17 %
+- Each sample treated as unique batch (geo_accession)
+
+Files Generated:
+Data Objects:
+- dge_normalized_final.rds: Final DGEList object
+- metadata_enhanced.rds: Complete sample metadata
+- logcpm_normalized.rds: Log-CPM normalized expression
+- pca_results.rds: PCA analysis results
+
+Statistical Reports:
+- comprehensive_gene_statistics.csv: Gene-level metrics
+- final_metadata.csv: Sample metadata
+- outlier_analysis_summary.csv: Outlier detection results
+- experimental_design_assessment.txt: Design and power analysis
+
+Quality Control Plots:
+- comprehensive_sample_qc.png: Multi-panel sample QC
+- publication_quality_pca.png: Publication-ready PCA
+- enhanced_correlation_heatmap.png: Sample correlation matrix
+- outlier_detection_plots.png: Outlier analysis visualization
+- normalization_comparison.png: Normalization method comparison
+- sample_level_analysis.png: Sample variability assessment
+
+Recommendations:
+- Consider increasing sample size for better power
+- Investigate reasons for sample outliers
+- Data is ready for differential expression analysis
+
+===============================================
+ANALYSIS COMPLETE
+===============================================

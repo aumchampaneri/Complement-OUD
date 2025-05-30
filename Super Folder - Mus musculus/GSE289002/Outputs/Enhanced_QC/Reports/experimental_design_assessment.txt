@@ -1,0 +1,34 @@
+=== EXPERIMENTAL DESIGN ASSESSMENT ===
+
+Design Table (Treatment x Sex):
+             
+              female male
+  Chronic mor      5   10
+  Mor + 24h        7    9
+  Mor + 2W         4    9
+  Sal              5    6
+
+Design Table (Treatment x Region):
+             
+              NAc PFC
+  Chronic mor   8   7
+  Mor + 24h     8   8
+  Mor + 2W      8   5
+  Sal           6   5
+
+Minimum group size: 4 
+
+Power Analysis:
+   effect_size      power
+1  small (0.2) 0.05666808
+2 medium (0.5) 0.09228238
+3  large (0.8) 0.16011344
+
+Confounding Tests (p-values):
+sex_treatment : 0.8233 
+region_treatment : 0.9405 
+
+Batch Information:
+Using geo_accession as batch identifier
+Total samples (unique batches): 55 
+Note: Each sample represents its own batch
