@@ -1,0 +1,26 @@
+GSE207128 Data Summary
+======================
+
+Total cells: 93985 
+Total genes: 24474 
+Number of conditions: 3 
+Number of samples: 9 
+Number of cell types: 12 
+Number of clusters: 34 
+
+Cells by condition:
+
+ Dependent      Naive Withdrawal 
+     32610      33095      28280 
+
+Cells by sample:
+
+ Dependent_D1  Dependent_D2  Dependent_D3      Naive_N1      Naive_N2 
+         9042         10654         12914          8657         12708 
+     Naive_N3 Withdrawal_W1 Withdrawal_W2 Withdrawal_W3 
+        11730          6626         11128         10526 
+
+Cells by cell type:
+
+  ASC    DC    EC  EPIC   MAC    MG  NEUR  NEUT   OLG   OPC    PC  VSMC 
+12761   732  4890 48380  1819 10447  2869   334  2004  6647  2341   761 

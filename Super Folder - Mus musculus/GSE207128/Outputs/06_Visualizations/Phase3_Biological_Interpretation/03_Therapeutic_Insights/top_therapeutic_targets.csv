@@ -1,0 +1,5 @@
+"gene","cell_type","comparison","logFC","FDR","therapeutic_potential"
+"Ttr","DC","With_vs_Dep",3.01923155583255,1.32188960276245e-37,"High"
+"Atp6v0c","NEUR","With_vs_Dep",-1.07135229801107,4.89966690692595e-37,"Low"
+"Ttr","NEUT","With_vs_Dep",2.92543430562562,1.95438329041361e-23,"High"
+"Ttr","NEUT","With_vs_Naive",2.12998020131356,4.86549776975859e-21,"High"

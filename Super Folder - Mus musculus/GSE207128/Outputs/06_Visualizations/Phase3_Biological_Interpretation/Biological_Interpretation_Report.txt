@@ -1,0 +1,84 @@
+=== PHASE 3: BIOLOGICAL INTERPRETATION REPORT ===
+Analysis Date: 20237 
+Total DEGs Analyzed: 7955 
+Significant DEGs (FDR < 0.05): 3356 
+
+=== KEY BIOLOGICAL FINDINGS ===
+Top Upregulated Genes:
+1. Acsl3 (logFC: 0.38, FDR: 3.36e-92) - ASC With_vs_Dep
+2. Epn2 (logFC: 0.48, FDR: 2.01e-91) - OPC With_vs_Dep
+3. Srrm2 (logFC: 0.49, FDR: 8.52e-89) - OPC With_vs_Dep
+4. Ptprz1 (logFC: 0.37, FDR: 1.17e-86) - OPC With_vs_Dep
+5. Hpgd (logFC: 0.43, FDR: 5.81e-86) - MG Dep_vs_Naive
+6. Syne1 (logFC: 0.50, FDR: 1.35e-83) - ASC With_vs_Dep
+7. Qk (logFC: 0.40, FDR: 4.09e-80) - OPC With_vs_Dep
+8. Srrm2 (logFC: 0.44, FDR: 5.29e-76) - OPC With_vs_Naive
+9. Ankrd11 (logFC: 0.55, FDR: 2.74e-75) - OPC With_vs_Dep
+10. Mef2a (logFC: 0.40, FDR: 4.24e-75) - MG With_vs_Dep
+
+Top Downregulated Genes:
+1. Hspa8 (logFC: -0.51, FDR: 1.54e-218) - ASC Dep_vs_Naive
+2. Hspa8 (logFC: -0.49, FDR: 1.88e-165) - ASC With_vs_Naive
+3. Mt3 (logFC: -0.44, FDR: 2.00e-133) - ASC With_vs_Dep
+4. Hsp90b1 (logFC: -0.54, FDR: 2.61e-127) - OPC Dep_vs_Naive
+5. Calr (logFC: -0.47, FDR: 2.74e-101) - OPC Dep_vs_Naive
+6. Gm42418 (logFC: -0.32, FDR: 1.00e-90) - MG Dep_vs_Naive
+7. Mt1 (logFC: -0.38, FDR: 4.19e-90) - ASC With_vs_Dep
+8. Atp5k (logFC: -0.45, FDR: 8.00e-88) - ASC With_vs_Dep
+9. Dnaja1 (logFC: -0.46, FDR: 8.02e-88) - MG With_vs_Dep
+10. Gm42418 (logFC: -0.36, FDR: 6.31e-86) - ASC Dep_vs_Naive
+
+=== COMPLEMENT SYSTEM FINDINGS ===
+Complement genes found: 7 
+Significant complement changes: 21 
+
+Significant Complement Genes:
+- C1qb (logFC: -0.12, FDR: 4.05e-02, Pathway: Classical)
+- C1qb (logFC: -0.14, FDR: 4.55e-02, Pathway: Classical)
+- C1qa (logFC: -0.14, FDR: 4.60e-02, Pathway: Classical)
+- C1qa (logFC: -0.11, FDR: 3.44e-31, Pathway: Classical)
+- C1qc (logFC: -0.05, FDR: 1.05e-06, Pathway: Classical)
+- C1qb (logFC: -0.04, FDR: 2.58e-04, Pathway: Classical)
+- Itgam (logFC: -0.06, FDR: 7.44e-03, Pathway: Receptors)
+- Itgam (logFC: 0.21, FDR: 7.39e-25, Pathway: Receptors)
+- Cfh (logFC: 0.12, FDR: 2.49e-09, Pathway: Regulators)
+- C1qa (logFC: 0.06, FDR: 4.27e-08, Pathway: Classical)
+
+=== ADDICTION GENE OVERLAP ===
+Known addiction genes found: 25 
+Significant addiction gene changes:
+- Fos (logFC: 0.48, FDR: 7.71e-61)
+- Jun (logFC: 0.46, FDR: 5.29e-46)
+- Jun (logFC: 0.23, FDR: 4.38e-29)
+- Fos (logFC: -0.30, FDR: 5.25e-22)
+- Jun (logFC: 0.30, FDR: 4.84e-20)
+
+=== THERAPEUTIC INSIGHTS ===
+High-impact therapeutic targets (logFC > 2, FDR < 0.001): 3 
+
+=== CELL TYPE SUMMARY ===
+ASC: 593 DEGs (avg |logFC|: 0.14, max |logFC|: 0.51)
+EC: 566 DEGs (avg |logFC|: 0.16, max |logFC|: 0.61)
+MG: 507 DEGs (avg |logFC|: 0.13, max |logFC|: 0.48)
+OPC: 469 DEGs (avg |logFC|: 0.17, max |logFC|: 0.55)
+OLG: 425 DEGs (avg |logFC|: 0.18, max |logFC|: 0.71)
+NEUR: 405 DEGs (avg |logFC|: 0.36, max |logFC|: 1.07)
+DC: 137 DEGs (avg |logFC|: 0.37, max |logFC|: 3.02)
+MAC: 128 DEGs (avg |logFC|: 0.20, max |logFC|: 0.55)
+PC: 61 DEGs (avg |logFC|: 0.22, max |logFC|: 0.40)
+VSMC: 58 DEGs (avg |logFC|: 0.33, max |logFC|: 0.64)
+NEUT: 7 DEGs (avg |logFC|: 1.23, max |logFC|: 2.93)
+
+=== RECOMMENDATIONS FOR PUBLICATION ===
+1. Focus on top complement system changes for mechanism insights
+2. Highlight novel addiction gene associations
+3. Emphasize cell type-specific therapeutic targets
+4. Consider network hub genes for intervention strategies
+5. Validate top DEGs with functional studies
+
+=== OUTPUT FILES SUMMARY ===
+01_Complement_Deep_Dive: Complement system analysis and visualizations
+02_Cell_Type_Biology: Cell-specific functional profiles
+03_Therapeutic_Insights: Drug targets and addiction gene overlap
+04_Network_Analysis: Hub genes and interaction patterns
+05_Publication_Figures: Journal-ready visualizations

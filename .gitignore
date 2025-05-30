@@ -207,6 +207,7 @@ cython_debug/
 
 # Pdf files
 *.pdf
+*.xlsx
 
 # Jupyter notebooks and journals
 /Jupyter Journal/
