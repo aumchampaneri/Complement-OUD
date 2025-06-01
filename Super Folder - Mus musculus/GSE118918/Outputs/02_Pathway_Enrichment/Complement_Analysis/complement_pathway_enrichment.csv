@@ -1,0 +1,8 @@
+"pathway","total_genes","significant_genes","p_value","odds_ratio","enrichment_score","adj_p_value","overlap_genes"
+"Complement_Receptors",4,1,0.0554206807981187,23.3177942906401,17.6666666666667,0.387944765586831,"Itgam"
+"Complement_Complete",15,1,0.192580651473986,4.99902360149814,4.71111111111111,0.674032280158952,"Itgam"
+"Complement_Classical",5,0,1,0,0,1,""
+"Complement_Alternative",2,0,1,0,0,1,""
+"Complement_Lectin",4,0,1,0,0,1,""
+"Complement_Terminal",1,0,1,0,0,1,""
+"Complement_Regulators",3,0,1,0,0,1,""

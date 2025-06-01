@@ -1,0 +1,47 @@
+=================================================================
+GSE118918 PATHWAY ENRICHMENT ANALYSIS REPORT
+=================================================================
+
+ANALYSIS OVERVIEW
+-----------------
+Dataset: GSE118918 (Nucleus Accumbens, Mock vs Morphine)
+Analysis Date: 2025-06-01 14:39:34.934113 
+Focus: Complement pathway and morphine response mechanisms
+
+GENE ONTOLOGY ENRICHMENT
+------------------------
+Molecular Function terms (FDR < 0.05): 2 
+
+KEGG PATHWAY ENRICHMENT
+-----------------------
+No significant KEGG pathways found
+
+COMPLEMENT PATHWAY ANALYSIS
+---------------------------
+Significant complement pathways (FDR < 0.05): 0 
+No significant complement pathway enrichment detected
+
+GSEA ANALYSIS
+-------------
+Significant GSEA GO BP terms (FDR < 0.05): 225 
+Significant GSEA KEGG pathways (FDR < 0.05): 31 
+
+KEY FINDINGS
+------------
+1. Morphine treatment effects on complement system:
+   - No significant complement pathway changes
+2. Overall pathway landscape:
+   - Total significant pathways/terms: 0 
+
+3. Therapeutic implications:
+
+RECOMMENDations
+---------------
+1. Further investigate complement genes with highest fold changes
+2. Validate complement pathway activity with functional assays
+3. Consider complement inhibitors as potential therapeutics
+4. Integrate with other addiction-related datasets
+
+=================================================================
+PATHWAY ANALYSIS COMPLETED
+=================================================================

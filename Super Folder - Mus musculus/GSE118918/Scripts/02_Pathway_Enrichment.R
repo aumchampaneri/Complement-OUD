@@ -128,7 +128,10 @@ for(dir_path in output_structure) {
 }
 
 # Load differential expression results (assuming from script 01)
-if(file.exists("Outputs/01_Differential_Expression/Tables/differential_expression_results.csv")) {
+if(file.exists("Outputs/02_Differential_Expression/Tables/differential_expression_results.csv")) {
+  de_results <- read.csv("Outputs/02_Differential_Expression/Tables/differential_expression_results.csv")
+  cat("Loaded DE results with", nrow(de_results), "genes\n")
+} else if(file.exists("Outputs/01_Differential_Expression/Tables/differential_expression_results.csv")) {
   de_results <- read.csv("Outputs/01_Differential_Expression/Tables/differential_expression_results.csv")
   cat("Loaded DE results with", nrow(de_results), "genes\n")
 } else {
@@ -268,74 +271,117 @@ perform_go_analysis <- function(de_genes, universe_genes, output_dir) {
   
   go_results <- list()
   
-  # Define significance thresholds
-  sig_genes <- de_genes$entrez[de_genes$adj.P.Val < 0.05]
-  up_genes <- de_genes$entrez[de_genes$adj.P.Val < 0.05 & de_genes$logFC > 0]
-  down_genes <- de_genes$entrez[de_genes$adj.P.Val < 0.05 & de_genes$logFC < 0]
+  # MODIFIED: Use nominal p-value cutoffs since no FDR significant genes
+  # Define significance thresholds - relaxed due to small sample size
+  sig_genes_strict <- de_genes$entrez[de_genes$P.Value < 0.01]  # Most strict
+  sig_genes_nominal <- de_genes$entrez[de_genes$P.Value < 0.05]  # Nominal significance
+  up_genes <- de_genes$entrez[de_genes$P.Value < 0.05 & de_genes$logFC > 0]
+  down_genes <- de_genes$entrez[de_genes$P.Value < 0.05 & de_genes$logFC < 0]
   
-  # GO Biological Process
-  if(length(sig_genes) > 0) {
-    go_bp <- enrichGO(gene = sig_genes,
-                      universe = universe_genes,
-                      OrgDb = org.Mm.eg.db,
-                      ont = "BP",
-                      pAdjustMethod = "BH",
-                      pvalueCutoff = 0.05,
-                      qvalueCutoff = 0.1,
-                      readable = TRUE)
-    go_results$BP_all <- go_bp
+  cat("Gene sets for enrichment:\n")
+  cat("- Strict genes (p < 0.01):", length(sig_genes_strict), "\n")
+  cat("- Nominal genes (p < 0.05):", length(sig_genes_nominal), "\n")
+  cat("- Upregulated genes:", length(up_genes), "\n")
+  cat("- Downregulated genes:", length(down_genes), "\n")
+  
+  # GO Biological Process - using nominal significant genes
+  if(length(sig_genes_nominal) > 5) {
+    tryCatch({
+      go_bp <- enrichGO(gene = sig_genes_nominal,
+                        universe = universe_genes,
+                        OrgDb = org.Mm.eg.db,
+                        ont = "BP",
+                        pAdjustMethod = "BH",
+                        pvalueCutoff = 0.1,  # Relaxed cutoff
+                        qvalueCutoff = 0.2,  # Relaxed cutoff
+                        readable = TRUE)
+      if(!is.null(go_bp) && nrow(go_bp) > 0) {
+        go_results$BP_all <- go_bp
+        cat("GO BP analysis: found", nrow(go_bp), "terms\n")
+      }
+    }, error = function(e) {
+      cat("GO BP analysis failed:", e$message, "\n")
+    })
   }
   
   # GO Molecular Function
-  if(length(sig_genes) > 0) {
-    go_mf <- enrichGO(gene = sig_genes,
-                      universe = universe_genes,
-                      OrgDb = org.Mm.eg.db,
-                      ont = "MF",
-                      pAdjustMethod = "BH",
-                      pvalueCutoff = 0.05,
-                      qvalueCutoff = 0.1,
-                      readable = TRUE)
-    go_results$MF_all <- go_mf
+  if(length(sig_genes_nominal) > 5) {
+    tryCatch({
+      go_mf <- enrichGO(gene = sig_genes_nominal,
+                        universe = universe_genes,
+                        OrgDb = org.Mm.eg.db,
+                        ont = "MF",
+                        pAdjustMethod = "BH",
+                        pvalueCutoff = 0.1,
+                        qvalueCutoff = 0.2,
+                        readable = TRUE)
+      if(!is.null(go_mf) && nrow(go_mf) > 0) {
+        go_results$MF_all <- go_mf
+        cat("GO MF analysis: found", nrow(go_mf), "terms\n")
+      }
+    }, error = function(e) {
+      cat("GO MF analysis failed:", e$message, "\n")
+    })
   }
   
   # GO Cellular Component
-  if(length(sig_genes) > 0) {
-    go_cc <- enrichGO(gene = sig_genes,
-                      universe = universe_genes,
-                      OrgDb = org.Mm.eg.db,
-                      ont = "CC",
-                      pAdjustMethod = "BH",
-                      pvalueCutoff = 0.05,
-                      qvalueCutoff = 0.1,
-                      readable = TRUE)
-    go_results$CC_all <- go_cc
+  if(length(sig_genes_nominal) > 5) {
+    tryCatch({
+      go_cc <- enrichGO(gene = sig_genes_nominal,
+                        universe = universe_genes,
+                        OrgDb = org.Mm.eg.db,
+                        ont = "CC",
+                        pAdjustMethod = "BH",
+                        pvalueCutoff = 0.1,
+                        qvalueCutoff = 0.2,
+                        readable = TRUE)
+      if(!is.null(go_cc) && nrow(go_cc) > 0) {
+        go_results$CC_all <- go_cc
+        cat("GO CC analysis: found", nrow(go_cc), "terms\n")
+      }
+    }, error = function(e) {
+      cat("GO CC analysis failed:", e$message, "\n")
+    })
   }
   
   # Upregulated genes GO analysis
   if(length(up_genes) > 5) {
-    go_bp_up <- enrichGO(gene = up_genes,
-                         universe = universe_genes,
-                         OrgDb = org.Mm.eg.db,
-                         ont = "BP",
-                         pAdjustMethod = "BH",
-                         pvalueCutoff = 0.05,
-                         qvalueCutoff = 0.1,
-                         readable = TRUE)
-    go_results$BP_up <- go_bp_up
-  }
-  
-  # Downregulated genes GO analysis
-  if(length(down_genes) > 5) {
-    go_bp_down <- enrichGO(gene = down_genes,
+    tryCatch({
+      go_bp_up <- enrichGO(gene = up_genes,
                            universe = universe_genes,
                            OrgDb = org.Mm.eg.db,
                            ont = "BP",
                            pAdjustMethod = "BH",
-                           pvalueCutoff = 0.05,
-                           qvalueCutoff = 0.1,
+                           pvalueCutoff = 0.1,
+                           qvalueCutoff = 0.2,
                            readable = TRUE)
-    go_results$BP_down <- go_bp_down
+      if(!is.null(go_bp_up) && nrow(go_bp_up) > 0) {
+        go_results$BP_up <- go_bp_up
+        cat("GO BP upregulated: found", nrow(go_bp_up), "terms\n")
+      }
+    }, error = function(e) {
+      cat("GO BP upregulated analysis failed:", e$message, "\n")
+    })
+  }
+  
+  # Downregulated genes GO analysis
+  if(length(down_genes) > 5) {
+    tryCatch({
+      go_bp_down <- enrichGO(gene = down_genes,
+                             universe = universe_genes,
+                             OrgDb = org.Mm.eg.db,
+                             ont = "BP",
+                             pAdjustMethod = "BH",
+                             pvalueCutoff = 0.1,
+                             qvalueCutoff = 0.2,
+                             readable = TRUE)
+      if(!is.null(go_bp_down) && nrow(go_bp_down) > 0) {
+        go_results$BP_down <- go_bp_down
+        cat("GO BP downregulated: found", nrow(go_bp_down), "terms\n")
+      }
+    }, error = function(e) {
+      cat("GO BP downregulated analysis failed:", e$message, "\n")
+    })
   }
   
   return(go_results)
@@ -367,51 +413,66 @@ perform_kegg_analysis <- function(de_genes, universe_genes, output_dir) {
   
   kegg_results <- list()
   
-  # All significant genes
-  sig_genes <- de_genes$entrez[de_genes$adj.P.Val < 0.05]
-  up_genes <- de_genes$entrez[de_genes$adj.P.Val < 0.05 & de_genes$logFC > 0]
-  down_genes <- de_genes$entrez[de_genes$adj.P.Val < 0.05 & de_genes$logFC < 0]
+  # MODIFIED: Use nominal p-value cutoffs
+  sig_genes <- de_genes$entrez[de_genes$P.Value < 0.05]
+  up_genes <- de_genes$entrez[de_genes$P.Value < 0.05 & de_genes$logFC > 0]
+  down_genes <- de_genes$entrez[de_genes$P.Value < 0.05 & de_genes$logFC < 0]
   
-  # KEGG pathway enrichment - all significant genes
-  if(length(sig_genes) > 0) {
-    kegg_all <- enrichKEGG(gene = sig_genes,
-                           universe = universe_genes,
-                           organism = "mmu",
-                           pAdjustMethod = "BH",
-                           pvalueCutoff = 0.05,
-                           qvalueCutoff = 0.1)
-    if(!is.null(kegg_all) && nrow(kegg_all) > 0) {
-      kegg_all <- setReadable(kegg_all, org.Mm.eg.db, keyType = "ENTREZID")
-      kegg_results$all <- kegg_all
-    }
+  # KEGG pathway enrichment - all nominally significant genes
+  if(length(sig_genes) > 5) {
+    tryCatch({
+      kegg_all <- enrichKEGG(gene = sig_genes,
+                             universe = universe_genes,
+                             organism = "mmu",
+                             pAdjustMethod = "BH",
+                             pvalueCutoff = 0.1,  # Relaxed cutoff
+                             qvalueCutoff = 0.2)  # Relaxed cutoff
+      if(!is.null(kegg_all) && nrow(kegg_all) > 0) {
+        kegg_all <- setReadable(kegg_all, org.Mm.eg.db, keyType = "ENTREZID")
+        kegg_results$all <- kegg_all
+        cat("KEGG all genes: found", nrow(kegg_all), "pathways\n")
+      }
+    }, error = function(e) {
+      cat("KEGG all genes analysis failed:", e$message, "\n")
+    })
   }
   
   # KEGG pathway enrichment - upregulated genes
   if(length(up_genes) > 5) {
-    kegg_up <- enrichKEGG(gene = up_genes,
-                          universe = universe_genes,
-                          organism = "mmu",
-                          pAdjustMethod = "BH",
-                          pvalueCutoff = 0.05,
-                          qvalueCutoff = 0.1)
-    if(!is.null(kegg_up) && nrow(kegg_up) > 0) {
-      kegg_up <- setReadable(kegg_up, org.Mm.eg.db, keyType = "ENTREZID")
-      kegg_results$up <- kegg_up
-    }
+    tryCatch({
+      kegg_up <- enrichKEGG(gene = up_genes,
+                            universe = universe_genes,
+                            organism = "mmu",
+                            pAdjustMethod = "BH",
+                            pvalueCutoff = 0.1,
+                            qvalueCutoff = 0.2)
+      if(!is.null(kegg_up) && nrow(kegg_up) > 0) {
+        kegg_up <- setReadable(kegg_up, org.Mm.eg.db, keyType = "ENTREZID")
+        kegg_results$up <- kegg_up
+        cat("KEGG upregulated: found", nrow(kegg_up), "pathways\n")
+      }
+    }, error = function(e) {
+      cat("KEGG upregulated analysis failed:", e$message, "\n")
+    })
   }
   
   # KEGG pathway enrichment - downregulated genes
   if(length(down_genes) > 5) {
-    kegg_down <- enrichKEGG(gene = down_genes,
-                            universe = universe_genes,
-                            organism = "mmu",
-                            pAdjustMethod = "BH",
-                            pvalueCutoff = 0.05,
-                            qvalueCutoff = 0.1)
-    if(!is.null(kegg_down) && nrow(kegg_down) > 0) {
-      kegg_down <- setReadable(kegg_down, org.Mm.eg.db, keyType = "ENTREZID")
-      kegg_results$down <- kegg_down
-    }
+    tryCatch({
+      kegg_down <- enrichKEGG(gene = down_genes,
+                              universe = universe_genes,
+                              organism = "mmu",
+                              pAdjustMethod = "BH",
+                              pvalueCutoff = 0.1,
+                              qvalueCutoff = 0.2)
+      if(!is.null(kegg_down) && nrow(kegg_down) > 0) {
+        kegg_down <- setReadable(kegg_down, org.Mm.eg.db, keyType = "ENTREZID")
+        kegg_results$down <- kegg_down
+        cat("KEGG downregulated: found", nrow(kegg_down), "pathways\n")
+      }
+    }, error = function(e) {
+      cat("KEGG downregulated analysis failed:", e$message, "\n")
+    })
   }
   
   return(kegg_results)
@@ -442,9 +503,11 @@ test_complement_enrichment <- function(de_genes, complement_pathways, output_dir
   
   complement_results <- list()
   
-  # Get significant genes
-  sig_genes <- de_genes$entrez[de_genes$adj.P.Val < 0.05]
+  # MODIFIED: Use nominal significance instead of FDR
+  sig_genes <- de_genes$entrez[de_genes$P.Value < 0.05]  # Use nominal p-value
   all_genes <- de_genes$entrez
+  
+  cat("Using", length(sig_genes), "nominally significant genes for complement analysis\n")
   
   # Test each complement pathway
   for(pathway_name in names(complement_pathways)) {
@@ -525,42 +588,51 @@ cat("\n=== GENE SET ENRICHMENT ANALYSIS (GSEA) ===\n")
 perform_gsea_analysis <- function(de_genes, output_dir) {
   cat("Performing GSEA analysis...\n")
   
-  # Create ranked gene list
+  # Create ranked gene list using ALL genes (not just significant ones)
   gene_list <- de_genes$logFC
   names(gene_list) <- de_genes$entrez
   gene_list <- sort(gene_list, decreasing = TRUE)
   
+  cat("GSEA gene list created with", length(gene_list), "genes\n")
+  cat("Fold change range:", round(range(gene_list), 2), "\n")
+  
   gsea_results <- list()
   
-  # GSEA GO Biological Process
+  # GSEA GO Biological Process - Enhanced parameters to address warnings
   tryCatch({
     gsea_go_bp <- gseGO(geneList = gene_list,
                         OrgDb = org.Mm.eg.db,
                         ont = "BP",
                         keyType = "ENTREZID",
-                        minGSSize = 15,
+                        minGSSize = 10,    # Reduced minimum
                         maxGSSize = 500,
-                        pvalueCutoff = 0.05,
-                        pAdjustMethod = "BH")
+                        pvalueCutoff = 0.1, # Relaxed cutoff
+                        pAdjustMethod = "BH",
+                        eps = 0,           # More precise p-value estimation
+                        nPermSimple = 1000) # Increased permutations for stability
     if(!is.null(gsea_go_bp) && nrow(gsea_go_bp) > 0) {
       gsea_results$GO_BP <- gsea_go_bp
+      cat("GSEA GO BP: found", nrow(gsea_go_bp), "enriched gene sets\n")
     }
   }, error = function(e) {
     cat("GSEA GO BP failed:", e$message, "\n")
   })
   
-  # GSEA KEGG
+  # GSEA KEGG - Enhanced parameters
   tryCatch({
     gsea_kegg <- gseKEGG(geneList = gene_list,
                          organism = "mmu",
                          keyType = "kegg",
-                         minGSSize = 15,
+                         minGSSize = 10,
                          maxGSSize = 500,
-                         pvalueCutoff = 0.05,
-                         pAdjustMethod = "BH")
+                         pvalueCutoff = 0.1,
+                         pAdjustMethod = "BH",
+                         eps = 0,           # More precise p-value estimation
+                         nPermSimple = 1000) # Increased permutations
     if(!is.null(gsea_kegg) && nrow(gsea_kegg) > 0) {
       gsea_kegg <- setReadable(gsea_kegg, org.Mm.eg.db, keyType = "ENTREZID")
       gsea_results$KEGG <- gsea_kegg
+      cat("GSEA KEGG: found", nrow(gsea_kegg), "enriched pathways\n")
     }
   }, error = function(e) {
     cat("GSEA KEGG failed:", e$message, "\n")

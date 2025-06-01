@@ -1,0 +1,63 @@
+=================================================================
+GSE118918 DIFFERENTIAL EXPRESSION ANALYSIS REPORT
+=================================================================
+
+ANALYSIS OVERVIEW
+-----------------
+Dataset: GSE118918 (Nucleus Accumbens, Mock vs Morphine)
+Method: edgeR-limma pipeline with voom transformation
+Comparison: Morphine vs Mock treatment
+Analysis Date: 2025-06-01 14:27:35.130405 
+
+STATISTICAL RESULTS
+-------------------
+Total genes tested: 12670 
+Significant genes (FDR < 0.05): 0 
+Highly significant genes (FDR < 0.01): 0 
+Effect size filtered (|FC| > 1.5, FDR < 0.05): 0 
+
+DIRECTION OF CHANGES
+--------------------
+Upregulated genes (FC > 1.5, FDR < 0.05): 0 
+Downregulated genes (FC < -1.5, FDR < 0.05): 0 
+
+TOP 20 MOST SIGNIFICANT GENES
+------------------------------
+ 1. Cdkn1a (FC=3.32, FDR=2.40e-01)
+ 2. Tma16 (FC=2.75, FDR=1.00e+00)
+ 3. Itgad (FC=2.67, FDR=1.00e+00)
+ 4. Synm (FC=1.71, FDR=1.00e+00)
+ 5. mt-Rnr2 (FC=1.95, FDR=1.00e+00)
+ 6. Fkbp5 (FC=1.77, FDR=1.00e+00)
+ 7. Pla2g3 (FC=2.56, FDR=1.00e+00)
+ 8. P2ry1 (FC=0.59, FDR=1.00e+00)
+ 9. Tiparp (FC=1.64, FDR=1.00e+00)
+10. Slc25a13 (FC=1.75, FDR=1.00e+00)
+11. Phactr3 (FC=1.70, FDR=1.00e+00)
+12. Hist1h1e (FC=1.62, FDR=1.00e+00)
+13. Sgk3 (FC=1.71, FDR=1.00e+00)
+14. Lair1 (FC=0.55, FDR=1.00e+00)
+15. Tmf1 (FC=1.50, FDR=1.00e+00)
+16. Gpr84 (FC=0.26, FDR=1.00e+00)
+17. P2ry12 (FC=0.51, FDR=1.00e+00)
+18. Uba52 (FC=1.53, FDR=1.00e+00)
+19. Kctd17 (FC=1.56, FDR=1.00e+00)
+20. Cd109 (FC=2.93, FDR=1.00e+00)
+
+COMPLEMENT PATHWAY ANALYSIS
+---------------------------
+Complement genes in dataset: 16 
+Significant complement genes (FDR < 0.05): 0 
+
+OUTPUT FILES GENERATED
+----------------------
+- differential_expression_results.csv: Complete DE results
+- complement_genes_results.csv: Complement pathway specific results
+- Figure_3_Volcano_Plot.png: Volcano plot visualization
+- Figure_4_MA_Plot.png: Mean-difference plot
+- Figure_5_DE_Heatmap.png: Top DE genes heatmap
+- Figure_6_Complement_Pathway_Heatmap.png: Complement genes heatmap
+
+=================================================================
+ANALYSIS COMPLETED SUCCESSFULLY
+=================================================================
