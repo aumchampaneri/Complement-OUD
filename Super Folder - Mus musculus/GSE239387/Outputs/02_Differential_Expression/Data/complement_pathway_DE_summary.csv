@@ -1,0 +1,8 @@
+"pathway_class","total_genes","significant_genes","mean_logFC","upregulated","downregulated"
+"Associated",97,13,-0.081,3,10
+"Classical",6,3,-0.307,1,2
+"Alternative",5,1,-0.108,0,1
+"Regulator",4,1,-0.453,0,1
+"Lectin",9,0,-0.093,0,0
+"Membrane Attack",8,0,-0.004,0,0
+"Receptor",4,0,0.038,0,0

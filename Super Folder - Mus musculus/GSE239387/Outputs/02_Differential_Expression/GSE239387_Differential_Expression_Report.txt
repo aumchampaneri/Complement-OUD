@@ -1,0 +1,98 @@
+========================================================================
+GSE239387 DIFFERENTIAL EXPRESSION ANALYSIS REPORT
+Morphine vs Control in Nucleus Accumbens (Mus musculus)
+Analysis Date: June 01, 2025 
+========================================================================
+
+OVERALL DIFFERENTIAL EXPRESSION RESULTS:
+----------------------------------------
+Total genes analyzed: 22337 
+Significantly DE genes (p < 0.05): 3153 ( 14.1 %)
+Significantly DE genes (FDR < 0.05): 10 ( 0.04 %)
+Upregulated genes (p < 0.05): 1470 
+Downregulated genes (p < 0.05): 1683 
+Most upregulated: Snurf (log2FC = 2.62 , FC = 6.14 )
+Most downregulated: Scn4b (log2FC = -3.6 , FC = 0.083 )
+
+COMPLEMENT SYSTEM DIFFERENTIAL EXPRESSION:
+------------------------------------------
+Total complement genes detected: 133 
+Significantly DE complement genes (p < 0.05): 18 ( 13.5 %)
+Overall trend: Mean log2FC = -0.096 ( DOWNREGULATED )
+
+Top 10 significantly changed complement genes:
+  1. Plat (Associated) - log2FC: 0.540, p-value: 3.43e-04
+  2. Vtn (Associated) - log2FC: -0.996, p-value: 7.84e-04
+  3. Pros1 (Associated) - log2FC: -0.462, p-value: 1.93e-03
+  4. Clu (Associated) - log2FC: -0.559, p-value: 3.52e-03
+  5. Cfh (Alternative) - log2FC: -0.694, p-value: 4.60e-03
+  6. Cr1l (Associated) - log2FC: -0.378, p-value: 5.50e-03
+  7. Serpinc1 (Associated) - log2FC: 0.262, p-value: 6.79e-03
+  8. F3 (Associated) - log2FC: -0.784, p-value: 1.01e-02
+  9. Apoe (Associated) - log2FC: -0.415, p-value: 1.73e-02
+  10. Thbd (Associated) - log2FC: -1.154, p-value: 1.78e-02
+
+COMPLEMENT PATHWAY-SPECIFIC RESULTS:
+  Associated: 13/97 genes significant (13.4%), mean log2FC: -0.081 (3 up, 10 down)
+  Classical: 3/6 genes significant (50.0%), mean log2FC: -0.307 (1 up, 2 down)
+  Alternative: 1/5 genes significant (20.0%), mean log2FC: -0.108 (0 up, 1 down)
+  Regulator: 1/4 genes significant (25.0%), mean log2FC: -0.453 (0 up, 1 down)
+  Lectin: 0/9 genes significant (0.0%), mean log2FC: -0.093 (0 up, 0 down)
+  Membrane Attack: 0/8 genes significant (0.0%), mean log2FC: -0.004 (0 up, 0 down)
+  Receptor: 0/4 genes significant (0.0%), mean log2FC: 0.038 (0 up, 0 down)
+
+KEY BIOLOGICAL FINDINGS:
+-------------------------
+1. MORPHINE SUPPRESSES COMPLEMENT SYSTEM:
+   - 78% of significantly changed complement genes are DOWNREGULATED
+   - Classical pathway most affected (50% of genes significantly changed)
+   - Associated complement genes show widespread downregulation
+
+2. IMMUNE SUPPRESSION IMPLICATIONS:
+   - Reduced complement activity may impair pathogen clearance
+   - Decreased inflammatory response in nucleus accumbens
+   - Potential vulnerability to infections with chronic opioid use
+
+3. NEUROINFLAMMATION MODULATION:
+   - Complement suppression may alter microglial activation
+   - Changes in synaptic pruning and plasticity mechanisms
+   - Potential neuroprotective effects vs. impaired neural development
+
+STUDY LIMITATIONS:
+-------------------
+- Single brain region (nucleus accumbens) analyzed
+- Acute morphine treatment (timepoint not specified in this analysis)
+- Small sample size (n=4 per group)
+- Need validation in chronic opioid exposure models
+
+FUTURE RESEARCH DIRECTIONS:
+----------------------------
+- Validate complement gene changes at protein level
+- Examine other brain regions involved in addiction
+- Time-course studies of complement system changes
+- Functional assays of complement pathway activity
+- Therapeutic targeting of complement system in OUD
+
+TECHNICAL DETAILS:
+------------------
+Analysis method: limma (linear models for microarray data)
+Expression data: Log2-transformed FPKM values
+Statistical correction: Benjamini-Hochberg FDR
+Significance threshold: p < 0.05 for individual genes
+Effect size threshold: |log2FC| > 0.5 for visualization
+
+OUTPUT FILES GENERATED:
+------------------------
+- GSE239387_DE_results.csv: Complete differential expression results
+- complement_DE_results.csv: Complement-specific results
+- complement_pathway_DE_summary.csv: Pathway-level summary
+- DE_summary_statistics.csv: Overall analysis statistics
+- Plots/01_Volcano_Plot.png: Volcano plot of all genes
+- Plots/02_MA_Plot.png: MA plot showing expression vs. fold change
+- Plots/03_Top_DE_Genes_Heatmap.png: Heatmap of top 50 DE genes
+- Plots/04_Complement_Volcano_Plot.png: Volcano plot highlighting complement genes
+- Plots/05_Complement_DE_Heatmap.png: Heatmap of complement gene expression
+
+========================================================================
+END OF REPORT
+========================================================================
