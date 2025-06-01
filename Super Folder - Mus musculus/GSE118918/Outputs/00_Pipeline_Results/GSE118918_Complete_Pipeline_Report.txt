@@ -1,0 +1,37 @@
+========================================================================
+GSE118918 COMPLETE PIPELINE EXECUTION REPORT
+========================================================================
+
+PIPELINE OVERVIEW
+-----------------
+Dataset: GSE118918 (Nucleus Accumbens, Mock vs Morphine)
+Pipeline execution date: 2025-06-01 12:42:55.586003 
+Total execution time: 0.51 minutes
+Overall pipeline status: FAILED 
+
+SCRIPT EXECUTION DETAILS
+------------------------
+Script: PROCESSING_QC 
+  Status: FAILED 
+  Execution time: 0.51 minutes
+  Error: argument is of length zero 
+
+OUTPUT DIRECTORIES
+------------------
+Processing & QC: Outputs/01_Processing_QC/
+Differential Expression: Outputs/01_Differential_Expression/
+Pathway Enrichment: Outputs/02_Pathway_Enrichment/
+Pipeline Logs: Outputs/00_Pipeline_Results/Pipeline_Logs/
+
+TROUBLESHOOTING
+---------------
+Pipeline execution failed. Please:
+1. Check error logs in Pipeline_Logs directory
+2. Verify all required packages are installed
+3. Ensure sufficient system memory and disk space
+4. Validate input data integrity
+5. Re-run individual scripts for detailed error diagnosis
+
+========================================================================
+PIPELINE REPORT COMPLETED
+========================================================================
