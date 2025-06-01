@@ -1,5 +1,6 @@
 # ========================================================================
-# GSE118918 Differential Expression Analysis: Mock vs Morphine
+# GSE118918 Differential Expression Analysis
+# Mock vs Morphine in Nucleus Accumbens bulk RNA-seq
 # ========================================================================
 # 
 # STUDY OVERVIEW:

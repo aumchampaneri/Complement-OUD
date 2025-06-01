@@ -1,0 +1,134 @@
+"id","Symbol","Description","mean_ctrl_fpkm","mean_mor_fpkm","detected_samples","fold_change","log2_fc","pathway_class","p_value"
+"ENSMUSG00000002985","Apoe","apolipoprotein E [Source:MGI Symbol;Acc:MGI:88057]",4196.0725,3131.18,8,0.746216909689499,-0.422333042091591,"Associated",0.03600775901028
+"ENSMUSG00000022037","Clu","clusterin [Source:MGI Symbol;Acc:MGI:88423]",1037.155,700.4775,8,0.675383934528653,-0.566220232763625,"Associated",0.0168238838404292
+"ENSMUSG00000036905","C1qb","complement component 1, q subcomponent, beta polypeptide [Source:MGI Symbol;Acc:MGI:88224]",124.2225,109.3425,8,0.880215901178119,-0.184070660505956,"Classical",0.234065159333763
+"ENSMUSG00000036896","C1qc","complement component 1, q subcomponent, C chain [Source:MGI Symbol;Acc:MGI:88225]",89.65,75.1975,8,0.83879153606764,-0.253615791076664,"Classical",0.213748269193486
+"ENSMUSG00000036887","C1qa","complement component 1, q subcomponent, alpha polypeptide [Source:MGI Symbol;Acc:MGI:88223]",86.2,77.155,8,0.895070822844283,-0.159926254159885,"Classical",0.375059270121086
+"ENSMUSG00000017344","Vtn","vitronectin [Source:MGI Symbol;Acc:MGI:98940]",66.4175,32.465,8,0.488809593712595,-1.03265549412974,"Associated",0.0110544940301133
+"ENSMUSG00000028128","F3","coagulation factor III [Source:MGI Symbol;Acc:MGI:88381]",51.915,30.1425,8,0.580620617921257,-0.784332291705747,"Associated",0.0133785559140108
+"ENSMUSG00000038576","Susd4","sushi domain containing 4 [Source:MGI Symbol;Acc:MGI:2138351]",49.755,49.3325,8,0.991508561781494,-0.0123028645549017,"Associated",0.869186901599032
+"ENSMUSG00000018446","C1qbp","complement component 1, q subcomponent binding protein [Source:MGI Symbol;Acc:MGI:1194505]",49.29,55.57,8,1.12740662595606,0.173007951575134,"Classical",0.076672576313321
+"ENSMUSG00000016481","Cr1l","complement component (3b/4b) receptor 1-like [Source:MGI Symbol;Acc:MGI:88513]",18.81,14.3475,8,0.762771782467705,-0.390676620464389,"Associated",0.0206418630336551
+"ENSMUSG00000003549","Ercc1","excision repair cross-complementing rodent repair deficiency, complementation group 1 [Source:MGI Symbol;Acc:MGI:95412]",18.27,22.055,8,1.20715888566581,0.271615575410517,"Associated",0.205279934178924
+"ENSMUSG00000051768","Xrcc1","X-ray repair complementing defective repair in Chinese hamster cells 1 [Source:MGI Symbol;Acc:MGI:99137]",15.8675,16.41,8,1.03418722626587,0.0484973906371992,"Associated",0.622121374958875
+"ENSMUSG00000031538","Plat","plasminogen activator, tissue [Source:MGI Symbol;Acc:MGI:97610]",15.605,23.075,8,1.47866205305652,0.564292363396906,"Associated",0.000459136259343814
+"ENSMUSG00000007570","FANCE","Fanconi anemia, complementation group E [Source:MGI Symbol;Acc:MGI:1920025]",13.015,11.79,8,0.905885064535956,-0.142600077002913,"Associated",0.537845561525654
+"ENSMUSG00000023224","Serping1","serine (or cysteine) peptidase inhibitor, clade G, member 1 [Source:MGI Symbol;Acc:MGI:894696]",11.045,2.3075,8,0.208989679521999,-2.2584963950217,"Regulator",0.122710482811015
+"ENSMUSG00000026365","Cfh","complement component factor h [Source:MGI Symbol;Acc:MGI:88385]",10.845,6.2075,8,0.572423013092384,-0.804846421063762,"Alternative",0.0386815191286808
+"ENSMUSG00000028329","Xpa","xeroderma pigmentosum, complementation group A [Source:MGI Symbol;Acc:MGI:99135]",10.5825,9.8525,8,0.931024708272311,-0.103108639209717,"Associated",0.276317611432645
+"ENSMUSG00000022471","Xrcc6","X-ray repair complementing defective repair in Chinese hamster cells 6 [Source:MGI Symbol;Acc:MGI:95606]",10.5125,9.28,8,0.882769772197651,-0.179890865187343,"Associated",0.264327161714803
+"ENSMUSG00000021615","Xrcc4","X-ray repair complementing defective repair in Chinese hamster cells 4 [Source:MGI Symbol;Acc:MGI:1333799]",10.3975,10.735,8,1.03245660431793,0.0460811443071649,"Associated",0.761220108904464
+"ENSMUSG00000030400","Ercc2","excision repair cross-complementing rodent repair deficiency, complementation group 2 [Source:MGI Symbol;Acc:MGI:95413]",8.2375,8.0225,8,0.973903016325787,-0.0381499825718251,"Associated",0.831862116386672
+"ENSMUSG00000026187","Xrcc5","X-ray repair complementing defective repair in Chinese hamster cells 5 [Source:MGI Symbol;Acc:MGI:104517]",7.8875,8.355,8,1.05926348481967,0.0830614948652576,"Associated",0.546170444220415
+"ENSMUSG00000022545","Ercc4","excision repair cross-complementing rodent repair deficiency, complementation group 4 [Source:MGI Symbol;Acc:MGI:1354163]",6.665,6.555,8,0.983498349834983,-0.0240054630107895,"Associated",0.931359052482945
+"ENSMUSG00000073418","C4b","complement component 4B (Chido blood group) [Source:MGI Symbol;Acc:MGI:88228]",6.6025,4.0075,8,0.607026576815325,-0.720168413002269,"Classical",0.0211732533731184
+"ENSMUSG00000030094","Xpc","xeroderma pigmentosum, complementation group C [Source:MGI Symbol;Acc:MGI:103557]",6.6025,6.085,8,0.921632467630802,-0.117736553383968,"Associated",0.642745497568653
+"ENSMUSG00000024382","Ercc3","excision repair cross-complementing rodent repair deficiency, complementation group 3 [Source:MGI Symbol;Acc:MGI:95414]",6.5525,7.0375,8,1.07400625619898,0.103002397197582,"Associated",0.503912124541886
+"ENSMUSG00000030786","Itgam","integrin alpha M [Source:MGI Symbol;Acc:MGI:96607]",6.3325,6.6725,8,1.05368279782111,0.075440621352995,"Receptor",0.579332209372476
+"ENSMUSG00000074743","Thbd","thrombomodulin [Source:MGI Symbol;Acc:MGI:98736]",6.18,2.0525,8,0.332227794855201,-1.58975531772701,"Associated",0.0951117980239299
+"ENSMUSG00000022912","Pros1","protein S (alpha) [Source:MGI Symbol;Acc:MGI:1095733]",6.065,4.1275,8,0.680596768875701,-0.555127792744107,"Associated",0.00530421101837313
+"ENSMUSG00000021461","Fancc","Fanconi anemia, complementation group C [Source:MGI Symbol;Acc:MGI:95480]",5.6775,4.5875,8,0.808047899973585,-0.307487278387913,"Associated",0.178894532982982
+"ENSMUSG00000026048","Ercc5","excision repair cross-complementing rodent repair deficiency, complementation group 5 [Source:MGI Symbol;Acc:MGI:103582]",5.445,5.59,8,1.02662504590525,0.0379093625854659,"Associated",0.863447965683386
+"ENSMUSG00000021694","Ercc8","excision repaiross-complementing rodent repair deficiency, complementation group 8 [Source:MGI Symbol;Acc:MGI:1919241]",5.205,4.7925,8,0.920764502497119,-0.119095879421701,"Associated",0.64580480099603
+"ENSMUSG00000028453","Fancg","Fanconi anemia, complementation group G [Source:MGI Symbol;Acc:MGI:1926471]",5.1525,5.095,8,0.988842534200058,-0.0161872940401834,"Associated",0.926589486781036
+"ENSMUSG00000021287","Xrcc3","X-ray repair complementing defective repair in Chinese hamster cells 3 [Source:MGI Symbol;Acc:MGI:1921585]",5.12,2.4525,8,0.479105643429018,-1.06158428768067,"Associated",0.10481546339252
+"ENSMUSG00000022887","Masp1","mannan-binding lectin serine peptidase 1 [Source:MGI Symbol;Acc:MGI:88492]",4.265,4.615,8,1.08204406938584,0.113759258304911,"Lectin",0.588432822641642
+"ENSMUSG00000004018","Fancl","Fanconi anemia, complementation group L [Source:MGI Symbol;Acc:MGI:1914280]",3.6375,5.02,8,1.37996427099079,0.464630914299322,"Associated",0.0488282821112689
+"ENSMUSG00000022766","Serpind1","serine (or cysteine) peptidase inhibitor, clade D, member 1 [Source:MGI Symbol;Acc:MGI:96051]",3.38,2.64,8,0.781129843241645,-0.356365714726284,"Associated",0.471366033678182
+"ENSMUSG00000036103","Colec12","collectin sub-family member 12 [Source:MGI Symbol;Acc:MGI:2152907]",3.1675,1.7225,8,0.543948240492346,-0.878458716826581,"Lectin",0.0645133134165909
+"ENSMUSG00000032679","Cd59a","CD59a antigen [Source:MGI Symbol;Acc:MGI:109177]",3.1525,2.6075,8,0.82717615348026,-0.273733499843399,"Associated",0.154057127064606
+"ENSMUSG00000021470","Ercc6l2","excision repair cross-complementing rodent repair deficiency, complementation group 6 like 2 [Source:MGI Symbol;Acc:MGI:1923501]",3.085,2.8775,8,0.932760855476345,-0.100420849654198,"Associated",0.665314676665373
+"ENSMUSG00000000290","Itgb2","integrin beta 2 [Source:MGI Symbol;Acc:MGI:96611]",2.92,3.225,8,1.10441629578911,0.143284080326464,"Receptor",0.565169719087298
+"ENSMUSG00000026399","Cd55","CD55 molecule, decay accelerating factor for complement [Source:MGI Symbol;Acc:MGI:104850]",2.755,2.315,8,0.840348330914369,-0.250940634715055,"Regulator",0.420617779190115
+"ENSMUSG00000027082","Tfpi","tissue factor pathway inhibitor [Source:MGI Symbol;Acc:MGI:1095418]",2.695,1.2425,8,0.461238872403561,-1.11641398896495,"Associated",0.138739441965014
+"ENSMUSG00000068686","Cd59b","CD59b antigen [Source:MGI Symbol;Acc:MGI:1888996]",2.23,2.1975,8,0.985432541461228,-0.0211709810314935,"Associated",0.952417695948634
+"ENSMUSG00000055884","Fancm","Fanconi anemia, complementation group M [Source:MGI Symbol;Acc:MGI:2442306]",2.0275,2.485,8,1.22553611042642,0.293412993846212,"Associated",0.461139756260455
+"ENSMUSG00000028933","Xrcc2","X-ray repair complementing defective repair in Chinese hamster cells 2 [Source:MGI Symbol;Acc:MGI:1927345]",2.0175,1.895,8,0.939311369829081,-0.090324622582251,"Associated",0.58915302651708
+"ENSMUSG00000048376","F2r","coagulation factor II (thrombin) receptor [Source:MGI Symbol;Acc:MGI:101802]",1.945,2.2225,8,1.14260020554985,0.192320694570397,"Associated",0.209355923856872
+"ENSMUSG00000054051","Ercc6","excision repair cross-complementing rodent repair deficiency, complementation group 6 [Source:MGI Symbol;Acc:MGI:1100494]",1.8925,2.0675,8,1.09242144177449,0.127529536350717,"Associated",0.544438605103849
+"ENSMUSG00000034023","Fancd2","Fanconi anemia, complementation group D2 [Source:MGI Symbol;Acc:MGI:2448480]",1.7375,2.2275,8,1.28185217141214,0.358229893885027,"Associated",0.502977466090041
+"ENSMUSG00000031196","F8","coagulation factor VIII [Source:MGI Symbol;Acc:MGI:88383]",1.735,1.7975,8,1.03600230414747,0.0510272116909006,"Associated",0.835522560646516
+"ENSMUSG00000001930","Vwf","Von Willebrand factor [Source:MGI Symbol;Acc:MGI:98941]",1.73,0.4325,8,0.250433275563258,-1.9975018261448,"Associated",0.154730264804126
+"ENSMUSG00000001128","Cfp","complement factor properdin [Source:MGI Symbol;Acc:MGI:97545]",1.6725,1.9625,8,1.17328951299671,0.230559046979867,"Alternative",0.30588773654933
+"ENSMUSG00000016493","Cd46","CD46 antigen, complement regulatory protein [Source:MGI Symbol;Acc:MGI:1203290]",1.475,1.4225,8,0.964430894308943,-0.0522502283181308,"Regulator",0.835960375146922
+"ENSMUSG00000039109","F13a1","coagulation factor XIII, A1 subunit [Source:MGI Symbol;Acc:MGI:1921395]",1.45,0.5575,8,0.384906960716747,-1.37741833358343,"Associated",0.0945457914422559
+"ENSMUSG00000015083","C8g","complement component 8, gamma polypeptide [Source:MGI Symbol;Acc:MGI:88237]",1.3975,1.38,8,0.987486592777976,-0.0181669342181409,"Associated",0.945715707913189
+"ENSMUSG00000024371","C2","complement component 2 (within H-2S) [Source:MGI Symbol;Acc:MGI:88226]",1.3775,0.2525,8,0.183895538628945,-2.44304161500685,"Classical",0.116248742440989
+"ENSMUSG00000040552","C3ar1","complement component 3a receptor 1 [Source:MGI Symbol;Acc:MGI:1097680]",1.3375,0.8625,8,0.645125140082182,-0.632349056111853,"Membrane Attack",0.166472514155923
+"ENSMUSG00000049130","C5ar1","complement component 5a receptor 1 [Source:MGI Symbol;Acc:MGI:88232]",0.9175,1.5025,8,1.63690800217746,0.710973241462653,"Membrane Attack",0.197197842615946
+"ENSMUSG00000047757","Fancb","Fanconi anemia, complementation group B [Source:MGI Symbol;Acc:MGI:2448558]",0.8725,1.11,8,1.27189467658844,0.346979208472332,"Associated",0.425021715571363
+"ENSMUSG00000028979","Masp2","mannan-binding lectin serine peptidase 2 [Source:MGI Symbol;Acc:MGI:1330832]",0.755,0.31,8,0.411375661375661,-1.28147165409047,"Lectin",0.113018460709057
+"ENSMUSG00000021492","F12","coagulation factor XII (Hageman factor) [Source:MGI Symbol;Acc:MGI:1891012]",0.7325,0.445,8,0.608043626448534,-0.717753255753085,"Associated",0.364259377212172
+"ENSMUSG00000030111","A2m","alpha-2-macroglobulin [Source:MGI Symbol;Acc:MGI:2449119]",0.725,0.62,8,0.855371900826446,-0.225376279775269,"Associated",0.731544123733733
+"ENSMUSG00000092118","Fancf","Fanconi anemia, complementation group F [Source:MGI Symbol;Acc:MGI:3689889]",0.5975,0.35,8,0.586466165413534,-0.769880216638941,"Associated",0.029993142226494
+"ENSMUSG00000055172","C1ra","complement component 1, r subcomponent A [Source:MGI Symbol;Acc:MGI:1355313]",0.5575,0.2825,7,0.507609668755595,-0.978208545541086,"Associated",0.109091492675731
+"ENSMUSG00000046223","Plaur","plasminogen activator, urokinase receptor [Source:MGI Symbol;Acc:MGI:97612]",0.525,0.3675,8,0.700570342205323,-0.513398180197233,"Associated",0.148014800356652
+"ENSMUSG00000036907","C1ql2","complement component 1, q subcomponent-like 2 [Source:MGI Symbol;Acc:MGI:3032521]",0.52,0.4825,8,0.928023032629558,-0.107767482801667,"Associated",0.64451564073909
+"ENSMUSG00000045532","C1ql1","complement component 1, q subcomponent-like 1 [Source:MGI Symbol;Acc:MGI:1344400]",0.45,0.635,8,1.41019955654102,0.495899332028974,"Associated",0.324932513714929
+"ENSMUSG00000079105","C7","complement component 7 [Source:MGI Symbol;Acc:MGI:88235]",0.3575,0.265,7,0.741980474198047,-0.430546873200715,"Membrane Attack",0.325759841554894
+"ENSMUSG00000038521","C1sa","complement component 1, s subcomponent 1 [Source:MGI Symbol;Acc:MGI:1355312]",0.345,0.1525,5,0.44364161849711,-1.17253338226655,"Associated",0.229989235161249
+"ENSMUSG00000027611","Procr","protein C receptor, endothelial [Source:MGI Symbol;Acc:MGI:104596]",0.285,0.21,5,0.737762237762238,-0.438772148071204,"Associated",0.664832764851756
+"ENSMUSG00000038527","C1rl","complement component 1, r subcomponent-like [Source:MGI Symbol;Acc:MGI:2660692]",0.26,0.1125,6,0.434865900383142,-1.20135750927897,"Associated",0.124219212470769
+"ENSMUSG00000000049","Apoh","apolipoprotein H [Source:MGI Symbol;Acc:MGI:88058]",0.255,0.4675,5,1.830078125,0.871905237659187,"Associated",0.394069082322167
+"ENSMUSG00000074361","C5ar2","complement component 5a receptor 2 [Source:MGI Symbol;Acc:MGI:2442013]",0.2275,0.3775,6,1.65645514223195,0.728099134927662,"Membrane Attack",0.267256145499006
+"ENSMUSG00000039187","Fanci","Fanconi anemia, complementation group I [Source:MGI Symbol;Acc:MGI:2384790]",0.225,0.3,7,1.33185840707965,0.413440714344514,"Associated",0.650171675313394
+"ENSMUSG00000090231","Cfb","complement factor B [Source:MGI Symbol;Acc:MGI:105975]",0.215,0.15,6,0.699074074074074,-0.51648276283839,"Alternative",0.529193397238746
+"ENSMUSG00000026938","Fcn1","ficolin A [Source:MGI Symbol;Acc:MGI:1340905]",0.2025,0.165,5,0.815724815724816,-0.293845552919322,"Lectin",0.758435714833197
+"ENSMUSG00000062345","Serpinb2","serine (or cysteine) peptidase inhibitor, clade B, member 2 [Source:MGI Symbol;Acc:MGI:97609]",0.1975,0.05,3,0.256926952141058,-1.96056985517146,"Associated",0.36488266212413
+"ENSMUSG00000032815","Fanca","Fanconi anemia, complementation group A [Source:MGI Symbol;Acc:MGI:1341823]",0.1925,0.335,6,1.73643410852713,0.79612766663435,"Associated",0.248204771740319
+"ENSMUSG00000021675","F2rl2","coagulation factor II (thrombin) receptor-like 2 [Source:MGI Symbol;Acc:MGI:1298208]",0.18,0.15,4,0.834254143646409,-0.261441147758126,"Associated",0.754644883284838
+"ENSMUSG00000036655","Colec11","collectin sub-family member 11 [Source:MGI Symbol;Acc:MGI:1918943]",0.1775,0.295,7,1.65826330532213,0.72967310159985,"Lectin",0.173863222654908
+"ENSMUSG00000024164","C3","complement component 3 [Source:MGI Symbol;Acc:MGI:88227]",0.15,0.0725,4,0.486754966887417,-1.03873239448871,"Membrane Attack",0.289881113742951
+"ENSMUSG00000050147","F2rl3","coagulation factor II (thrombin) receptor-like 3 [Source:MGI Symbol;Acc:MGI:1298207]",0.1425,0.2275,6,1.59233449477352,0.671143428382382,"Associated",0.494472156554164
+"ENSMUSG00000021070","Bdkrb2","bradykinin receptor, beta 2 [Source:MGI Symbol;Acc:MGI:102845]",0.13,0.04,2,0.312977099236641,-1.67587099691937,"Associated",0.42954507233454
+"ENSMUSG00000026616","Cr2","complement receptor 2 [Source:MGI Symbol;Acc:MGI:88489]",0.12,0.115,4,0.958677685950413,-0.0608822421470225,"Receptor",0.935341638037244
+"ENSMUSG00000038224","Serpinf2","serine (or cysteine) peptidase inhibitor, clade F, member 2 [Source:MGI Symbol;Acc:MGI:107173]",0.11,0.0875,2,0.797297297297297,-0.326810316267109,"Associated",0.864662493380261
+"ENSMUSG00000031138","F9","coagulation factor IX [Source:MGI Symbol;Acc:MGI:88384]",0.105,0.03,1,0.292452830188679,-1.77372414417632,"Associated",0.389142444033804
+"ENSMUSG00000051220","Ercc6l","excision repair cross-complementing rodent repair deficiency complementation group 6 like [Source:MGI Symbol;Acc:MGI:2654144]",0.1025,0.0825,3,0.806763285024155,-0.309782665025273,"Associated",0.486990585598571
+"ENSMUSG00000026715","Serpinc1","serine (or cysteine) peptidase inhibitor, clade C (antithrombin), member 1 [Source:MGI Symbol;Acc:MGI:88095]",0.0925,0.3075,6,3.29946524064171,1.72223221926178,"Associated",0.00995880400025219
+"ENSMUSG00000041347","Bdkrb1","bradykinin receptor, beta 1 [Source:MGI Symbol;Acc:MGI:88144]",0.085,0.0375,3,0.447674418604651,-1.1594782140072,"Associated",0.436077672095006
+"ENSMUSG00000079343","C1sb","complement component 1, s subcomponent 2 [Source:MGI Symbol;Acc:MGI:3644269]",0.0625,0.0375,1,0.606299212598425,-0.721898146077264,"Associated",0.577453427690058
+"ENSMUSG00000030789","Itgax","integrin alpha X [Source:MGI Symbol;Acc:MGI:96609]",0.06,0.0325,2,0.549180327868853,-0.864648147105114,"Receptor",0.519127655858355
+"ENSMUSG00000026579","F5","coagulation factor V [Source:MGI Symbol;Acc:MGI:88382]",0.0575,0.035,1,0.615384615384615,-0.700439718141092,"Associated",0.545471250322924
+"ENSMUSG00000028001","Fga","fibrinogen alpha chain [Source:MGI Symbol;Acc:MGI:1316726]",0.0575,0.0175,1,0.316239316239316,-1.66091135395445,"Associated",0.355310011544868
+"ENSMUSG00000037411","Serpine1","serine (or cysteine) peptidase inhibitor, clade E, member 1 [Source:MGI Symbol;Acc:MGI:97608]",0.055,0.0225,1,0.419642857142857,-1.25276607037997,"Associated",0.261234362153451
+"ENSMUSG00000021822","Plau","plasminogen activator, urokinase [Source:MGI Symbol;Acc:MGI:97611]",0.0525,0.135,3,2.54205607476635,1.34599585484919,"Associated",0.177522916020893
+"ENSMUSG00000029656","C8b","complement component 8, beta polypeptide [Source:MGI Symbol;Acc:MGI:88236]",0.0475,0.0475,0,1,0,"Associated",1
+"ENSMUSG00000026835","Fcn2","ficolin B [Source:MGI Symbol;Acc:MGI:1341158]",0.0475,0,1,0.0206185567010309,-5.59991284218713,"Lectin",0.189527732024872
+"ENSMUSG00000042554","Zp3r","zona pellucida 3 receptor [Source:MGI Symbol;Acc:MGI:104965]",0.0475,0.025,1,0.536082474226804,-0.899473124046036,"Associated",0.4468805804865
+"ENSMUSG00000027249","F2","coagulation factor II [Source:MGI Symbol;Acc:MGI:88380]",0.045,0.01,0,0.239130434782609,-2.06413033741972,"Associated",0.283890250843786
+"ENSMUSG00000024386","Proc","protein C [Source:MGI Symbol;Acc:MGI:97771]",0.0425,0,1,0.0229885057471264,-5.44294349584873,"Associated",0.39100221895577
+"ENSMUSG00000000157","Itgb2l","integrin beta 2-like [Source:MGI Symbol;Acc:MGI:1277979]",0.0425,0,1,0.0229885057471264,-5.44294349584873,"Associated",0.39100221895577
+"ENSMUSG00000109764","Klkb1","kallikrein B, plasma 1 [Source:MGI Symbol;Acc:MGI:102849]",0.035,0.0275,0,0.791666666666667,-0.337034987277571,"Associated",0.763673503589207
+"ENSMUSG00000058952","Cfi","complement component factor i [Source:MGI Symbol;Acc:MGI:105937]",0.0275,0.0725,2,2.57894736842105,1.36678233067162,"Alternative",0.220593462138573
+"ENSMUSG00000052595","A1cf","APOBEC1 complementation factor [Source:MGI Symbol;Acc:MGI:1917115]",0.025,0,0,0.0384615384615385,-4.70043971814109,"Associated",0.39100221895577
+"ENSMUSG00000026405","C4bpa","complement component 4 binding protein [Source:MGI Symbol;Acc:MGI:88229]",0.025,0,0,0.0384615384615385,-4.70043971814109,"Regulator",0.39100221895577
+"ENSMUSG00000026874","C5","hemolytic complement [Source:MGI Symbol;Acc:MGI:96031]",0.025,0.005,0,0.230769230769231,-2.11547721741994,"Membrane Attack",0.360121845290909
+"ENSMUSG00000044206","VSIG4","V-set and immunoglobulin domain containing 4 [Source:MGI Symbol;Acc:MGI:2679720]",0.025,0,0,0.0384615384615385,-4.70043971814109,"Associated",0.39100221895577
+"ENSMUSG00000038591","Colec10","collectin sub-family member 10 [Source:MGI Symbol;Acc:MGI:3606482]",0.0225,0.0525,0,2.27659574468085,1.18687813472351,"Lectin",0.183704336824278
+"ENSMUSG00000031443","F7","coagulation factor VII [Source:MGI Symbol;Acc:MGI:109325]",0.0175,0.0375,1,2.08108108108108,1.05733317506595,"Associated",0.652748306849537
+"ENSMUSG00000066366","Serpina1a","serine (or cysteine) peptidase inhibitor, clade A, member 1A [Source:MGI Symbol;Acc:MGI:891971]",0.015,0,0,0.0625,-4,"Associated",0.39100221895577
+"ENSMUSG00000022181","C6","complement component 6 [Source:MGI Symbol;Acc:MGI:88233]",0.005,0,0,0.166666666666667,-2.58496250072116,"Membrane Attack",0.391002218955771
+"ENSMUSG00000001076","C1ql4","complement component 1, q subcomponent-like 4 [Source:MGI Symbol;Acc:MGI:3579909]",0,0,0,1,0,"Associated",1
+"ENSMUSG00000098470","C1rb","complement component 1, r subcomponent B [Source:MGI Symbol;Acc:MGI:3779804]",0,0,0,1,0,"Associated",1
+"ENSMUSG00000035031","C8a","complement component 8, alpha polypeptide [Source:MGI Symbol;Acc:MGI:2668347]",0,0.0125,0,13.5,3.75488750216347,"Associated",0.0796049808179062
+"ENSMUSG00000022149","C9","complement component 9 [Source:MGI Symbol;Acc:MGI:1098282]",0,0,0,1,0,"Membrane Attack",1
+"ENSMUSG00000057037","CFHR1","complement factor H-related 1 [Source:MGI Symbol;Acc:MGI:2138169]",0,0,0,1,0,"Associated",1
+"ENSMUSG00000026401","Cd55b","CD55 molecule, decay accelerating factor for complement B [Source:MGI Symbol;Acc:MGI:104849]",0,0,0,1,0,"Associated",1
+"ENSMUSG00000061780","Cfd","complement factor D (adipsin) [Source:MGI Symbol;Acc:MGI:87931]",0,0,0,1,0,"Alternative",1
+"ENSMUSG00000021999","Cpb2","carboxypeptidase B2 (plasma) [Source:MGI Symbol;Acc:MGI:1891837]",0,0.0125,0,13.5,3.75488750216347,"Associated",0.39100221895577
+"ENSMUSG00000031444","F10","coagulation factor X [Source:MGI Symbol;Acc:MGI:103107]",0,0,0,1,0,"Associated",1
+"ENSMUSG00000031645","F11","coagulation factor XI [Source:MGI Symbol;Acc:MGI:99481]",0,0,0,1,0,"Associated",1
+"ENSMUSG00000026368","F13b","coagulation factor XIII, beta subunit [Source:MGI Symbol;Acc:MGI:88379]",0,0,0,1,0,"Associated",1
+"ENSMUSG00000033831","Fgb","fibrinogen beta chain [Source:MGI Symbol;Acc:MGI:99501]",0,0.005,0,6,2.58496250072116,"Associated",0.391002218955771
+"ENSMUSG00000033860","Fgg","fibrinogen gamma chain [Source:MGI Symbol;Acc:MGI:95526]",0,0.0075,0,8.5,3.08746284125034,"Associated",0.39100221895577
+"ENSMUSG00000022875","Kng1","kininogen 1 [Source:MGI Symbol;Acc:MGI:1097705]",0,0.025,0,26,4.70043971814109,"Associated",0.39100221895577
+"ENSMUSG00000037780","Mbl1","mannose-binding lectin (protein A) 1 [Source:MGI Symbol;Acc:MGI:96923]",0,0,0,1,0,"Lectin",1
+"ENSMUSG00000024863","Mbl2","mannose-binding lectin (protein C) 2 [Source:MGI Symbol;Acc:MGI:96924]",0,0.0175,0,18.5,4.20945336562895,"Lectin",0.39100221895577
+"ENSMUSG00000059481","Plg","plasminogen [Source:MGI Symbol;Acc:MGI:97620]",0,0,0,1,0,"Associated",1
+"ENSMUSG00000071178","Serpina1b","serine (or cysteine) preptidase inhibitor, clade A, member 1B [Source:MGI Symbol;Acc:MGI:891970]",0,0,0,1,0,"Associated",1
+"ENSMUSG00000079015","Serpina1c","serine (or cysteine) peptidase inhibitor, clade A, member 1C [Source:MGI Symbol;Acc:MGI:891969]",0,0.01,0,11,3.4594316186373,"Associated",0.391002218955771
+"ENSMUSG00000071177","Serpina1d","serine (or cysteine) peptidase inhibitor, clade A, member 1D [Source:MGI Symbol;Acc:MGI:891968]",0,0,0,1,0,"Associated",1
+"ENSMUSG00000072849","Serpina1e","serine (or cysteine) peptidase inhibitor, clade A, member 1E [Source:MGI Symbol;Acc:MGI:891967]",0,0.01,0,11,3.4594316186373,"Associated",0.391002218955771
+"ENSMUSG00000021081","Serpina1f","serine (or cysteine) peptidase inhibitor, clade A, member 1F [Source:MGI Symbol;Acc:MGI:1915598]",0,0,0,1,0,"Associated",1
+"ENSMUSG00000041550","Serpina5","serine (or cysteine) peptidase inhibitor, clade A, member 5 [Source:MGI Symbol;Acc:MGI:107817]",0,0,0,1,0,"Associated",1

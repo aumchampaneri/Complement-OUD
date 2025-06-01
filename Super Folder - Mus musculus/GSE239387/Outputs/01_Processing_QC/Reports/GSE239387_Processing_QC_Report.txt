@@ -1,0 +1,63 @@
+=================================================================
+GSE239387 RNA-SEQ PROCESSING AND QC ANALYSIS REPORT
+=================================================================
+
+STUDY INFORMATION
+-----------------
+Dataset ID: GSE239387
+Organism: Mus musculus
+Tissue: Nucleus Accumbens (NAcc)
+Experimental Design: Control vs Morphine treatment
+Data Type: Pre-processed FPKM values with annotations
+Analysis Date: 2025-06-01 18:36:36.228479
+R Version: R version 4.5.0 (2025-04-11)
+
+DATASET OVERVIEW
+----------------
+Total genes: 22337
+Total samples: 8
+Control samples: 4
+Morphine samples: 4
+Genes with symbols: 22337
+Complement genes detected: 133
+Expressed genes (filtered): 13392
+
+DATA QUALITY METRICS
+--------------------
+Mean FPKM across samples: 22.3
+Median FPKM across samples: 2.01
+Mean genes detected per sample: 15297
+Range of genes detected: 15083 - 15553
+Percentage of zero values: 25.34%
+Variable genes for PCA: 19607 out of 22337
+Gene retention after filtering: 59.95%
+PC1 variance explained: 25.4%
+PC2 variance explained: 16.6%
+
+COMPLEMENT SYSTEM ANALYSIS
+--------------------------
+Complement genes found: 133
+Mean complement expression (Control): 45.4
+Mean complement expression (Morphine): 33.99
+
+READY FOR DOWNSTREAM ANALYSIS
+------------------------------
+- Differential expression analysis (Control vs Morphine)
+- Pathway enrichment analysis using extensive annotations
+- Complement system investigation
+- Cross-dataset comparison with GSE118918
+- Publication-ready visualizations
+
+OUTPUT FILES GENERATED
+----------------------
+- Expression matrices (FPKM and log2-transformed)
+- Filtered expression data for DE analysis
+- Sample and gene statistics
+- Annotation summaries
+- Complement gene analysis
+- Quality control visualizations
+- PCA results and plots
+
+=================================================================
+ANALYSIS COMPLETED SUCCESSFULLY
+=================================================================
