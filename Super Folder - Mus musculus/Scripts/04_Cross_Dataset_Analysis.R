@@ -1,281 +1,317 @@
 # ========================================================================
-# CROSS-DATASET ANALYSIS: GSE151807, GSE66351, GSE239387
-# Meta-Analysis of Complement System in Opioid Use Disorder
+# ENHANCED CROSS-DATASET COMPLEMENT ANALYSIS
+# Comparing Available OUD-Related Datasets with Focus on Complement System
 # ========================================================================
 
-# Load required libraries
-library(dplyr)
-library(ggplot2)
-library(pheatmap)
-library(VennDiagram)
-library(UpSetR)
-
-# Set working directory
-setwd("/Users/aumchampaneri/Complement-OUD/Super Folder - Mus musculus")
-
-# Create output directories
-dir.create("Cross_Dataset_Analysis", recursive = TRUE, showWarnings = FALSE)
-dir.create("Cross_Dataset_Analysis/Plots", recursive = TRUE, showWarnings = FALSE)
-dir.create("Cross_Dataset_Analysis/Data", recursive = TRUE, showWarnings = FALSE)
-
-cat("========================================================================\n")
-cat("CROSS-DATASET COMPLEMENT ANALYSIS\n")
-cat("Comparing GSE151807, GSE66351, and GSE239387\n")
-cat("========================================================================\n\n")
+// ...existing code until dataset loading...
 
 # ========================================================================
-# LOAD DIFFERENTIAL EXPRESSION RESULTS FROM ALL DATASETS
+# ENHANCED DATA LOADING AND VALIDATION
 # ========================================================================
 
-# GSE151807 - Fentanyl vs Control
-gse151807_file <- "GSE151807/Outputs/02_Differential_Expression/GSE151807_DE_results.csv"
-if(file.exists(gse151807_file)) {
-  gse151807_de <- read.csv(gse151807_file)
-  cat("✓ GSE151807 loaded:", nrow(gse151807_de), "genes\n")
-} else {
-  cat("✗ GSE151807 DE results not found\n")
-  gse151807_de <- NULL
-}
-
-# GSE66351 - Heroin vs Control  
-gse66351_file <- "GSE66351/Outputs/02_Differential_Expression/GSE66351_DE_results.csv"
-if(file.exists(gse66351_file)) {
-  gse66351_de <- read.csv(gse66351_file)
-  cat("✓ GSE66351 loaded:", nrow(gse66351_de), "genes\n")
-} else {
-  cat("✗ GSE66351 DE results not found\n")
-  gse66351_de <- NULL
-}
-
-# GSE239387 - Morphine vs Control
-gse239387_file <- "GSE239387/Outputs/02_Differential_Expression/GSE239387_DE_results.csv"
-if(file.exists(gse239387_file)) {
-  gse239387_de <- read.csv(gse239387_file)
-  cat("✓ GSE239387 loaded:", nrow(gse239387_de), "genes\n")
-} else {
-  cat("✗ GSE239387 DE results not found\n")
-  gse239387_de <- NULL
-}
-
-# ========================================================================
-# LOAD COMPLEMENT-SPECIFIC RESULTS
-# ========================================================================
-
-cat("\n=== LOADING COMPLEMENT-SPECIFIC RESULTS ===\n")
-
-# Load complement results from each dataset
-complement_files <- list(
-  GSE151807 = "GSE151807/Outputs/02_Differential_Expression/Data/complement_DE_results.csv",
-  GSE66351 = "GSE66351/Outputs/02_Differential_Expression/Data/complement_DE_results.csv",
-  GSE239387 = "GSE239387/Outputs/02_Differential_Expression/Data/complement_DE_results.csv"
+# Dataset information
+datasets <- list(
+  GSE151807 = list(
+    path = "/Users/aumchampaneri/Complement-OUD/Super Folder - Mus musculus/GSE151807",
+    tissue = "Nucleus Accumbens",
+    treatment = "Morphine vs Saline",
+    species = "Mus musculus",
+    available = FALSE
+  ),
+  GSE66351 = list(
+    path = "/Users/aumchampaneri/Complement-OUD/Super Folder - Mus musculus/GSE66351", 
+    tissue = "Striatum",
+    treatment = "Cocaine vs Saline",
+    species = "Mus musculus",
+    available = FALSE
+  ),
+  GSE239387 = list(
+    path = "/Users/aumchampaneri/Complement-OUD/Super Folder - Mus musculus/GSE239387",
+    tissue = "Nucleus Accumbens", 
+    treatment = "Morphine vs Control",
+    species = "Mus musculus",
+    available = FALSE
+  )
 )
 
-complement_data <- list()
-for(dataset in names(complement_files)) {
-  if(file.exists(complement_files[[dataset]])) {
-    complement_data[[dataset]] <- read.csv(complement_files[[dataset]])
-    cat("✓", dataset, "complement data loaded:", nrow(complement_data[[dataset]]), "genes\n")
+# Check dataset availability
+cat("=== DATASET AVAILABILITY CHECK ===\n")
+available_datasets <- list()
+de_results <- list()
+complement_results <- list()
+
+for(dataset_name in names(datasets)) {
+  dataset_info <- datasets[[dataset_name]]
+  
+  # Check for DE results
+  de_file <- file.path(dataset_info$path, "Outputs/02_Differential_Expression", 
+                       paste0(dataset_name, "_DE_results.csv"))
+  
+  # Check for complement results  
+  complement_file <- file.path(dataset_info$path, "Outputs/02_Differential_Expression/Data",
+                              "complement_DE_results.csv")
+  
+  if(file.exists(de_file)) {
+    cat("✓", dataset_name, "DE results found\n")
+    datasets[[dataset_name]]$available <- TRUE
+    available_datasets[[dataset_name]] <- dataset_info
+    
+    # Load DE results
+    de_results[[dataset_name]] <- read.csv(de_file)
+    cat("  -", nrow(de_results[[dataset_name]]), "genes analyzed\n")
+    
+    # Load complement results if available
+    if(file.exists(complement_file)) {
+      complement_results[[dataset_name]] <- read.csv(complement_file)
+      cat("  -", nrow(complement_results[[dataset_name]]), "complement genes\n")
+    }
+    
   } else {
-    cat("✗", dataset, "complement data not found\n")
+    cat("✗", dataset_name, "DE results not found\n")
+    cat("  Expected:", de_file, "\n")
   }
 }
 
+cat("\nAvailable datasets:", length(available_datasets), "out of", length(datasets), "\n\n")
+
 # ========================================================================
-# CROSS-DATASET COMPLEMENT GENE COMPARISON
+# SINGLE DATASET ANALYSIS (GSE239387 FOCUS)
 # ========================================================================
 
-if(length(complement_data) >= 2) {
-  cat("\n=== CROSS-DATASET COMPLEMENT COMPARISON ===\n")
+if("GSE239387" %in% names(available_datasets)) {
+  cat("=== DETAILED GSE239387 ANALYSIS ===\n")
   
-  # Extract significantly changed complement genes from each dataset
-  sig_complement_genes <- list()
+  gse239387_de <- de_results[["GSE239387"]]
   
-  for(dataset in names(complement_data)) {
-    sig_genes <- complement_data[[dataset]]$Symbol[complement_data[[dataset]]$P.Value < 0.05]
-    sig_genes <- sig_genes[!is.na(sig_genes)]
-    sig_complement_genes[[dataset]] <- sig_genes
-    cat(dataset, "- Significant complement genes:", length(sig_genes), "\n")
-  }
+  # Basic statistics
+  sig_genes <- gse239387_de[gse239387_de$P.Value < 0.05, ]
+  up_genes <- sig_genes[sig_genes$logFC > 0, ]
+  down_genes <- sig_genes[sig_genes$logFC < 0, ]
   
-  # Create Venn diagram for overlapping genes
-  if(length(sig_complement_genes) >= 2) {
-    tryCatch({
-      png("Cross_Dataset_Analysis/Plots/Complement_Genes_Venn.png", 
-          width = 10, height = 8, units = "in", res = 300)
+  cat("Total genes analyzed:", nrow(gse239387_de), "\n")
+  cat("Significantly changed genes (p < 0.05):", nrow(sig_genes), "\n")
+  cat("  - Upregulated:", nrow(up_genes), "\n")
+  cat("  - Downregulated:", nrow(down_genes), "\n")
+  
+  # Complement gene analysis
+  if("GSE239387" %in% names(complement_results)) {
+    complement_de <- complement_results[["GSE239387"]]
+    sig_complement <- complement_de[complement_de$P.Value < 0.05, ]
+    
+    cat("\nComplement system analysis:\n")
+    cat("Total complement genes:", nrow(complement_de), "\n")
+    cat("Significantly changed:", nrow(sig_complement), "\n")
+    
+    if(nrow(sig_complement) > 0) {
+      up_complement <- sig_complement[sig_complement$logFC > 0, ]
+      down_complement <- sig_complement[sig_complement$logFC < 0, ]
       
-      if(length(sig_complement_genes) == 2) {
-        venn.plot <- venn.diagram(
-          x = sig_complement_genes,
-          category.names = names(sig_complement_genes),
-          filename = NULL,
-          output = TRUE,
-          fill = c("lightblue", "pink"),
-          alpha = 0.7,
-          cat.cex = 1.2,
-          cex = 1.1
-        )
-        grid.draw(venn.plot)
-      } else if(length(sig_complement_genes) == 3) {
-        venn.plot <- venn.diagram(
-          x = sig_complement_genes,
-          category.names = names(sig_complement_genes),
-          filename = NULL,
-          output = TRUE,
-          fill = c("lightblue", "pink", "lightgreen"),
-          alpha = 0.7,
-          cat.cex = 1.2,
-          cex = 1.1
-        )
-        grid.draw(venn.plot)
+      cat("  - Upregulated complement genes:", nrow(up_complement), "\n")
+      cat("  - Downregulated complement genes:", nrow(down_complement), "\n")
+      
+      # Show top changed complement genes
+      cat("\nTop 10 most significantly changed complement genes:\n")
+      top_complement <- head(sig_complement[order(sig_complement$P.Value), ], 10)
+      for(i in 1:nrow(top_complement)) {
+        direction <- ifelse(top_complement$logFC[i] > 0, "↑", "↓")
+        cat(sprintf("  %d. %s %s (logFC=%.2f, p=%.2e) [%s]\n", 
+                    i, top_complement$Symbol[i], direction,
+                    top_complement$logFC[i], top_complement$P.Value[i],
+                    top_complement$pathway_class[i]))
       }
       
-      dev.off()
-      cat("✓ Venn diagram created\n")
-    }, error = function(e) {
-      dev.off()
-      cat("✗ Venn diagram failed:", e$message, "\n")
-    })
-  }
-  
-  # Find common complement genes across datasets
-  if(length(sig_complement_genes) >= 2) {
-    common_genes <- Reduce(intersect, sig_complement_genes)
-    cat("\nCommon complement genes across all datasets:", length(common_genes), "\n")
-    if(length(common_genes) > 0) {
-      cat("Common genes:", paste(common_genes, collapse = ", "), "\n")
-      
-      # Save common genes
-      write.csv(data.frame(Gene = common_genes), 
-                "Cross_Dataset_Analysis/Data/Common_Complement_Genes.csv", 
-                row.names = FALSE)
+      # Complement pathway breakdown
+      cat("\nComplement pathway analysis:\n")
+      pathway_summary <- table(sig_complement$pathway_class)
+      for(pathway in names(pathway_summary)) {
+        cat("  -", pathway, ":", pathway_summary[[pathway]], "genes\n")
+      }
     }
   }
 }
 
 # ========================================================================
-# EFFECT SIZE COMPARISON ACROSS DATASETS
+# PREPARE FOR MULTI-DATASET COMPARISON (WHEN AVAILABLE)  
 # ========================================================================
 
-cat("\n=== EFFECT SIZE COMPARISON ===\n")
+cat("\n=== PREPARING FOR MULTI-DATASET COMPARISON ===\n")
 
-if(length(complement_data) >= 2) {
-  # Create combined effect size comparison
-  effect_comparison <- data.frame()
+if(length(available_datasets) > 1) {
+  cat("Multiple datasets available - performing cross-dataset analysis\n")
   
-  for(dataset in names(complement_data)) {
-    temp_data <- complement_data[[dataset]][, c("Symbol", "logFC", "P.Value", "pathway_class")]
-    temp_data$Dataset <- dataset
-    temp_data$Treatment <- case_when(
-      dataset == "GSE151807" ~ "Fentanyl",
-      dataset == "GSE66351" ~ "Heroin", 
-      dataset == "GSE239387" ~ "Morphine",
-      TRUE ~ dataset
-    )
-    effect_comparison <- rbind(effect_comparison, temp_data)
+  # Find common genes across datasets
+  common_genes <- Reduce(intersect, lapply(de_results, function(x) x$Symbol))
+  cat("Common genes across datasets:", length(common_genes), "\n")
+  
+  # Cross-dataset effect size comparison
+  effect_sizes <- data.frame(Gene = common_genes)
+  
+  for(dataset in names(de_results)) {
+    de_data <- de_results[[dataset]]
+    matched_data <- de_data[match(common_genes, de_data$Symbol), ]
+    effect_sizes[[paste0(dataset, "_logFC")]] <- matched_data$logFC
+    effect_sizes[[paste0(dataset, "_pval")]] <- matched_data$P.Value
   }
   
-  # Save combined data
-  write.csv(effect_comparison, "Cross_Dataset_Analysis/Data/Combined_Complement_Effects.csv", row.names = FALSE)
+  # Save cross-dataset comparison
+  write.csv(effect_sizes, "Cross_Dataset_Analysis/Gene_Effect_Sizes_Comparison.csv", row.names = FALSE)
   
-  # Create effect size comparison plot
-  tryCatch({
-    png("Cross_Dataset_Analysis/Plots/Effect_Size_Comparison.png", 
-        width = 12, height = 8, units = "in", res = 300)
+} else {
+  cat("Only one dataset available (GSE239387)\n")
+  cat("To enable cross-dataset analysis:\n")
+  cat("1. Process GSE151807 differential expression\n")
+  cat("2. Process GSE66351 differential expression\n")
+  cat("3. Re-run this cross-dataset analysis\n")
+}
+
+# ========================================================================
+# COMPLEMENT-SPECIFIC META-ANALYSIS FRAMEWORK
+# ========================================================================
+
+cat("\n=== COMPLEMENT META-ANALYSIS FRAMEWORK ===\n")
+
+# Prepare complement meta-analysis structure
+complement_meta <- list()
+
+for(dataset in names(complement_results)) {
+  complement_data <- complement_results[[dataset]]
+  
+  complement_meta[[dataset]] <- list(
+    total_genes = nrow(complement_data),
+    significant_genes = nrow(complement_data[complement_data$P.Value < 0.05, ]),
+    upregulated = nrow(complement_data[complement_data$P.Value < 0.05 & complement_data$logFC > 0, ]),
+    downregulated = nrow(complement_data[complement_data$P.Value < 0.05 & complement_data$logFC < 0, ]),
+    tissue = datasets[[dataset]]$tissue,
+    treatment = datasets[[dataset]]$treatment
+  )
+}
+
+# Create complement summary table
+if(length(complement_meta) > 0) {
+  complement_summary <- data.frame(
+    Dataset = names(complement_meta),
+    Tissue = sapply(complement_meta, function(x) x$tissue),
+    Treatment = sapply(complement_meta, function(x) x$treatment),
+    Total_Complement_Genes = sapply(complement_meta, function(x) x$total_genes),
+    Significant_Genes = sapply(complement_meta, function(x) x$significant_genes),
+    Upregulated = sapply(complement_meta, function(x) x$upregulated),
+    Downregulated = sapply(complement_meta, function(x) x$downregulated),
+    Percent_Changed = round(sapply(complement_meta, function(x) 
+      x$significant_genes / x$total_genes * 100), 1)
+  )
+  
+  write.csv(complement_summary, "Cross_Dataset_Analysis/Complement_Summary_Across_Datasets.csv", row.names = FALSE)
+  
+  cat("Complement summary across datasets:\n")
+  print(complement_summary)
+}
+
+# ========================================================================
+# DATASET PROCESSING RECOMMENDATIONS
+# ========================================================================
+
+cat("\n=== DATASET PROCESSING RECOMMENDATIONS ===\n")
+
+missing_datasets <- setdiff(names(datasets), names(available_datasets))
+
+if(length(missing_datasets) > 0) {
+  cat("Missing datasets to process:\n")
+  
+  for(missing in missing_datasets) {
+    cat("\n", missing, ":\n")
+    cat("  1. Check if raw data files exist in:", datasets[[missing]]$path, "\n")
+    cat("  2. Create differential expression script\n") 
+    cat("  3. Run complement gene annotation\n")
+    cat("  4. Generate pathway enrichment results\n")
     
-    # Filter for genes present in multiple datasets
-    gene_counts <- table(effect_comparison$Symbol)
-    multi_dataset_genes <- names(gene_counts[gene_counts >= 2])
-    
-    if(length(multi_dataset_genes) > 0) {
-      plot_data <- effect_comparison[effect_comparison$Symbol %in% multi_dataset_genes, ]
-      
-      p <- ggplot(plot_data, aes(x = Symbol, y = logFC, fill = Treatment)) +
-        geom_bar(stat = "identity", position = "dodge") +
-        theme_minimal() +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        labs(title = "Complement Gene Expression Changes Across Opioid Treatments",
-             subtitle = "Log2 Fold Change Comparison",
-             x = "Complement Genes", 
-             y = "Log2 Fold Change",
-             fill = "Treatment") +
-        geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5)
-      
-      print(p)
+    # Check if directory exists
+    if(dir.exists(datasets[[missing]]$path)) {
+      cat("  ✓ Directory exists\n")
+      data_files <- list.files(file.path(datasets[[missing]]$path, "Data"), 
+                              pattern = "\\.(txt|csv|tsv)$", full.names = FALSE)
+      if(length(data_files) > 0) {
+        cat("  ✓ Data files found:", length(data_files), "\n")
+        cat("    -", paste(head(data_files, 3), collapse = ", "), 
+            ifelse(length(data_files) > 3, "...", ""), "\n")
+      } else {
+        cat("  ✗ No data files found in Data/ directory\n")
+      }
     } else {
-      # Alternative plot if no overlap
-      p <- ggplot(effect_comparison, aes(x = logFC, fill = Treatment)) +
-        geom_histogram(alpha = 0.7, bins = 20) +
-        facet_wrap(~Treatment) +
-        theme_minimal() +
-        labs(title = "Distribution of Complement Gene Log2FC by Treatment",
-             x = "Log2 Fold Change",
-             y = "Count")
-      print(p)
+      cat("  ✗ Directory does not exist\n")
     }
-    
-    dev.off()
-    cat("✓ Effect size comparison plot created\n")
-  }, error = function(e) {
-    dev.off()
-    cat("✗ Effect size plot failed:", e$message, "\n")
-  })
+  }
 }
 
 # ========================================================================
-# META-ANALYSIS SUMMARY
+# ENHANCED REPORTING AND VISUALIZATION PREPARATION
 # ========================================================================
 
-cat("\n=== GENERATING META-ANALYSIS SUMMARY ===\n")
+cat("\n=== GENERATING ENHANCED REPORTS ===\n")
 
-# Create comprehensive summary report
-summary_file <- "Cross_Dataset_Analysis/Cross_Dataset_Meta_Analysis_Report.txt"
+# Create detailed summary report
+summary_file <- "Cross_Dataset_Analysis/Cross_Dataset_Summary_Report.txt"
 
 cat("", file = summary_file)
 cat("========================================================================\n", file = summary_file, append = TRUE)
-cat("CROSS-DATASET META-ANALYSIS REPORT\n", file = summary_file, append = TRUE)
-cat("Complement System in Opioid Use Disorder (Mus musculus)\n", file = summary_file, append = TRUE)
-cat("Analysis Date:", format(Sys.Date(), "%B %d, %Y"), "\n", file = summary_file, append = TRUE)
+cat("CROSS-DATASET COMPLEMENT ANALYSIS SUMMARY REPORT\n", file = summary_file, append = TRUE)
+cat("Generated:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n", file = summary_file, append = TRUE)
 cat("========================================================================\n\n", file = summary_file, append = TRUE)
 
-cat("DATASETS ANALYZED:\n", file = summary_file, append = TRUE)
-cat("1. GSE151807 - Fentanyl vs Control (Nucleus Accumbens)\n", file = summary_file, append = TRUE)
-cat("2. GSE66351 - Heroin vs Control (Striatum)\n", file = summary_file, append = TRUE)
-cat("3. GSE239387 - Morphine vs Control (Nucleus Accumbens)\n", file = summary_file, append = TRUE)
+cat("DATASET AVAILABILITY:\n", file = summary_file, append = TRUE)
+for(dataset in names(datasets)) {
+  status <- ifelse(datasets[[dataset]]$available, "✓ PROCESSED", "✗ MISSING")
+  cat(sprintf("- %s: %s (%s, %s)\n", dataset, status, 
+              datasets[[dataset]]$tissue, datasets[[dataset]]$treatment), 
+      file = summary_file, append = TRUE)
+}
 
-if(length(complement_data) > 0) {
-  cat("\nCOMPLEMENT GENE ANALYSIS SUMMARY:\n", file = summary_file, append = TRUE)
-  for(dataset in names(complement_data)) {
-    sig_count <- sum(complement_data[[dataset]]$P.Value < 0.05, na.rm = TRUE)
-    total_count <- nrow(complement_data[[dataset]])
-    cat(sprintf("%s: %d/%d complement genes significantly changed (%.1f%%)\n", 
-                dataset, sig_count, total_count, sig_count/total_count*100), 
-        file = summary_file, append = TRUE)
-  }
-  
-  if(exists("common_genes") && length(common_genes) > 0) {
-    cat("\nCOMMON COMPLEMENT GENES ACROSS DATASETS:\n", file = summary_file, append = TRUE)
-    cat(paste(common_genes, collapse = ", "), "\n", file = summary_file, append = TRUE)
+if(length(available_datasets) > 0) {
+  cat("\nPROCESSED DATASETS SUMMARY:\n", file = summary_file, append = TRUE)
+  for(dataset in names(available_datasets)) {
+    de_data <- de_results[[dataset]]
+    sig_count <- nrow(de_data[de_data$P.Value < 0.05, ])
+    cat(sprintf("- %s: %d total genes, %d significant (%.1f%%)\n", 
+                dataset, nrow(de_data), sig_count, 
+                sig_count/nrow(de_data)*100), file = summary_file, append = TRUE)
   }
 }
 
-cat("\nKEY FINDINGS:\n", file = summary_file, append = TRUE)
-cat("- All three major opioids (fentanyl, heroin, morphine) affect complement gene expression\n", file = summary_file, append = TRUE)
-cat("- Effects are observed in addiction-relevant brain regions (NAc, striatum)\n", file = summary_file, append = TRUE)
-cat("- Consistent patterns suggest complement system involvement in OUD pathophysiology\n", file = summary_file, append = TRUE)
+if(length(complement_results) > 0) {
+  cat("\nCOMPLEMENT SYSTEM FINDINGS:\n", file = summary_file, append = TRUE)
+  for(dataset in names(complement_results)) {
+    comp_data <- complement_results[[dataset]]
+    sig_comp <- nrow(comp_data[comp_data$P.Value < 0.05, ])
+    cat(sprintf("- %s: %d complement genes, %d significantly changed\n", 
+                dataset, nrow(comp_data), sig_comp), file = summary_file, append = TRUE)
+  }
+}
 
-cat("\nCLINICAL IMPLICATIONS:\n", file = summary_file, append = TRUE)
-cat("- Complement system may be a common pathway affected by opioid addiction\n", file = summary_file, append = TRUE)
-cat("- Potential therapeutic target for treating opioid use disorder\n", file = summary_file, append = TRUE)
-cat("- Immune dysfunction may contribute to addiction vulnerability\n", file = summary_file, append = TRUE)
+cat("\nNEXT STEPS:\n", file = summary_file, append = TRUE)
+if(length(missing_datasets) > 0) {
+  cat("1. Process missing datasets:", paste(missing_datasets, collapse = ", "), "\n", 
+      file = summary_file, append = TRUE)
+  cat("2. Re-run cross-dataset analysis for comprehensive comparison\n", 
+      file = summary_file, append = TRUE)
+} else {
+  cat("1. All datasets processed - ready for meta-analysis\n", 
+      file = summary_file, append = TRUE)
+}
 
-cat("\nFUTURE DIRECTIONS:\n", file = summary_file, append = TRUE)
-cat("- Validate findings in human postmortem brain tissue\n", file = summary_file, append = TRUE)
-cat("- Investigate complement protein levels and activity\n", file = summary_file, append = TRUE)
-cat("- Test complement-targeting therapeutics in addiction models\n", file = summary_file, append = TRUE)
-cat("- Examine temporal dynamics of complement changes during addiction\n", file = summary_file, append = TRUE)
+cat("3. Generate publication-ready figures\n", file = summary_file, append = TRUE)
+cat("4. Perform functional enrichment meta-analysis\n", file = summary_file, append = TRUE)
 
-cat("\n========================================================================\n", file = summary_file, append = TRUE)
+cat("========================================================================\n", file = summary_file, append = TRUE)
 
-cat("✓ Meta-analysis summary completed\n")
-cat("Cross-dataset analysis complete!\n")
-cat("Results saved to: Cross_Dataset_Analysis/\n")
+cat("✓ Enhanced cross-dataset analysis complete!\n")
+cat("✓ Summary report saved to:", summary_file, "\n")
+cat("✓ Results saved to: Cross_Dataset_Analysis/\n")
+
+if(length(missing_datasets) > 0) {
+  cat("\n📋 TODO: Process missing datasets:\n")
+  for(missing in missing_datasets) {
+    cat("   -", missing, "\n")
+  }
+  cat("\nOnce all datasets are processed, re-run this script for full meta-analysis!\n")
+} else {
+  cat("\n🎉 All datasets ready for comprehensive meta-analysis!\n")
+}

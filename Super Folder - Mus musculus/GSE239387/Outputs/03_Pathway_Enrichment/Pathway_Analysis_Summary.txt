@@ -1,0 +1,48 @@
+========================================================================
+GSE239387 PATHWAY ENRICHMENT ANALYSIS SUMMARY
+Morphine vs Control in Nucleus Accumbens
+Analysis Date: June 01, 2025 
+========================================================================
+
+GENE SET SIZES:
+Total significant genes (p < 0.05): 3153 
+Upregulated genes: 1470 
+Downregulated genes: 1683 
+Significant complement genes: 18 
+
+ANALYSES PERFORMED:
+- KEGG pathway enrichment
+- GO Biological Process enrichment
+- GO Molecular Function enrichment
+- GO Cellular Component enrichment
+- Directional pathway analysis (up/down genes)
+- Complement-specific pathway analysis
+- Functional theme analysis (addiction, immune)
+
+KEY FINDINGS:
+- Morphine treatment affects 3153 genes significantly
+- More genes are DOWNREGULATED than upregulated 
+- Complement system shows significant changes with morphine treatment
+- KEGG pathways significantly enriched: 350 
+- GO Biological Process terms enriched: 9074 
+
+OUTPUT FILES GENERATED:
+✓ KEGG_enrichment_results.csv 
+✓ GO_BP_enrichment_results.csv 
+✓ GO_MF_enrichment_results.csv 
+✓ GO_CC_enrichment_results.csv 
+✓ Upregulated_GO_enrichment.csv 
+✓ Downregulated_GO_enrichment.csv 
+✓ Complement_GO_enrichment.csv 
+✓ Complement_Gene_Summary.csv 
+
+PLOTS GENERATED:
+✓ KEGG_dotplot.png 
+✓ GO_BP_dotplot.png 
+✓ Upregulated_GO_dotplot.png 
+✓ Downregulated_GO_dotplot.png 
+✓ Complement_GO_dotplot.png 
+
+========================================================================
+END OF PATHWAY ANALYSIS SUMMARY
+========================================================================
