@@ -1,0 +1,6 @@
+"pathway","enrichment_score","genes_in_pathway","genes_in_data"
+"Complement_Classical",0.700157232704402,5,5
+"Complement_Lectin",0.4493142907058,4,4
+"Complement_Regulators",0.375465874679711,3,3
+"Complement_Receptors",0.943308874912648,4,4
+"Complement_Complete",0.702410901467505,15,15

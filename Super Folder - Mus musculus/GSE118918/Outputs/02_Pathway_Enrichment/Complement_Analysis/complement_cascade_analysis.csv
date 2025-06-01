@@ -1,0 +1,6 @@
+"cascade_stage","genes_detected","genes_significant","avg_fold_change","direction"
+"Initiation",5,0,0.775433991364743,"DOWN"
+"Amplification",2,0,1.0840063375534,"UP"
+"Terminal",1,0,0.862003283733357,"DOWN"
+"Regulation",3,0,1.1213719826188,"UP"
+"Receptors",4,1,0.714616119782194,"DOWN"

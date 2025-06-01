@@ -492,12 +492,346 @@ for(analysis_name in names(kegg_results)) {
 }
 
 # ========================================================================
-# SECTION 7: CUSTOM COMPLEMENT PATHWAY ANALYSIS
+# SECTION 7: COMPREHENSIVE COMPLEMENT PATHWAY ANALYSIS
 # ========================================================================
 
-cat("\n=== CUSTOM COMPLEMENT PATHWAY ANALYSIS ===\n")
+cat("\n=== COMPREHENSIVE COMPLEMENT PATHWAY ANALYSIS ===\n")
 
-# Function to test complement pathway enrichment
+# Enhanced function to perform detailed complement analysis
+perform_comprehensive_complement_analysis <- function(de_genes, complement_pathways, logcpm_data, metadata, output_dir) {
+  cat("Performing comprehensive complement pathway analysis...\n")
+  
+  # 1. Basic enrichment testing (existing code)
+  complement_enrichment <- test_complement_enrichment(de_genes, complement_pathways, output_dir)
+  
+  # 2. Individual complement gene analysis
+  cat("\n--- Individual Complement Gene Analysis ---\n")
+  
+  # Get all complement genes in dataset
+  all_complement_genes <- unique(unlist(complement_pathways))
+  complement_gene_results <- de_genes[de_genes$entrez %in% all_complement_genes, ]
+  
+  if(nrow(complement_gene_results) > 0) {
+    # Add pathway annotations
+    complement_gene_results$pathway_membership <- sapply(complement_gene_results$entrez, function(gene) {
+      pathways <- names(complement_pathways)[sapply(complement_pathways, function(p) gene %in% p)]
+      paste(pathways, collapse = ";")
+    })
+    
+    # Sort by p-value
+    complement_gene_results <- complement_gene_results[order(complement_gene_results$P.Value), ]
+    
+    cat("Complement genes detected in dataset:", nrow(complement_gene_results), "\n")
+    cat("Top 10 complement genes by significance:\n")
+    for(i in 1:min(10, nrow(complement_gene_results))) {
+      cat(sprintf("%2d. %s: FC=%.2f, p=%.2e, pathways=%s\n",
+                  i, complement_gene_results$gene_id[i], 
+                  2^complement_gene_results$logFC[i],
+                  complement_gene_results$P.Value[i],
+                  complement_gene_results$pathway_membership[i]))
+    }
+    
+    # Save detailed complement gene results
+    write.csv(complement_gene_results, 
+              file.path(output_dir, "detailed_complement_gene_analysis.csv"),
+              row.names = FALSE)
+  }
+  
+  # 3. Complement pathway co-expression analysis
+  cat("\n--- Complement Gene Co-expression Analysis ---\n")
+  
+  if(nrow(complement_gene_results) >= 3) {
+    # Extract expression data for complement genes
+    complement_symbols <- complement_gene_results$gene_id
+    complement_expr <- logcpm_data[complement_symbols, ]
+    
+    # Calculate correlation matrix
+    complement_cor <- cor(t(complement_expr), method = "pearson")
+    
+    # Save correlation matrix
+    write.csv(complement_cor, 
+              file.path(output_dir, "complement_gene_correlations.csv"))
+    
+    # Create correlation heatmap
+    png(file.path(output_dir, "complement_correlation_heatmap.png"),
+        width = 2400, height = 2400, res = 300)
+    
+    library(ComplexHeatmap)
+    
+    # Annotation for treatment groups
+    col_annotation <- data.frame(
+      Treatment = metadata$treatment,
+      row.names = colnames(complement_expr)
+    )
+    
+    ha_col <- HeatmapAnnotation(
+      Treatment = col_annotation$Treatment,
+      col = list(Treatment = c("Mock" = "lightblue", "Morphine" = "red"))
+    )
+    
+    # Row annotation for pathways
+    row_annotation <- data.frame(
+      Pathway = sapply(complement_symbols, function(gene) {
+        pathways <- names(complement_pathways)[sapply(complement_pathways, function(p) {
+          gene_entrez <- complement_gene_results$entrez[complement_gene_results$gene_id == gene]
+          gene_entrez %in% p
+        })]
+        if(length(pathways) > 0) pathways[1] else "Other"
+      }),
+      Significance = ifelse(complement_gene_results$P.Value[match(complement_symbols, complement_gene_results$gene_id)] < 0.05, 
+                           "Significant", "Not Significant"),
+      row.names = complement_symbols
+    )
+    
+    pathway_colors <- RColorBrewer::brewer.pal(min(8, length(unique(row_annotation$Pathway))), "Set2")
+    names(pathway_colors) <- unique(row_annotation$Pathway)
+    
+    ha_row <- rowAnnotation(
+      Pathway = row_annotation$Pathway,
+      Significance = row_annotation$Significance,
+      col = list(
+        Pathway = pathway_colors,
+        Significance = c("Significant" = "darkgreen", "Not Significant" = "lightgrey")
+      )
+    )
+    
+    # Create heatmap
+    ht <- Heatmap(complement_expr,
+                  name = "log2(CPM)",
+                  top_annotation = ha_col,
+                  left_annotation = ha_row,
+                  show_row_names = TRUE,
+                  show_column_names = TRUE,
+                  row_names_gp = gpar(fontsize = 10),
+                  column_names_gp = gpar(fontsize = 10),
+                  clustering_distance_rows = "euclidean",
+                  clustering_distance_columns = "euclidean")
+    
+    draw(ht)
+    dev.off()
+    
+    cat("Complement gene correlation analysis completed\n")
+  }
+  
+  # 4. Pathway-specific differential expression patterns
+  cat("\n--- Pathway-Specific Expression Patterns ---\n")
+  
+  pathway_patterns <- list()
+  
+  for(pathway_name in names(complement_pathways)) {
+    pathway_genes <- complement_pathways[[pathway_name]]
+    pathway_de_genes <- complement_gene_results[complement_gene_results$entrez %in% pathway_genes, ]
+    
+    if(nrow(pathway_de_genes) > 0) {
+      # Calculate pathway statistics
+      pathway_stats <- data.frame(
+        pathway = pathway_name,
+        total_genes = length(pathway_genes),
+        detected_genes = nrow(pathway_de_genes),
+        significant_genes = sum(pathway_de_genes$P.Value < 0.05),
+        upregulated = sum(pathway_de_genes$P.Value < 0.05 & pathway_de_genes$logFC > 0),
+        downregulated = sum(pathway_de_genes$P.Value < 0.05 & pathway_de_genes$logFC < 0),
+        avg_logFC = mean(pathway_de_genes$logFC),
+        median_pvalue = median(pathway_de_genes$P.Value),
+        stringsAsFactors = FALSE
+      )
+      
+      pathway_patterns[[pathway_name]] <- pathway_stats
+      
+      cat(sprintf("%s: %d/%d genes detected, %d significant, avg FC=%.2f\n",
+                  pathway_name, nrow(pathway_de_genes), length(pathway_genes),
+                  sum(pathway_de_genes$P.Value < 0.05), 2^mean(pathway_de_genes$logFC)))
+    }
+  }
+  
+  # Combine pathway patterns
+  pathway_summary <- do.call(rbind, pathway_patterns)
+  write.csv(pathway_summary, 
+            file.path(output_dir, "complement_pathway_summary.csv"),
+            row.names = FALSE)
+  
+  # 5. Complement cascade activation analysis
+  cat("\n--- Complement Cascade Activation Analysis ---\n")
+  
+  # Define cascade order
+  cascade_order <- list(
+    "Initiation" = c("C1qa", "C1qb", "C1qc", "C1r", "C1s", "Mbl1", "Mbl2", "Masp1", "Masp2"),
+    "Amplification" = c("C2", "C4a", "C4b", "C3", "Cfb", "Cfd"),
+    "Terminal" = c("C5", "C6", "C7", "C8a", "C8b", "C8g", "C9"),
+    "Regulation" = c("Cd55", "Cd46", "Cfh", "Cfi", "Crry"),
+    "Receptors" = c("C3ar1", "C5ar1", "Itgam", "Itgax", "Itgb2")
+  )
+  
+  cascade_analysis <- list()
+  
+  for(stage in names(cascade_order)) {
+    stage_genes <- cascade_order[[stage]]
+    stage_de <- complement_gene_results[complement_gene_results$gene_id %in% stage_genes, ]
+    
+    if(nrow(stage_de) > 0) {
+      cascade_analysis[[stage]] <- data.frame(
+        cascade_stage = stage,
+        genes_detected = nrow(stage_de),
+        genes_significant = sum(stage_de$P.Value < 0.05),
+        avg_fold_change = 2^mean(stage_de$logFC),
+        direction = ifelse(mean(stage_de$logFC) > 0, "UP", "DOWN"),
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  
+  cascade_summary <- do.call(rbind, cascade_analysis)
+  write.csv(cascade_summary,
+            file.path(output_dir, "complement_cascade_analysis.csv"),
+            row.names = FALSE)
+  
+  # 6. Create comprehensive complement visualization
+  cat("\n--- Creating Comprehensive Complement Visualizations ---\n")
+  
+  # Complement pathway overview plot
+  if(nrow(pathway_summary) > 0) {
+    png(file.path(output_dir, "complement_pathway_overview.png"),
+        width = 3000, height = 2400, res = 300)
+    
+    pathway_plot_data <- pathway_summary
+    pathway_plot_data$detection_rate <- pathway_plot_data$detected_genes / pathway_plot_data$total_genes
+    pathway_plot_data$significance_rate <- pathway_plot_data$significant_genes / pathway_plot_data$detected_genes
+    
+    p1 <- ggplot(pathway_plot_data, aes(x = reorder(pathway, detection_rate))) +
+      geom_col(aes(y = detection_rate), fill = "steelblue", alpha = 0.7) +
+      geom_point(aes(y = significance_rate), color = "red", size = 3) +
+      coord_flip() +
+      labs(title = "Complement Pathway Detection and Significance",
+           x = "Pathway",
+           y = "Rate",
+           subtitle = "Bars: Detection rate, Points: Significance rate") +
+      theme_minimal()
+    
+    print(p1)
+    dev.off()
+  }
+  
+  # Cascade stage analysis plot
+  if(nrow(cascade_summary) > 0) {
+    png(file.path(output_dir, "complement_cascade_analysis.png"),
+        width = 2400, height = 1800, res = 300)
+    
+    cascade_summary$stage_order <- factor(cascade_summary$cascade_stage,
+                                         levels = c("Initiation", "Amplification", "Terminal", "Regulation", "Receptors"))
+    
+    p2 <- ggplot(cascade_summary, aes(x = stage_order, y = avg_fold_change, fill = direction)) +
+      geom_col(alpha = 0.7) +
+      geom_hline(yintercept = 1, linetype = "dashed", color = "black") +
+      scale_fill_manual(values = c("UP" = "red", "DOWN" = "blue")) +
+      labs(title = "Complement Cascade Stage Analysis",
+           x = "Cascade Stage",
+           y = "Average Fold Change",
+           fill = "Direction") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    
+    print(p2)
+    dev.off()
+  }
+  
+  # 7. Complement-specific Gene Set Enrichment Analysis
+  cat("\n--- Complement-Specific GSEA ---\n")
+  
+  # Create complement gene sets for GSEA
+  complement_genesets <- lapply(names(complement_pathways), function(pathway_name) {
+    genes <- complement_pathways[[pathway_name]]
+    gene_symbols <- complement_gene_results$gene_id[complement_gene_results$entrez %in% genes]
+    gene_symbols[!is.na(gene_symbols)]
+  })
+  names(complement_genesets) <- names(complement_pathways)
+  
+  # Convert to GSEABase GeneSetCollection
+  complement_gs_list <- lapply(names(complement_genesets), function(name) {
+    GeneSet(complement_genesets[[name]], setName = name, shortDescription = paste("Complement", name))
+  })
+  complement_gsc <- GeneSetCollection(complement_gs_list)
+  
+  # Perform GSEA on complement pathways
+  if(length(complement_genesets) > 0) {
+    # Prepare ranked gene list
+    gene_list <- de_genes$logFC
+    names(gene_list) <- de_genes$gene_id
+    gene_list <- sort(gene_list, decreasing = TRUE)
+    
+    # Custom GSEA for complement pathways
+    complement_gsea_results <- list()
+    
+    for(pathway_name in names(complement_genesets)) {
+      pathway_genes <- complement_genesets[[pathway_name]]
+      if(length(pathway_genes) >= 3) {
+        # Calculate enrichment score manually
+        gene_ranks <- rank(-gene_list)
+        pathway_ranks <- gene_ranks[names(gene_ranks) %in% pathway_genes]
+        
+        if(length(pathway_ranks) > 0) {
+          es <- mean(pathway_ranks) / length(gene_list)
+          
+          complement_gsea_results[[pathway_name]] <- data.frame(
+            pathway = pathway_name,
+            enrichment_score = es,
+            genes_in_pathway = length(pathway_genes),
+            genes_in_data = sum(pathway_genes %in% names(gene_list)),
+            stringsAsFactors = FALSE
+          )
+        }
+      }
+    }
+    
+    if(length(complement_gsea_results) > 0) {
+      complement_gsea_df <- do.call(rbind, complement_gsea_results)
+      write.csv(complement_gsea_df,
+                file.path(output_dir, "complement_gsea_results.csv"),
+                row.names = FALSE)
+    }
+  }
+  
+  # 8. Literature-based complement gene prioritization
+  cat("\n--- Literature-Based Gene Prioritization ---\n")
+  
+  # Define high-priority complement genes based on literature
+  high_priority_genes <- c(
+    "C1qa", "C1qb", "C1qc",  # Most studied classical pathway
+    "C3", "C3ar1", "C5ar1",  # Central complement components
+    "Itgam", "Itgb2",        # Complement receptors on microglia
+    "Cfh", "Cd55"            # Key regulators
+  )
+  
+  priority_analysis <- complement_gene_results[complement_gene_results$gene_id %in% high_priority_genes, ]
+  if(nrow(priority_analysis) > 0) {
+    priority_analysis$literature_priority <- "High"
+    priority_analysis <- priority_analysis[order(priority_analysis$P.Value), ]
+    
+    write.csv(priority_analysis,
+              file.path(output_dir, "high_priority_complement_genes.csv"),
+              row.names = FALSE)
+    
+    cat("High-priority complement genes analysis:\n")
+    for(i in 1:nrow(priority_analysis)) {
+      cat(sprintf("- %s: FC=%.2f, p=%.2e (%s regulation)\n",
+                  priority_analysis$gene_id[i],
+                  2^priority_analysis$logFC[i],
+                  priority_analysis$P.Value[i],
+                  ifelse(priority_analysis$logFC[i] > 0, "UP", "DOWN")))
+    }
+  }
+  
+  # Return comprehensive results
+  return(list(
+    basic_enrichment = complement_enrichment,
+    individual_genes = complement_gene_results,
+    pathway_summary = pathway_summary,
+    cascade_analysis = cascade_summary,
+    priority_genes = priority_analysis,
+    gsea_results = if(exists("complement_gsea_df")) complement_gsea_df else NULL
+  ))
+}
+
+# Simplified wrapper for the original function
 test_complement_enrichment <- function(de_genes, complement_pathways, output_dir) {
   cat("Testing complement pathway enrichment...\n")
   
@@ -567,16 +901,25 @@ test_complement_enrichment <- function(de_genes, complement_pathways, output_dir
   return(list(results = complement_df, detailed = complement_results))
 }
 
-# Test complement pathway enrichment
-complement_enrichment <- test_complement_enrichment(de_results_annotated, complement_pathways_entrez, output_structure$complement)
+# Perform comprehensive complement analysis
+comprehensive_complement <- perform_comprehensive_complement_analysis(
+  de_results_annotated, 
+  complement_pathways_entrez, 
+  logcpm_final, 
+  final_metadata, 
+  output_structure$complement
+)
 
-# Save complement results
-write.csv(complement_enrichment$results,
+# Save comprehensive complement results
+write.csv(comprehensive_complement$basic_enrichment$results,
           file.path(output_structure$complement, "complement_pathway_enrichment.csv"),
           row.names = FALSE)
 
-cat("Complement pathway enrichment results:\n")
-print(complement_enrichment$results[complement_enrichment$results$adj_p_value < 0.05, ])
+cat("Comprehensive complement pathway analysis completed!\n")
+cat("Results saved in:", output_structure$complement, "\n")
+
+# Fix variable name reference for downstream analyses
+complement_enrichment <- comprehensive_complement$basic_enrichment
 
 # ========================================================================
 # SECTION 8: GENE SET ENRICHMENT ANALYSIS (GSEA)
@@ -961,6 +1304,7 @@ analysis_objects <- list(
   go_results = go_results,
   kegg_results = kegg_results,
   complement_enrichment = complement_enrichment,
+  comprehensive_complement = comprehensive_complement,  # Add comprehensive results
   gsea_analysis = gsea_analysis,
   gene_conversion = gene_conversion,
   complement_pathways = complement_pathways_entrez

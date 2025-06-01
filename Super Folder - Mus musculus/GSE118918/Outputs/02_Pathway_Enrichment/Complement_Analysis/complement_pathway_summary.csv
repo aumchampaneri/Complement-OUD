@@ -1,0 +1,8 @@
+"pathway","total_genes","detected_genes","significant_genes","upregulated","downregulated","avg_logFC","median_pvalue"
+"Complement_Classical",5,5,0,0,0,-0.289553346182544,0.177236846921754
+"Complement_Alternative",2,2,0,0,0,-0.272046023101746,0.383793615628918
+"Complement_Lectin",4,4,0,0,0,0.0196597271997915,0.813820239610815
+"Complement_Terminal",1,1,0,0,0,-0.214234729729826,0.530426507562066
+"Complement_Regulators",3,3,0,0,0,0.165264929757361,0.23716072369577
+"Complement_Receptors",4,4,1,0,1,-0.484759637348822,0.249205435983295
+"Complement_Complete",15,15,1,0,1,-0.217290179639596,0.325603412502546

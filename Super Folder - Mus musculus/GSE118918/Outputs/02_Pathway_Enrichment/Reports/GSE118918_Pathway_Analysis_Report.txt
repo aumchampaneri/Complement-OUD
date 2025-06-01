@@ -5,7 +5,7 @@ GSE118918 PATHWAY ENRICHMENT ANALYSIS REPORT
 ANALYSIS OVERVIEW
 -----------------
 Dataset: GSE118918 (Nucleus Accumbens, Mock vs Morphine)
-Analysis Date: 2025-06-01 14:39:34.934113 
+Analysis Date: 2025-06-01 17:28:19.710308 
 Focus: Complement pathway and morphine response mechanisms
 
 GENE ONTOLOGY ENRICHMENT
@@ -23,7 +23,7 @@ No significant complement pathway enrichment detected
 
 GSEA ANALYSIS
 -------------
-Significant GSEA GO BP terms (FDR < 0.05): 225 
+Significant GSEA GO BP terms (FDR < 0.05): 221 
 Significant GSEA KEGG pathways (FDR < 0.05): 31 
 
 KEY FINDINGS
