@@ -1,97 +1,119 @@
 # ==============================================================================
 # GSE225158 Paired Pseudobulk Analysis
 # ==============================================================================
-# Purpose: Perform paired differential expression analysis on pseudobulk data
-#          created from snRNA-seq data (mirrors GSE174409 workflow exactly)
-# Dataset: GSE225158 - Pseudobulk data from single-nucleus RNA-seq
-# Methods: Paired limma-voom, Mixed effects, and DESeq2 approaches (same as GSE174409)
+# Purpose: Paired differential expression analysis on pseudobulk data from snRNA-seq
+# Dataset: GSE225158 - Striatal single-nucleus RNA-seq (Caudate + Putamen)
+# Design:  10 paired subjects (OUD vs CTL) × 2 brain regions
+# Methods: Paired limma-voom, Mixed effects, DESeq2 (identical to GSE174409)
+# Input:   CSV files created by 00_GSE225158_Python-Loading.py
 # ==============================================================================
 
-# File paths
-DATA_DIR <- "/Users/aumchampaneri/Complement-OUD/Translational_Study/Homo_sapiens/Data/GSE225158"
+# Configuration
 OUTPUT_DIR <- "/Users/aumchampaneri/Complement-OUD/Translational_Study/Homo_sapiens/Results/GSE225158"
 COUNTS_FILE <- file.path(OUTPUT_DIR, "GSE225158_pseudobulk_counts.csv")
 METADATA_FILE <- file.path(OUTPUT_DIR, "GSE225158_pseudobulk_metadata.csv")
 
 # Load required libraries
-library(limma)
-library(edgeR)
-library(DESeq2)
-library(dplyr)
+suppressPackageStartupMessages({
+  library(limma)
+  library(edgeR)
+  library(DESeq2)
+  library(dplyr)
+})
 
 # ==============================================================================
-# DATA LOADING AND PREPROCESSING
+# DATA LOADING AND VALIDATION
 # ==============================================================================
 
-#' Load and prepare GSE225158 pseudobulk data (mirrors GSE174409 exactly)
-#' @param counts_file Path to pseudobulk counts CSV file
-#' @param metadata_file Path to pseudobulk metadata CSV file
-#' @return List with counts matrix and metadata
-load_and_prepare_pseudobulk <- function(counts_file, metadata_file) {
+#' Load and validate GSE225158 pseudobulk data
+#' @return List containing counts matrix and metadata
+load_pseudobulk_data <- function() {
   cat("=== Loading GSE225158 Pseudobulk Data ===\n")
   
-  # Load count matrix (same as GSE174409)
-  counts <- read.csv(counts_file, header = TRUE, row.names = 1, stringsAsFactors = FALSE)
-  cat("Count matrix dimensions:", dim(counts), "\n")
+  # Check input files exist
+  if (!file.exists(COUNTS_FILE)) {
+    stop("Counts file not found: ", COUNTS_FILE, 
+         "\nPlease run 00_GSE225158_Python-Loading.py first")
+  }
+  if (!file.exists(METADATA_FILE)) {
+    stop("Metadata file not found: ", METADATA_FILE,
+         "\nPlease run 00_GSE225158_Python-Loading.py first")
+  }
   
-  # Load metadata (same as GSE174409)
-  metadata <- read.csv(metadata_file, header = TRUE, row.names = 1, stringsAsFactors = FALSE)
-  cat("Metadata dimensions:", dim(metadata), "\n")
+  # Load data
+  counts <- read.csv(COUNTS_FILE, header = TRUE, row.names = 1, stringsAsFactors = FALSE)
+  metadata <- read.csv(METADATA_FILE, header = TRUE, row.names = 1, stringsAsFactors = FALSE)
   
-  # Ensure sample order matches
+  # Fix R's automatic "X" prefix for numeric column names
+  colnames(counts) <- gsub("^X", "", colnames(counts))
+  
+  # Align samples
   common_samples <- intersect(colnames(counts), rownames(metadata))
   counts <- counts[, common_samples]
   metadata <- metadata[common_samples, ]
   
-  # Convert to factors (same as GSE174409)
+  # Convert to factors
   metadata$Region <- factor(metadata$Region)
   metadata$Sex <- factor(metadata$Sex) 
   metadata$OUD_Status <- factor(metadata$OUD_Status)
+  metadata$Subject_ID <- factor(metadata$Subject_ID)
   
-  # Filter for paired subjects only (same logic as GSE174409)
+  # Validate paired design
   paired_subjects <- metadata %>%
     group_by(Subject_ID) %>%
-    filter(n_distinct(Region) == 2) %>%
-    pull(Subject_ID) %>%
-    unique()
+    summarise(n_regions = n_distinct(Region), .groups = 'drop') %>%
+    filter(n_regions == 2) %>%
+    pull(Subject_ID)
   
+  if (length(paired_subjects) < 3) {
+    stop("Insufficient paired subjects found: ", length(paired_subjects), 
+         "\nNeed at least 3 for analysis")
+  }
+  
+  # Filter to paired subjects and sort
   metadata <- metadata %>%
     filter(Subject_ID %in% paired_subjects) %>%
     arrange(Subject_ID, Region)
   
-  counts <- counts[, metadata$Sample_ID]
+  counts <- counts[, rownames(metadata)]
   
-  cat("Paired subjects found:", length(paired_subjects), "\n")
-  cat("Final dimensions - Genes:", nrow(counts), "| Samples:", ncol(counts), "\n")
-  cat("Brain regions:", table(metadata$Region), "\n")
-  cat("OUD status:", table(metadata$OUD_Status), "\n\n")
+  # Print summary
+  cat("Loaded:", nrow(counts), "genes ×", ncol(counts), "samples\n")
+  cat("Paired subjects:", length(paired_subjects), "\n")
+  cat("Design:", paste(names(table(metadata$Region)), collapse = " vs "), "\n")
+  cat("Groups:", paste(names(table(metadata$OUD_Status)), collapse = " vs "), "\n")
   
   return(list(counts = counts, metadata = metadata))
 }
 
 # ==============================================================================
-# ANALYSIS METHODS (IDENTICAL TO GSE174409)
+# STATISTICAL ANALYSIS METHODS
 # ==============================================================================
 
-#' Method 1: Paired limma-voom analysis (identical to GSE174409)
+#' Method 1: Paired limma-voom analysis with duplicate correlation
 paired_limma_analysis <- function(counts, metadata) {
-  cat("=== Paired Limma-Voom Analysis ===\n")
+  cat("\n=== Method 1: Paired Limma-Voom ===\n")
   
+  # Create DGEList and filter low-expressed genes
   dge <- DGEList(counts = counts)
   keep <- filterByExpr(dge, group = metadata$Region)
   dge <- dge[keep, , keep.lib.sizes = FALSE]
   dge <- calcNormFactors(dge)
   cat("Genes after filtering:", nrow(dge), "\n")
   
+  # Design matrix
   design <- model.matrix(~ Region + Sex + OUD_Status, data = metadata)
   
+  # Voom transformation with duplicate correlation
   v <- voom(dge, design, plot = FALSE)
   corfit <- duplicateCorrelation(v, design, block = metadata$Subject_ID)
   cat("Intra-subject correlation:", round(corfit$consensus, 3), "\n")
   
+  # Fit linear model
   fit <- lmFit(v, design, block = metadata$Subject_ID, correlation = corfit$consensus)
   fit <- eBayes(fit)
   
+  # Extract region effect results
   region_coef <- grep("Region", colnames(design), value = TRUE)[1]
   results <- topTable(fit, coef = region_coef, number = Inf, sort.by = "P")
   results$Method <- "Paired_Limma"
@@ -99,18 +121,21 @@ paired_limma_analysis <- function(counts, metadata) {
   return(list(results = results, fit = fit, correlation = corfit$consensus))
 }
 
-#' Method 2: Mixed effects analysis (identical to GSE174409)
+#' Method 2: Mixed effects analysis with quality weights
 mixed_effects_analysis <- function(counts, metadata) {
-  cat("=== Mixed Effects Analysis ===\n")
+  cat("\n=== Method 2: Mixed Effects ===\n")
   
+  # Create DGEList and filter
   dge <- DGEList(counts = counts)
   keep <- filterByExpr(dge, group = metadata$Region)
   dge <- dge[keep, , keep.lib.sizes = FALSE]
   dge <- calcNormFactors(dge)
   cat("Genes after filtering:", nrow(dge), "\n")
   
+  # Design matrix
   design <- model.matrix(~ Region + Sex + OUD_Status, data = metadata)
   
+  # Voom with quality weights (iterative)
   v <- voomWithQualityWeights(dge, design, plot = FALSE)
   corfit <- duplicateCorrelation(v, design, block = metadata$Subject_ID)
   
@@ -120,9 +145,11 @@ mixed_effects_analysis <- function(counts, metadata) {
   corfit <- duplicateCorrelation(v, design, block = metadata$Subject_ID)
   cat("Intra-subject correlation:", round(corfit$consensus, 3), "\n")
   
+  # Fit model
   fit <- lmFit(v, design, block = metadata$Subject_ID, correlation = corfit$consensus)
   fit <- eBayes(fit)
   
+  # Extract results
   region_coef <- grep("Region", colnames(design), value = TRUE)[1]
   results <- topTable(fit, coef = region_coef, number = Inf, sort.by = "P")
   results$Method <- "Mixed_Effects"
@@ -130,25 +157,30 @@ mixed_effects_analysis <- function(counts, metadata) {
   return(list(results = results, fit = fit, correlation = corfit$consensus))
 }
 
-#' Method 3: DESeq2 analysis (identical to GSE174409)
+#' Method 3: DESeq2 analysis
 deseq2_analysis <- function(counts, metadata) {
-  cat("=== DESeq2 Analysis ===\n")
+  cat("\n=== Method 3: DESeq2 ===\n")
   
+  # Prepare integer count matrix
   counts_int <- round(as.matrix(counts))
   design_formula <- ~ Region + Sex + OUD_Status
   
+  # Create DESeq2 object
   dds <- DESeqDataSetFromMatrix(
     countData = counts_int,
     colData = metadata,
     design = design_formula
   )
   
+  # Filter low counts
   keep <- rowSums(counts(dds)) >= 10
   dds <- dds[keep,]
   cat("Genes after filtering:", nrow(dds), "\n")
   
+  # Run DESeq2
   dds <- DESeq(dds, quiet = TRUE)
   
+  # Extract region comparison results
   region_levels <- levels(metadata$Region)
   results_obj <- results(dds, contrast = c("Region", region_levels[2], region_levels[1]))
   results_df <- as.data.frame(results_obj)
@@ -158,42 +190,29 @@ deseq2_analysis <- function(counts, metadata) {
 }
 
 # ==============================================================================
-# MAIN ANALYSIS FUNCTION (IDENTICAL TO GSE174409)
+# RESULTS OUTPUT AND SUMMARY
 # ==============================================================================
 
-#' Run complete GSE225158 pseudobulk paired analysis
-run_gse225158_analysis <- function() {
-  # Load and prepare data
-  pseudobulk_data <- load_and_prepare_pseudobulk(COUNTS_FILE, METADATA_FILE)
+#' Save analysis results and create summary
+save_results <- function(results_list, metadata) {
+  cat("\n=== Saving Results ===\n")
   
-  # Run analyses (same three methods as GSE174409)
-  results_list <- list(
-    paired_limma = paired_limma_analysis(pseudobulk_data$counts, pseudobulk_data$metadata),
-    mixed_effects = mixed_effects_analysis(pseudobulk_data$counts, pseudobulk_data$metadata),
-    deseq2 = deseq2_analysis(pseudobulk_data$counts, pseudobulk_data$metadata)
-  )
+  # Create output directory
+  if (!dir.exists(OUTPUT_DIR)) dir.create(OUTPUT_DIR, recursive = TRUE)
   
-  # Summary statistics (identical to GSE174409)
-  cat("=== Analysis Summary ===\n")
-  for(method in names(results_list)) {
-    res <- results_list[[method]]$results
-    pval_col <- ifelse("adj.P.Val" %in% colnames(res), "adj.P.Val", "padj")
-    sig_genes <- sum(res[[pval_col]] < 0.05, na.rm = TRUE)
-    cat(sprintf("%-15s - Significant genes (FDR < 0.05): %d\n", method, sig_genes))
+  # Save main results object
+  results_file <- file.path(OUTPUT_DIR, "GSE225158_region_analysis_results.rds")
+  saveRDS(results_list, results_file)
+  cat("✓ Main results:", results_file, "\n")
+  
+  # Save individual method results
+  for (method in names(results_list)) {
+    method_file <- file.path(OUTPUT_DIR, paste0("GSE225158_", method, "_results.csv"))
+    write.csv(results_list[[method]]$results, method_file, row.names = TRUE)
+    cat("✓", method, "results:", method_file, "\n")
   }
   
-  # Save results (identical structure to GSE174409)
-  if(!dir.exists(OUTPUT_DIR)) dir.create(OUTPUT_DIR, recursive = TRUE)
-  
-  saveRDS(results_list, file.path(OUTPUT_DIR, "GSE225158_region_analysis_results.rds"))
-  
-  for(method in names(results_list)) {
-    write.csv(results_list[[method]]$results, 
-              file.path(OUTPUT_DIR, paste0("GSE225158_", method, "_results.csv")), 
-              row.names = TRUE)
-  }
-  
-  # Create comparison summary (identical to GSE174409)
+  # Create method comparison summary
   summary_df <- data.frame(
     Method = names(results_list),
     N_Genes_Tested = sapply(results_list, function(x) nrow(x$results)),
@@ -202,29 +221,71 @@ run_gse225158_analysis <- function() {
       pval_col <- ifelse("adj.P.Val" %in% colnames(res), "adj.P.Val", "padj")
       sum(res[[pval_col]] < 0.05, na.rm = TRUE)
     }),
-    Correlation = sapply(results_list, function(x) {
-      if("correlation" %in% names(x)) round(x$correlation, 3) else NA
-    })
+    Intra_Subject_Correlation = sapply(results_list, function(x) {
+      if ("correlation" %in% names(x)) round(x$correlation, 3) else NA
+    }),
+    N_Subjects = nrow(metadata) / 2,
+    N_Samples = nrow(metadata)
   )
   
-  write.csv(summary_df, file.path(OUTPUT_DIR, "GSE225158_method_comparison.csv"), row.names = FALSE)
+  summary_file <- file.path(OUTPUT_DIR, "GSE225158_method_comparison.csv")
+  write.csv(summary_df, summary_file, row.names = FALSE)
+  cat("✓ Summary:", summary_file, "\n")
   
-  cat("\n=== Results Saved ===\n")
-  cat("Main results:", file.path(OUTPUT_DIR, "GSE225158_region_analysis_results.rds"), "\n")
+  return(summary_df)
+}
+
+# ==============================================================================
+# MAIN ANALYSIS PIPELINE
+# ==============================================================================
+
+#' Run complete GSE225158 paired pseudobulk analysis
+#' @return List of analysis results from all three methods
+run_gse225158_analysis <- function() {
+  cat(paste(rep("=", 70), collapse = ""), "\n")
+  cat("GSE225158 PAIRED PSEUDOBULK ANALYSIS\n")
+  cat(paste(rep("=", 70), collapse = ""), "\n")
   
-  # Print structure of saved results (identical to GSE174409)
-  cat("\n=== Results Structure ===\n")
-  cat("The saved .rds file contains:\n")
-  str(results_list, max.level = 2, give.attr = FALSE)
-  
-  return(results_list)
+  tryCatch({
+    # Load and validate data
+    data <- load_pseudobulk_data()
+    
+    # Run three analysis methods (same as GSE174409)
+    results_list <- list(
+      paired_limma = paired_limma_analysis(data$counts, data$metadata),
+      mixed_effects = mixed_effects_analysis(data$counts, data$metadata),
+      deseq2 = deseq2_analysis(data$counts, data$metadata)
+    )
+    
+    # Print analysis summary
+    cat("\n=== Analysis Summary ===\n")
+    for (method in names(results_list)) {
+      res <- results_list[[method]]$results
+      pval_col <- ifelse("adj.P.Val" %in% colnames(res), "adj.P.Val", "padj")
+      sig_genes <- sum(res[[pval_col]] < 0.05, na.rm = TRUE)
+      cat(sprintf("%-15s: %4d significant genes (FDR < 0.05)\n", method, sig_genes))
+    }
+    
+    # Save results
+    summary_df <- save_results(results_list, data$metadata)
+    
+    cat("\n", paste(rep("=", 70), collapse = ""), "\n")
+    cat("SUCCESS: Analysis complete! Results saved to:", OUTPUT_DIR, "\n")
+    cat(paste(rep("=", 70), collapse = ""), "\n")
+    
+    return(results_list)
+    
+  }, error = function(e) {
+    cat("\nERROR:", e$message, "\n")
+    stop(e)
+  })
 }
 
 # ==============================================================================
 # EXECUTION
 # ==============================================================================
 
-# Run analysis if script is sourced directly
-if(!exists("SOURCED")) {
+# Run analysis when script is sourced
+if (!exists("SOURCED")) {
   results <- run_gse225158_analysis()
 }
