@@ -1,19 +1,20 @@
 HUMAN DATA PROCESSING REPORT
 ======================================== 
-Processing Date: 2025-06-01 22:07:48.507846 
+Processing Date: 2025-06-02 00:22:19.330552 
 
 GSE174409 - Human Bulk RNA-seq:
   Samples: 80 
-  Conditions: Control 
-  Regions: Unknown 
-  Genes after filtering: 40201 
+  Conditions: OUD, Control 
+  Brain regions: NAcc, DLPFC 
+  Genes after filtering: 46534 
 
 GSE225158 - Human Single-cell RNA-seq:
   Status: Metadata downloaded, data processing pending
   Note: Manual download of supplementary files may be required
 
 Output Files Generated:
-  - GSE174409_normalized_expression.rds/csv
+  - GSE174409_logcpm_expression.rds/csv
+  - GSE174409_filtered_counts.rds
   - GSE174409_sample_metadata.rds/csv
   - GSE174409_gene_annotations.rds/csv
-  - QC plots: correlation, PCA, and single-cell QC plots
+  - QC plots: correlation and PCA plots (PDF/PNG formats)

@@ -1576,35 +1576,44 @@ if ("GSE289002" %in% names(mouse_datasets_harmonized)) {
 # SAVE HARMONIZED DATASETS
 # ==============================================================================
 
-cat("Saving harmonized datasets...\n")
+cat("\n", strrep("=", 50), "\n")
+cat("SAVING HARMONIZED DATASETS\n")
+cat(strrep("=", 50), "\n")
 
 # Save individual harmonized datasets
 iwalk(mouse_datasets_harmonized, function(dataset, name) {
   saveRDS(dataset, file.path(processed_dir, paste0(name, "_harmonized.rds")))
+  cat("✓ Saved", name, "harmonized dataset\n")
 })
 
 # Save male-only datasets
 iwalk(mouse_datasets_male_only, function(dataset, name) {
   saveRDS(dataset, file.path(processed_dir, paste0(name, "_male_only.rds")))
+  cat("✓ Saved", name, "male-only dataset\n")
 })
 
 # Save sex-stratified GSE289002
 if (!is.null(gse289002_sex_stratified)) {
   saveRDS(gse289002_sex_stratified, 
           file.path(processed_dir, "GSE289002_sex_stratified.rds"))
+  cat("✓ Saved GSE289002 sex-stratified dataset\n")
 }
 
 # Save combined metadata
 saveRDS(all_metadata, file.path(processed_dir, "mouse_combined_metadata.rds"))
+cat("✓ Saved combined metadata\n")
 
 # Save common genes
 saveRDS(common_genes, file.path(processed_dir, "mouse_common_genes.rds"))
+cat("✓ Saved common genes list\n")
 
 # ==============================================================================
 # GENERATE QC PLOTS AND REPORTS
 # ==============================================================================
 
-cat("Generating QC plots and reports...\n")
+cat("\n", strrep("=", 50), "\n")
+cat("GENERATING QC PLOTS AND REPORTS\n")
+cat(strrep("=", 50), "\n")
 
 # Create summary statistics
 summary_stats <- map_dfr(mouse_datasets_harmonized, function(dataset) {
@@ -1639,6 +1648,8 @@ summary_stats <- map_dfr(mouse_datasets_harmonized, function(dataset) {
   )
 }, .id = "dataset")
 
+cat("✓ Created summary statistics\n")
+
 # Sample distribution plots
 cat("Creating sample distribution summary...\n")
 
@@ -1656,12 +1667,6 @@ for (col in required_cols) {
     all_metadata[[col]] <- "Unknown"
   }
 }
-
-# Debug before count operation
-cat("Final all_metadata structure before count:\n")
-cat("Class:", class(all_metadata), "\n")
-cat("Is data frame:", is.data.frame(all_metadata), "\n")
-cat("Columns:", paste(colnames(all_metadata), collapse = ", "), "\n")
 
 # Create metadata summary with error handling
 metadata_summary <- NULL
@@ -1706,6 +1711,8 @@ p_sample_dist <- ggplot(metadata_summary, aes(x = dataset, y = n, fill = conditi
        x = "Dataset", y = "Number of Samples", fill = "Condition") +
   scale_fill_viridis_d()
 
+ggsave(file.path(figures_dir, "mouse_sample_distribution.pdf"), 
+       p_sample_dist, width = 12, height = 8)
 ggsave(file.path(figures_dir, "mouse_sample_distribution.png"), 
        p_sample_dist, width = 12, height = 8, dpi = 300)
 
@@ -1735,6 +1742,8 @@ p_lib_sizes <- ggplot(lib_sizes_df, aes(x = dataset, y = lib_size, fill = datase
   scale_fill_viridis_d() +
   guides(fill = "none")
 
+ggsave(file.path(figures_dir, "mouse_library_sizes.pdf"), 
+       p_lib_sizes, width = 10, height = 6)
 ggsave(file.path(figures_dir, "mouse_library_sizes.png"), 
        p_lib_sizes, width = 10, height = 6, dpi = 300)
 
@@ -1763,10 +1772,141 @@ p_genes_detected <- ggplot(genes_detected_df, aes(x = dataset, y = genes_detecte
   scale_fill_viridis_d() +
   guides(fill = "none")
 
+ggsave(file.path(figures_dir, "mouse_genes_detected.pdf"), 
+       p_genes_detected, width = 10, height = 6)
 ggsave(file.path(figures_dir, "mouse_genes_detected.png"), 
        p_genes_detected, width = 10, height = 6, dpi = 300)
 
+# Add correlation heatmap between datasets
+if (length(mouse_datasets_harmonized) > 1 && length(common_genes) > 100) {
+  cat("Creating inter-dataset correlation analysis...\n")
+  
+  # Create combined expression matrix for correlation
+  combined_expression <- map(mouse_datasets_harmonized, function(dataset) {
+    if (inherits(dataset$log_cpm, "dgCMatrix")) {
+      Matrix::rowMeans(dataset$log_cpm)
+    } else {
+      rowMeans(dataset$log_cpm)
+    }
+  }) %>%
+    do.call(cbind, .) %>%
+    as.matrix()
+  
+  colnames(combined_expression) <- names(mouse_datasets_harmonized)
+  
+  # Calculate correlation
+  dataset_cor <- cor(combined_expression, use = "complete.obs")
+  
+  # Create correlation heatmap
+  pdf(file.path(figures_dir, "mouse_dataset_correlation.pdf"), width = 8, height = 6)
+  pheatmap::pheatmap(dataset_cor,
+                     main = "Inter-dataset Gene Expression Correlation",
+                     display_numbers = TRUE,
+                     number_format = "%.2f",
+                     color = colorRampPalette(c("blue", "white", "red"))(50))
+  dev.off()
+  
+  png(file.path(figures_dir, "mouse_dataset_correlation.png"), 
+      width = 8, height = 6, units = "in", res = 300)
+  pheatmap::pheatmap(dataset_cor,
+                     main = "Inter-dataset Gene Expression Correlation",
+                     display_numbers = TRUE,
+                     number_format = "%.2f",
+                     color = colorRampPalette(c("blue", "white", "red"))(50))
+  dev.off()
+  
+  cat("✓ Generated inter-dataset correlation heatmap\n")
+}
+
+# Add PCA plot across all mouse datasets
+if (length(mouse_datasets_male_only) > 1) {
+  cat("Creating PCA analysis across male-only datasets...\n")
+  
+  # Combine male-only data for PCA
+  combined_male_data <- map_dfr(mouse_datasets_male_only, function(dataset) {
+    # Sample a subset for PCA if too many samples
+    n_samples <- ncol(dataset$log_cpm)
+    if (n_samples > 200) {
+      sample_indices <- sort(sample(n_samples, 200))
+      log_cpm_subset <- dataset$log_cpm[, sample_indices, drop = FALSE]
+      metadata_subset <- dataset$metadata[sample_indices, ]
+    } else {
+      log_cpm_subset <- dataset$log_cpm
+      metadata_subset <- dataset$metadata
+    }
+    
+    # Convert to data frame for PCA
+    if (inherits(log_cpm_subset, "dgCMatrix")) {
+      expr_df <- as.matrix(t(log_cpm_subset))
+    } else {
+      expr_df <- t(log_cpm_subset)
+    }
+    
+    # Combine with metadata
+    cbind(metadata_subset, expr_df)
+  }, .id = "source_dataset")
+  
+  # Extract expression data for PCA
+  expr_cols <- !colnames(combined_male_data) %in% 
+    c("source_dataset", "sample_id", "dataset", "condition", "treatment", 
+      "brain_region", "sex", "time_point", "data_type")
+  
+  expr_matrix <- as.matrix(combined_male_data[, expr_cols])
+  
+  # Remove genes with zero variance
+  gene_vars <- apply(expr_matrix, 2, var, na.rm = TRUE)
+  expr_matrix_filtered <- expr_matrix[, gene_vars > 0 & !is.na(gene_vars)]
+  
+  if (ncol(expr_matrix_filtered) > 50) {
+    # Perform PCA
+    pca_result <- prcomp(expr_matrix_filtered, center = TRUE, scale. = TRUE)
+    
+    # Create PCA plot data
+    pca_df <- data.frame(
+      PC1 = pca_result$x[, 1],
+      PC2 = pca_result$x[, 2],
+      combined_male_data[, !expr_cols]
+    )
+    
+    # Calculate variance explained
+    var_explained <- summary(pca_result)$importance[2, 1:2] * 100
+    
+    # PCA plot colored by dataset
+    p_pca_dataset <- ggplot(pca_df, aes(x = PC1, y = PC2, color = source_dataset, shape = condition)) +
+      geom_point(size = 3, alpha = 0.8) +
+      labs(title = "PCA of Male Mouse Datasets",
+           x = paste0("PC1 (", round(var_explained[1], 1), "%)"),
+           y = paste0("PC2 (", round(var_explained[2], 1), "%)"),
+           color = "Dataset", shape = "Condition") +
+      theme_bw() +
+      theme(legend.position = "bottom")
+    
+    ggsave(file.path(figures_dir, "mouse_male_PCA_by_dataset.pdf"), 
+           p_pca_dataset, width = 10, height = 8)
+    ggsave(file.path(figures_dir, "mouse_male_PCA_by_dataset.png"), 
+           p_pca_dataset, width = 10, height = 8, dpi = 300)
+    
+    # PCA plot colored by brain region
+    p_pca_region <- ggplot(pca_df, aes(x = PC1, y = PC2, color = brain_region, shape = condition)) +
+      geom_point(size = 3, alpha = 0.8) +
+      labs(title = "PCA of Male Mouse Datasets - by Brain Region",
+           x = paste0("PC1 (", round(var_explained[1], 1), "%)"),
+           y = paste0("PC2 (", round(var_explained[2], 1), "%)"),
+           color = "Brain Region", shape = "Condition") +
+      theme_bw() +
+      theme(legend.position = "bottom")
+    
+    ggsave(file.path(figures_dir, "mouse_male_PCA_by_region.pdf"), 
+           p_pca_region, width = 10, height = 8)
+    ggsave(file.path(figures_dir, "mouse_male_PCA_by_region.png"), 
+           p_pca_region, width = 10, height = 8, dpi = 300)
+    
+    cat("✓ Generated PCA plots for male mouse datasets\n")
+  }
+}
+
 # Create Excel report
+cat("Creating Excel report...\n")
 wb <- createWorkbook()
 
 # Summary statistics
@@ -1806,18 +1946,20 @@ for (dataset_name in names(mouse_datasets_harmonized)) {
 saveWorkbook(wb, file.path(results_dir, "mouse_datasets_harmonization_report.xlsx"), 
              overwrite = TRUE)
 
+cat("✓ Generated Excel report\n")
+
 # ==============================================================================
 # PRINT FINAL SUMMARY
 # ==============================================================================
 
-cat("\n", strrep("=", 60), "\n")
+cat("\n", strrep("=", 80), "\n")
 cat("MOUSE DATA HARMONIZATION SUMMARY\n")
-cat(strrep("=", 60), "\n")
+cat(strrep("=", 80), "\n")
 
 cat("Successfully processed datasets:\n")
 for (dataset_name in names(mouse_datasets_harmonized)) {
   dataset <- mouse_datasets_harmonized[[dataset_name]]
-  cat("", dataset_name, ":\n")
+  cat("✓", dataset_name, ":\n")
   cat("    Samples:", ncol(dataset$counts), "\n")
   cat("    Genes:", nrow(dataset$counts), "\n")
   cat("    Conditions:", paste(unique(dataset$metadata$condition), collapse = ", "), "\n")
@@ -1834,7 +1976,15 @@ if (!is.null(gse289002_sex_stratified)) {
   cat("  Female samples:", ncol(gse289002_sex_stratified$female$counts), "\n")
 }
 
-cat("\nAll harmonized data saved to:", processed_dir, "\n")
-cat("QC plots saved to:", figures_dir, "\n")
-cat("Harmonization report saved to:", results_dir, "\n")
-cat(strrep("=", 60), "\n")
+cat("\nFiles saved:\n")
+cat("✓ Harmonized datasets:", processed_dir, "\n")
+cat("✓ QC plots (PDF and PNG):", figures_dir, "\n")
+cat("✓ Excel report:", file.path(results_dir, "mouse_datasets_harmonization_report.xlsx"), "\n")
+
+cat("\nNext steps:\n")
+cat("1. Run ortholog mapping script (03_Ortholog_Mapping.R)\n")
+cat("2. Cross-species integration and analysis\n")
+cat("3. Comparative pathway analysis\n")
+
+cat("\nMouse data harmonization completed at:", as.character(Sys.time()), "\n")
+cat(strrep("=", 80), "\n")

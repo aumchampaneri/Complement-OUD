@@ -388,6 +388,10 @@ if (gse174409_processed) {
       if (any(str_detect(char_examples, "diagnosis: CONT"))) {
         cat("Found 'diagnosis: CONT' pattern - mapping directly...\n")
         
+        # Debug: Check the sample ID formats
+        cat("Sample IDs from count matrix (first 5):", paste(head(colnames(gse174409_counts), 5), collapse = ", "), "\n")
+        cat("Sample IDs from metadata rownames (first 5):", paste(head(rownames(gse174409_metadata), 5), collapse = ", "), "\n")
+        
         # Create a direct mapping from the original metadata
         sample_mapping <- data.frame(
           sample_id = rownames(gse174409_metadata),
@@ -401,14 +405,40 @@ if (gse174409_processed) {
             str_detect(tolower(gse174409_metadata$source_name_ch1), "dlpfc") ~ "DLPFC",
             TRUE ~ "Unknown"
           ),
+          direct_sex = case_when(
+            str_detect(gse174409_metadata$characteristics_ch1.2, "Sex: Female") ~ "Female",
+            str_detect(gse174409_metadata$characteristics_ch1.2, "Sex: Male") ~ "Male",
+            TRUE ~ "Unknown"
+          ),
+          direct_age = str_extract(gse174409_metadata$characteristics_ch1.3, "(?<=age: )\\d+"),
+          direct_time_of_death = str_extract(gse174409_metadata$characteristics_ch1.1, "(?<=timeofdeath: )[0-9.-]+"),
           stringsAsFactors = FALSE
         )
         
         cat("Direct mapping summary:\n")
         cat("Conditions:", paste(names(table(sample_mapping$direct_condition)), "=", table(sample_mapping$direct_condition), collapse = " / "), "\n")
         cat("Brain regions:", paste(names(table(sample_mapping$direct_brain_region)), "=", table(sample_mapping$direct_brain_region), collapse = " / "), "\n")
+        cat("Sex:", paste(names(table(sample_mapping$direct_sex)), "=", table(sample_mapping$direct_sex), collapse = " / "), "\n")
+        cat("Age range:", min(as.numeric(sample_mapping$direct_age), na.rm = TRUE), "-", max(as.numeric(sample_mapping$direct_age), na.rm = TRUE), "\n")
+
+        # Check if the sample IDs match between count matrix and metadata
+        count_samples <- colnames(gse174409_counts)
+        meta_samples <- rownames(gse174409_metadata)
         
-        # Update the sample metadata with direct mappings - fix the join issue
+        if (length(intersect(count_samples, meta_samples)) == 0) {
+          cat("No direct sample ID match found. Trying to match by order...\n")
+          # If no direct match, map by order (assuming same order)
+          if (length(count_samples) == nrow(sample_mapping)) {
+            sample_mapping$sample_id <- count_samples
+            cat("Mapped by order - using count matrix sample names\n")
+          } else {
+            cat("Sample count mismatch. Count matrix:", length(count_samples), "Metadata:", nrow(sample_mapping), "\n")
+          }
+        } else {
+          cat("Found", length(intersect(count_samples, meta_samples)), "matching sample IDs\n")
+        }
+        
+        # Update the sample metadata with direct mappings
         gse174409_sample_metadata <- gse174409_sample_metadata %>%
           left_join(sample_mapping, by = "sample_id")
         
@@ -416,17 +446,25 @@ if (gse174409_processed) {
         cat("After join - checking columns:\n")
         cat("Columns in metadata:", paste(colnames(gse174409_sample_metadata), collapse = ", "), "\n")
         
-        # Update conditions and brain regions
+        # Debug: Check the values in direct_condition and direct_brain_region
+        cat("Direct condition values (first 5):", paste(head(gse174409_sample_metadata$direct_condition, 5), collapse = ", "), "\n")
+        cat("Direct brain region values (first 5):", paste(head(gse174409_sample_metadata$direct_brain_region, 5), collapse = ", "), "\n")
+        
+        # Update conditions and brain regions - use direct assignment instead of ifelse
+        gse174409_sample_metadata$condition <- gse174409_sample_metadata$direct_condition
+        gse174409_sample_metadata$brain_region <- gse174409_sample_metadata$direct_brain_region
+        gse174409_sample_metadata$sex <- gse174409_sample_metadata$direct_sex
+        gse174409_sample_metadata$age <- as.numeric(gse174409_sample_metadata$direct_age)
+        gse174409_sample_metadata$time_of_death <- as.numeric(gse174409_sample_metadata$direct_time_of_death)
+        
+        # Remove the temporary columns
         gse174409_sample_metadata <- gse174409_sample_metadata %>%
-          mutate(
-            condition = ifelse(is.na(direct_condition), condition, direct_condition),
-            brain_region = ifelse(is.na(direct_brain_region), brain_region, direct_brain_region)
-          ) %>%
-          dplyr::select(-direct_condition, -direct_brain_region)
+          dplyr::select(-direct_condition, -direct_brain_region, -direct_sex, -direct_age, -direct_time_of_death)
         
         cat("Applied direct mapping from GEO metadata\n")
         cat("Final condition summary:", paste(names(table(gse174409_sample_metadata$condition)), "=", table(gse174409_sample_metadata$condition), collapse = " / "), "\n")
         cat("Final brain region summary:", paste(names(table(gse174409_sample_metadata$brain_region)), "=", table(gse174409_sample_metadata$brain_region), collapse = " / "), "\n")
+        cat("Final sex summary:", paste(names(table(gse174409_sample_metadata$sex)), "=", table(gse174409_sample_metadata$sex), collapse = " / "), "\n")
       }
       
       # Look for additional characteristics columns that might contain control info
@@ -469,7 +507,7 @@ cat("  Brain regions:", paste(names(table(gse174409_sample_metadata$brain_region
   
 # Display sample metadata summary for verification
 cat("\nSample metadata summary:\n")
-print(head(gse174409_sample_metadata[, c("sample_id", "condition", "brain_region")], 10))
+print(head(gse174409_sample_metadata[, c("sample_id", "condition", "brain_region", "sex", "age")], 10))
 
 # ==============================================================================
 # PART 2: Data Quality Control and Normalization (GSE174409)
@@ -544,7 +582,7 @@ if (gse174409_processed && exists("gse174409_logcpm")) {
   sample_cor <- cor(gse174409_logcpm)
   
   # Create annotation data for heatmap (ensure proper formatting)
-  annotation_data <- gse174409_sample_metadata[, c("condition", "brain_region"), drop = FALSE]
+  annotation_data <- gse174409_sample_metadata[, c("condition", "brain_region", "sex"), drop = FALSE]
   rownames(annotation_data) <- gse174409_sample_metadata$sample_id
   
   # Ensure annotation_data matches sample_cor column names
@@ -553,7 +591,8 @@ if (gse174409_processed && exists("gse174409_logcpm")) {
   # Remove any NA values
   annotation_data$condition[is.na(annotation_data$condition)] <- "Unknown"
   annotation_data$brain_region[is.na(annotation_data$brain_region)] <- "Unknown"
-  
+  annotation_data$sex[is.na(annotation_data$sex)] <- "Unknown"
+
   tryCatch({
     pdf(file.path(figures_dir, "GSE174409_sample_correlation.pdf"), width = 10, height = 8)
     pheatmap::pheatmap(sample_cor, 
@@ -562,11 +601,28 @@ if (gse174409_processed && exists("gse174409_logcpm")) {
                        show_rownames = FALSE,
                        show_colnames = FALSE)
     dev.off()
+    
+    # Also save as PNG
+    png(file.path(figures_dir, "GSE174409_sample_correlation.png"), width = 10, height = 8, units = "in", res = 300)
+    pheatmap::pheatmap(sample_cor, 
+                       main = "GSE174409 Sample Correlation",
+                       annotation_col = annotation_data,
+                       show_rownames = FALSE,
+                       show_colnames = FALSE)
+    dev.off()
+    
     cat("✓ Generated sample correlation heatmap\n")
   }, error = function(e) {
     cat("Warning: Could not generate correlation heatmap:", e$message, "\n")
     # Generate simple correlation heatmap without annotations
     pdf(file.path(figures_dir, "GSE174409_sample_correlation_simple.pdf"), width = 10, height = 8)
+    pheatmap::pheatmap(sample_cor, 
+                       main = "GSE174409 Sample Correlation",
+                       show_rownames = FALSE,
+                       show_colnames = FALSE)
+    dev.off()
+    
+    png(file.path(figures_dir, "GSE174409_sample_correlation_simple.png"), width = 10, height = 8, units = "in", res = 300)
     pheatmap::pheatmap(sample_cor, 
                        main = "GSE174409 Sample Correlation",
                        show_rownames = FALSE,
@@ -580,19 +636,47 @@ if (gse174409_processed && exists("gse174409_logcpm")) {
     pca_df <- data.frame(pca_data$x[, 1:2], gse174409_sample_metadata)
     
     p_pca <- ggplot(pca_df, aes(x = PC1, y = PC2, color = condition, shape = brain_region)) +
-      geom_point(size = 3) +
+      geom_point(size = 3, alpha = 0.8) +
       labs(title = "GSE174409 PCA Plot",
            x = paste0("PC1 (", round(summary(pca_data)$importance[2, 1] * 100, 1), "%)"),
            y = paste0("PC2 (", round(summary(pca_data)$importance[2, 2] * 100, 1), "%)")) +
-      theme_bw()
+      theme_bw() +
+      theme(legend.position = "bottom")
     
-    ggsave(file.path(figures_dir, "GSE174409_PCA.pdf"), p_pca, width = 8, height = 6)
-    cat("✓ Generated PCA plot\n")
+    ggsave(file.path(figures_dir, "GSE174409_PCA.pdf"), p_pca, width = 10, height = 8)
+    ggsave(file.path(figures_dir, "GSE174409_PCA.png"), p_pca, width = 10, height = 8, dpi = 300)
+    
+    # Create additional PCA plot colored by sex
+    p_pca_sex <- ggplot(pca_df, aes(x = PC1, y = PC2, color = sex, shape = brain_region)) +
+      geom_point(size = 3, alpha = 0.8) +
+      labs(title = "GSE174409 PCA Plot - Colored by Sex",
+           x = paste0("PC1 (", round(summary(pca_data)$importance[2, 1] * 100, 1), "%)"),
+           y = paste0("PC2 (", round(summary(pca_data)$importance[2, 2] * 100, 1), "%)")) +
+      theme_bw() +
+      theme(legend.position = "bottom")
+    
+    ggsave(file.path(figures_dir, "GSE174409_PCA_by_sex.pdf"), p_pca_sex, width = 10, height = 8)
+    ggsave(file.path(figures_dir, "GSE174409_PCA_by_sex.png"), p_pca_sex, width = 10, height = 8, dpi = 300)
+    
+    # Create additional PCA plot colored by age (continuous)
+    p_pca_age <- ggplot(pca_df, aes(x = PC1, y = PC2, color = age, shape = brain_region)) +
+      geom_point(size = 3, alpha = 0.8) +
+      scale_color_viridis_c(name = "Age") +
+      labs(title = "GSE174409 PCA Plot - Colored by Age",
+           x = paste0("PC1 (", round(summary(pca_data)$importance[2, 1] * 100, 1), "%)"),
+           y = paste0("PC2 (", round(summary(pca_data)$importance[2, 2] * 100, 1), "%)")) +
+      theme_bw() +
+      theme(legend.position = "bottom")
+    
+    ggsave(file.path(figures_dir, "GSE174409_PCA_by_age.pdf"), p_pca_age, width = 10, height = 8)
+    ggsave(file.path(figures_dir, "GSE174409_PCA_by_age.png"), p_pca_age, width = 10, height = 8, dpi = 300)
+    
+    cat("✓ Generated PCA plots (condition, sex, and age)\n")
   }, error = function(e) {
     cat("Warning: Could not generate PCA plot:", e$message, "\n")
   })
   
-  cat("✓ Generated QC plots for GSE174409\n")
+  cat("✓ Generated QC plots for GSE174409 (PDF and PNG formats)\n")
 }
 
 # ==============================================================================
@@ -657,7 +741,7 @@ for (file_type in names(existing_files)) {
   
   tryCatch({
     if (str_detect(file_type, "h5seurat")) {
-      # Load h5Seurat file
+      # Load h5Seurat file with better error handling
       if (!requireNamespace("SeuratDisk", quietly = TRUE)) {
         cat("Installing SeuratDisk...\n")
         if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
@@ -665,7 +749,35 @@ for (file_type in names(existing_files)) {
       }
       library(SeuratDisk)
       
-      gse225158_seurat <- LoadH5Seurat(filepath)
+      # Try different loading approaches for compatibility
+      tryCatch({
+        # First try with minimal options
+        gse225158_seurat <- LoadH5Seurat(filepath, verbose = FALSE)
+      }, error = function(e1) {
+        cat("First loading attempt failed, trying alternative approach...\n")
+        tryCatch({
+          # Try loading with different SeuratDisk version compatibility
+          options(Seurat.object.assay.version = "v3")
+          gse225158_seurat <<- LoadH5Seurat(filepath, verbose = TRUE)
+        }, error = function(e2) {
+          cat("Second attempt failed, trying with different parameters...\n")
+          tryCatch({
+            # Try the .h5ad version instead if available
+            h5ad_file <- file.path(gse225158_dir, "GSE225158_BU_OUD_Striatum_refined_all_SeuratObj_N22.h5ad.gz")
+            if (file.exists(h5ad_file)) {
+              cat("Trying to load .h5ad file instead...\n")
+              # Skip the h5seurat loading for now and move to alternative data
+              gse225158_seurat <<- NULL
+            } else {
+              cat("Both loading attempts failed. Error:", e2$message, "\n")
+              gse225158_seurat <<- NULL
+            }
+          }, error = function(e3) {
+            cat("All loading attempts failed. Final error:", e3$message, "\n")
+            gse225158_seurat <<- NULL
+          })
+        })
+      })
       
     } else if (str_detect(file_type, "h5ad")) {
       # Load h5ad file via SeuratDisk
@@ -681,7 +793,7 @@ for (file_type in names(existing_files)) {
         cat("Converting h5ad to h5seurat format...\n")
         Convert(filepath, dest = "h5seurat", overwrite = TRUE)
       }
-      gse225158_seurat <- LoadH5Seurat(temp_h5seurat)
+      gse225158_seurat <- suppressWarnings(LoadH5Seurat(temp_h5seurat, verbose = FALSE))
     }
     
     if (!is.null(gse225158_seurat)) {
@@ -950,7 +1062,7 @@ if (exists("gse225158_seurat") && !is.null(gse225158_seurat)) {
   cat("  - GSE225158_count_matrix.rds\n", file = report_file, append = TRUE)
   cat("  - GSE225158_cell_metadata.rds/csv\n", file = report_file, append = TRUE)
 }
-cat("  - QC plots: correlation, PCA plots\n", file = report_file, append = TRUE)
+cat("  - QC plots: correlation and PCA plots (PDF/PNG formats)\n", file = report_file, append = TRUE)
 
 cat("✓ Generated processing report\n")
 
