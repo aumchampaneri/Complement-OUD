@@ -1490,6 +1490,89 @@ if (length(common_genes) == 0) {
 }
 
 # ==============================================================================
+# CREATE MALE-ONLY DATASETS FOR CROSS-SPECIES COMPARISON
+# ==============================================================================
+
+cat("\n", strrep("=", 50), "\n")
+cat("CREATING MALE-ONLY DATASETS\n")
+cat(strrep("=", 50), "\n")
+
+# Extract male-only samples for cross-species comparison
+mouse_datasets_male_only <- map(mouse_datasets_harmonized, function(dataset) {
+  # Find male samples
+  male_samples <- dataset$metadata$sex == "Male"
+  
+  if (sum(male_samples) == 0) {
+    cat("No male samples found in dataset\n")
+    return(NULL)
+  }
+  
+  cat("Extracting", sum(male_samples), "male samples out of", nrow(dataset$metadata), "total samples\n")
+  
+  # Filter count matrices to male samples only
+  counts_male <- dataset$counts[, male_samples, drop = FALSE]
+  cpm_male <- dataset$cpm_normalized[, male_samples, drop = FALSE]
+  log_cpm_male <- dataset$log_cpm[, male_samples, drop = FALSE]
+  metadata_male <- dataset$metadata[male_samples, ]
+  
+  return(list(
+    counts = counts_male,
+    metadata = metadata_male,
+    cpm_normalized = cpm_male,
+    log_cpm = log_cpm_male
+  ))
+})
+
+# Remove NULL datasets (those without male samples)
+mouse_datasets_male_only <- mouse_datasets_male_only[!sapply(mouse_datasets_male_only, is.null)]
+
+cat("Created male-only datasets for:", paste(names(mouse_datasets_male_only), collapse = ", "), "\n")
+
+# ==============================================================================
+# CREATE SEX-STRATIFIED ANALYSIS FOR GSE289002
+# ==============================================================================
+
+cat("\n", strrep("=", 50), "\n")
+cat("CREATING SEX-STRATIFIED GSE289002 DATASET\n")
+cat(strrep("=", 50), "\n")
+
+gse289002_sex_stratified <- NULL
+if ("GSE289002" %in% names(mouse_datasets_harmonized)) {
+  gse289002_data <- mouse_datasets_harmonized[["GSE289002"]]
+  
+  # Check sex distribution
+  sex_table <- table(gse289002_data$metadata$sex)
+  cat("GSE289002 sex distribution:\n")
+  print(sex_table)
+  
+  if ("Male" %in% names(sex_table) && "Female" %in% names(sex_table)) {
+    male_samples <- gse289002_data$metadata$sex == "Male"
+    female_samples <- gse289002_data$metadata$sex == "Female"
+    
+    gse289002_sex_stratified <- list(
+      male = list(
+        counts = gse289002_data$counts[, male_samples, drop = FALSE],
+        metadata = gse289002_data$metadata[male_samples, ],
+        cpm_normalized = gse289002_data$cpm_normalized[, male_samples, drop = FALSE],
+        log_cpm = gse289002_data$log_cpm[, male_samples, drop = FALSE]
+      ),
+      female = list(
+        counts = gse289002_data$counts[, female_samples, drop = FALSE],
+        metadata = gse289002_data$metadata[female_samples, ],
+        cpm_normalized = gse289002_data$cpm_normalized[, female_samples, drop = FALSE],
+        log_cpm = gse289002_data$log_cpm[, female_samples, drop = FALSE]
+      )
+    )
+    
+    cat("✓ Created sex-stratified GSE289002 datasets:\n")
+    cat("  Male samples:", sum(male_samples), "\n")
+    cat("  Female samples:", sum(female_samples), "\n")
+  } else {
+    cat("Cannot create sex-stratified dataset - insufficient sex diversity\n")
+  }
+}
+
+# ==============================================================================
 # SAVE HARMONIZED DATASETS
 # ==============================================================================
 
