@@ -117,19 +117,32 @@ def create_pseudobulk_data(adata, paired_subjects):
         adata_paired.obs['Region'].astype(str)
     )
     
-    # Get count matrix (use raw counts if available)
+    # Get count matrix and corresponding gene names
     if hasattr(adata_paired, 'raw') and adata_paired.raw is not None:
         counts_matrix = adata_paired.raw.X
-        gene_names = adata_paired.raw.var_names
-        print("Using raw counts from adata.raw.X")
+        # Use gene symbols from the 'features' column in raw.var
+        if 'features' in adata_paired.raw.var.columns:
+            gene_names = adata_paired.raw.var['features'].values
+            print("Using raw counts with gene symbols from features column")
+        else:
+            gene_names = adata_paired.raw.var_names
+            print("Using raw counts with var_names")
     else:
         counts_matrix = adata_paired.X
         gene_names = adata_paired.var_names
-        print("Using counts from adata.X")
+        print("Using processed counts")
     
     # Convert sparse to dense if needed
     if hasattr(counts_matrix, 'toarray'):
         counts_matrix = counts_matrix.toarray()
+    
+    # Verify dimensions match
+    print(f"Gene names type: {type(gene_names)}")
+    print(f"Number of genes in matrix: {counts_matrix.shape[1]}")
+    print(f"Number of gene names: {len(gene_names)}")
+    
+    if counts_matrix.shape[1] != len(gene_names):
+        raise ValueError(f"Mismatch: matrix has {counts_matrix.shape[1]} genes but {len(gene_names)} gene names")
     
     # Aggregate counts by group
     print("Aggregating counts by subject-region groups...")
@@ -185,15 +198,23 @@ def save_data_for_r(pseudobulk_df, metadata_df, summary):
     # Create output directory
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
-    # Save files
+    # Save files with proper gene names as row indices
     counts_file = os.path.join(OUTPUT_DIR, "GSE225158_pseudobulk_counts.csv")
     metadata_file = os.path.join(OUTPUT_DIR, "GSE225158_pseudobulk_metadata.csv")
     
-    pseudobulk_df.to_csv(counts_file)
-    metadata_df.to_csv(metadata_file)
+    # Save with gene names as row names
+    pseudobulk_df.to_csv(counts_file, index=True)
+    metadata_df.to_csv(metadata_file, index=True)
     
     print(f"✓ Counts saved: {counts_file}")
     print(f"✓ Metadata saved: {metadata_file}")
+    
+    # Verify the files were saved correctly by reading them back
+    print("\nVerifying saved files:")
+    test_counts = pd.read_csv(counts_file, index_col=0, nrows=5)
+    print(f"Reloaded counts shape: {test_counts.shape}")
+    print(f"Reloaded gene names (first 5): {list(test_counts.index)}")
+    print(f"Reloaded sample names (first 5): {list(test_counts.columns)}")
     
     # Print final summary
     print(f"\n=== Dataset Summary ===")

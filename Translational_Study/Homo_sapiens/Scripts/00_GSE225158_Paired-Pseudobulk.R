@@ -200,12 +200,12 @@ save_results <- function(results_list, metadata) {
   # Create output directory
   if (!dir.exists(OUTPUT_DIR)) dir.create(OUTPUT_DIR, recursive = TRUE)
   
-  # Save main results object
+  # Save main results object (CRITICAL for integration)
   results_file <- file.path(OUTPUT_DIR, "GSE225158_region_analysis_results.rds")
   saveRDS(results_list, results_file)
-  cat("✓ Main results:", results_file, "\n")
+  cat("✓ Main results saved:", results_file, "\n")
   
-  # Save individual method results
+  # Save individual method results as CSV
   for (method in names(results_list)) {
     method_file <- file.path(OUTPUT_DIR, paste0("GSE225158_", method, "_results.csv"))
     write.csv(results_list[[method]]$results, method_file, row.names = TRUE)
@@ -230,7 +230,14 @@ save_results <- function(results_list, metadata) {
   
   summary_file <- file.path(OUTPUT_DIR, "GSE225158_method_comparison.csv")
   write.csv(summary_df, summary_file, row.names = FALSE)
-  cat("✓ Summary:", summary_file, "\n")
+  cat("✓ Summary saved:", summary_file, "\n")
+  
+  # Verify the RDS file was created properly
+  if (file.exists(results_file)) {
+    cat("✓ RDS file confirmed for integration analysis\n")
+  } else {
+    warning("RDS file not created - integration analysis may fail")
+  }
   
   return(summary_df)
 }
