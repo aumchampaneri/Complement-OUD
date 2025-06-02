@@ -1,0 +1,4 @@
+"Method","N_Genes_Tested","N_Significant_FDR05","Correlation"
+"paired_limma",22289,17569,0.336
+"mixed_effects",22289,17850,0.316
+"deseq2",41794,21965,NA
