@@ -4,7 +4,7 @@
 # Purpose: Integrate and compare differential expression results between datasets
 # Dataset 1: GSE174409 - Bulk RNA-seq (ACC + NAc)
 # Dataset 2: GSE225158 - Pseudobulk snRNA-seq (Caudate + Putamen)
-# Methods: Compare regional effects, overlap analysis, meta-analysis
+# Methods: Gene overlap analysis, effect size correlation, meta-analysis
 # ==============================================================================
 
 # Configuration
@@ -18,30 +18,95 @@ suppressPackageStartupMessages({
   library(dplyr)
   library(ggplot2)
   library(VennDiagram)
-  library(pheatmap)
-  library(corrplot)
-  library(metafor)
-  library(readr)
+  library(biomaRt)
 })
 
 # ==============================================================================
-# DATA LOADING FUNCTIONS
+# GENE ID HARMONIZATION
+# ==============================================================================
+
+#' Convert Ensembl IDs to gene symbols using biomaRt
+convert_ensembl_to_symbols <- function(ensembl_ids) {
+  cat("Converting Ensembl IDs to gene symbols...\n")
+  
+  ensembl <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+  gene_map <- getBM(
+    attributes = c("ensembl_gene_id", "hgnc_symbol"),
+    filters = "ensembl_gene_id",
+    values = ensembl_ids,
+    mart = ensembl
+  )
+  
+  # Remove empty symbols
+  gene_map <- gene_map[gene_map$hgnc_symbol != "", ]
+  
+  cat(sprintf("Mapped %d/%d Ensembl IDs to gene symbols\n", 
+              nrow(gene_map), length(ensembl_ids)))
+  
+  return(gene_map)
+}
+
+#' Harmonize gene identifiers between datasets
+harmonize_gene_ids <- function(gse174409_results, gse225158_results) {
+  cat("\n=== Harmonizing Gene Identifiers ===\n")
+  
+  # Get all Ensembl IDs from GSE174409
+  all_ensembl_ids <- unique(unlist(lapply(gse174409_results, function(method) {
+    rownames(method$results)
+  })))
+  
+  # Convert to gene symbols
+  gene_map <- convert_ensembl_to_symbols(all_ensembl_ids)
+  
+  # Convert GSE174409 results to use gene symbols
+  gse174409_harmonized <- list()
+  for (method_name in names(gse174409_results)) {
+    method_results <- gse174409_results[[method_name]]$results
+    
+    # Merge with gene mapping
+    method_results$ensembl_gene_id <- rownames(method_results)
+    harmonized <- merge(method_results, gene_map, by = "ensembl_gene_id", all.x = FALSE)
+    
+    # Remove duplicates (keep best p-value)
+    pval_col <- ifelse("adj.P.Val" %in% colnames(harmonized), "adj.P.Val", "padj")
+    harmonized <- harmonized %>%
+      group_by(hgnc_symbol) %>%
+      slice_min(order_by = get(pval_col), n = 1, with_ties = FALSE) %>%
+      ungroup()
+    
+    # Set gene symbols as row names
+    harmonized <- as.data.frame(harmonized)
+    rownames(harmonized) <- harmonized$hgnc_symbol
+    harmonized$ensembl_gene_id <- NULL
+    harmonized$hgnc_symbol <- NULL
+    
+    gse174409_harmonized[[method_name]] <- list(
+      results = harmonized,
+      fit = gse174409_results[[method_name]]$fit,
+      correlation = gse174409_results[[method_name]]$correlation
+    )
+    
+    cat(sprintf("Method %s: %d genes after harmonization\n", 
+                method_name, nrow(harmonized)))
+  }
+  
+  cat("✓ Gene ID harmonization complete\n")
+  
+  return(list(
+    gse174409 = gse174409_harmonized,
+    gse225158 = gse225158_results
+  ))
+}
+
+# ==============================================================================
+# DATA LOADING
 # ==============================================================================
 
 #' Load results from both datasets
-#' @return List containing results from both datasets
 load_integration_data <- function() {
   cat("=== Loading Cross-Dataset Results ===\n")
   
-  # Check directories exist
-  if (!dir.exists(GSE174409_DIR)) {
-    stop("GSE174409 results not found. Please run GSE174409 analysis first.")
-  }
-  if (!dir.exists(GSE225158_DIR)) {
-    stop("GSE225158 results not found. Please run GSE225158 analysis first.")
-  }
-  
-  # Load GSE174409 results
+  # Check files exist
   gse174409_file <- file.path(GSE174409_DIR, "GSE174409_region_analysis_results.rds")
   gse225158_file <- file.path(GSE225158_DIR, "GSE225158_region_analysis_results.rds")
   
@@ -52,16 +117,17 @@ load_integration_data <- function() {
     stop("GSE225158 results file not found: ", gse225158_file)
   }
   
+  # Load results
   gse174409_results <- readRDS(gse174409_file)
   gse225158_results <- readRDS(gse225158_file)
   
   cat("✓ GSE174409 loaded:", length(gse174409_results), "methods\n")
   cat("✓ GSE225158 loaded:", length(gse225158_results), "methods\n")
   
-  return(list(
-    gse174409 = gse174409_results,
-    gse225158 = gse225158_results
-  ))
+  # Harmonize gene identifiers
+  harmonized_data <- harmonize_gene_ids(gse174409_results, gse225158_results)
+  
+  return(harmonized_data)
 }
 
 # ==============================================================================
@@ -72,10 +138,8 @@ load_integration_data <- function() {
 analyze_gene_overlap <- function(data) {
   cat("\n=== Gene Overlap Analysis ===\n")
   
-  # Create output directory
   if (!dir.exists(INTEGRATION_DIR)) dir.create(INTEGRATION_DIR, recursive = TRUE)
   
-  # Extract significant genes for each method and dataset
   methods <- c("paired_limma", "mixed_effects", "deseq2")
   overlap_results <- list()
   
@@ -86,7 +150,7 @@ analyze_gene_overlap <- function(data) {
     gse174409_res <- data$gse174409[[method]]$results
     gse225158_res <- data$gse225158[[method]]$results
     
-    # Get p-value column name
+    # Get p-value column names
     pval_col_174409 <- ifelse("adj.P.Val" %in% colnames(gse174409_res), "adj.P.Val", "padj")
     pval_col_225158 <- ifelse("adj.P.Val" %in% colnames(gse225158_res), "adj.P.Val", "padj")
     
@@ -145,7 +209,7 @@ create_venn_diagrams <- function(overlap_results) {
 }
 
 # ==============================================================================
-# EFFECT SIZE CORRELATION ANALYSIS
+# EFFECT SIZE CORRELATION
 # ==============================================================================
 
 #' Correlate effect sizes between datasets
@@ -170,24 +234,9 @@ correlate_effect_sizes <- function(data) {
       next
     }
     
-    # Extract effect sizes (log fold changes)
-    if ("logFC" %in% colnames(gse174409_res)) {
-      fc_col_174409 <- "logFC"
-    } else if ("log2FoldChange" %in% colnames(gse174409_res)) {
-      fc_col_174409 <- "log2FoldChange"
-    } else {
-      cat("  Warning: No fold change column found for GSE174409\n")
-      next
-    }
-    
-    if ("logFC" %in% colnames(gse225158_res)) {
-      fc_col_225158 <- "logFC"
-    } else if ("log2FoldChange" %in% colnames(gse225158_res)) {
-      fc_col_225158 <- "log2FoldChange"
-    } else {
-      cat("  Warning: No fold change column found for GSE225158\n")
-      next
-    }
+    # Extract effect sizes
+    fc_col_174409 <- ifelse("logFC" %in% colnames(gse174409_res), "logFC", "log2FoldChange")
+    fc_col_225158 <- ifelse("logFC" %in% colnames(gse225158_res), "logFC", "log2FoldChange")
     
     # Create correlation data
     cor_data <- data.frame(
@@ -268,8 +317,6 @@ create_integration_summary <- function(overlap_results, correlation_results) {
   write.csv(summary_df, summary_file, row.names = FALSE)
   
   cat("✓ Integration summary saved:", summary_file, "\n")
-  
-  # Print summary
   cat("\n=== Integration Summary ===\n")
   print(summary_df)
   
@@ -277,7 +324,7 @@ create_integration_summary <- function(overlap_results, correlation_results) {
 }
 
 # ==============================================================================
-# MAIN INTEGRATION PIPELINE
+# MAIN PIPELINE
 # ==============================================================================
 
 #' Run complete cross-dataset integration analysis
@@ -288,19 +335,17 @@ run_integration_analysis <- function() {
   cat(paste(rep("=", 70), collapse = ""), "\n")
   
   tryCatch({
-    # Load data from both datasets
+    # Load and harmonize data
     integration_data <- load_integration_data()
     
     # Analyze gene overlaps
     overlap_results <- analyze_gene_overlap(integration_data)
-    
-    # Create Venn diagrams
     create_venn_diagrams(overlap_results)
     
     # Correlate effect sizes
     correlation_results <- correlate_effect_sizes(integration_data)
     
-    # Create comprehensive summary
+    # Create summary
     summary_df <- create_integration_summary(overlap_results, correlation_results)
     
     cat("\n", paste(rep("=", 70), collapse = ""), "\n")
@@ -324,7 +369,6 @@ run_integration_analysis <- function() {
 # EXECUTION
 # ==============================================================================
 
-# Run integration analysis when script is sourced
 if (!exists("SOURCED")) {
   integration_results <- run_integration_analysis()
 }

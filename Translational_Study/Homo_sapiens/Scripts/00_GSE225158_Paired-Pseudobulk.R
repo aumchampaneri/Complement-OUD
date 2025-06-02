@@ -44,6 +44,10 @@ load_pseudobulk_data <- function() {
   counts <- read.csv(COUNTS_FILE, header = TRUE, row.names = 1, stringsAsFactors = FALSE)
   metadata <- read.csv(METADATA_FILE, header = TRUE, row.names = 1, stringsAsFactors = FALSE)
   
+  # Quick verification of gene names
+  cat("Gene names loaded correctly:", !all(grepl("^[0-9]+$", rownames(counts)[1:10])), "\n")
+  cat("Sample gene names:", paste(rownames(counts)[1:5], collapse = ", "), "\n")
+  
   # Fix R's automatic "X" prefix for numeric column names
   colnames(counts) <- gsub("^X", "", colnames(counts))
   

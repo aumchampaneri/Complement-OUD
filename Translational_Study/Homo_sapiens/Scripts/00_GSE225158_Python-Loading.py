@@ -17,6 +17,10 @@ from pathlib import Path
 DATA_DIR = "/Users/aumchampaneri/Complement-OUD/Translational_Study/Homo_sapiens/Data/GSE225158"
 OUTPUT_DIR = "/Users/aumchampaneri/Complement-OUD/Translational_Study/Homo_sapiens/Results/GSE225158"
 
+# ==============================================================================
+# DATA LOADING FUNCTIONS
+# ==============================================================================
+
 def load_h5ad_data():
     """
     Load GSE225158 h5ad file and extract subject IDs from sample identifiers.
@@ -26,27 +30,29 @@ def load_h5ad_data():
     """
     print("=== Loading GSE225158 h5ad Data ===")
     
-    # Find h5ad file
+    # Find and load h5ad file
     h5ad_files = list(Path(DATA_DIR).glob("*.h5ad"))
     if not h5ad_files:
         raise FileNotFoundError(f"No .h5ad files found in {DATA_DIR}")
     
-    # Load data
     h5ad_file = h5ad_files[0]
     print(f"Loading: {h5ad_file.name}")
     adata = sc.read_h5ad(h5ad_file)
     print(f"Loaded: {adata.n_obs:,} cells, {adata.n_vars:,} genes")
     
-    # Extract true subject IDs from sample IDs (e.g., "C-1366" -> "1366")
-    print("Extracting subject IDs from sample identifiers...")
+    # Extract subject IDs from sample identifiers (e.g., "C-1366" -> "1366")
     adata.obs['True_Subject_ID'] = adata.obs['ID'].str.extract(r'[CP]-(\d+)')[0]
     
-    # Verify extraction worked
+    # Verify extraction
     id_sample = adata.obs[['ID', 'True_Subject_ID', 'Region']].drop_duplicates().head(5)
     print("Sample ID mapping:")
     print(id_sample.to_string(index=False))
     
     return adata
+
+# ==============================================================================
+# DESIGN VALIDATION FUNCTIONS
+# ==============================================================================
 
 def verify_pairing_structure(adata):
     """
@@ -63,17 +69,13 @@ def verify_pairing_structure(adata):
     # Get unique subject-region combinations
     subject_region_df = adata.obs[['True_Subject_ID', 'Region', 'Sex', 'level1']].drop_duplicates()
     
-    # Count subjects per region
-    subjects_per_region = subject_region_df.groupby('Region')['True_Subject_ID'].nunique()
-    print(f"Subjects per region: {subjects_per_region.to_dict()}")
-    
     # Find paired subjects (appearing in both regions)
     regions_per_subject = subject_region_df.groupby('True_Subject_ID')['Region'].nunique()
     paired_subjects = regions_per_subject[regions_per_subject == 2].index.tolist()
     
     print(f"Paired subjects found: {len(paired_subjects)}")
     
-    # Show pairing structure
+    # Show sample pairings
     if len(paired_subjects) >= 5:
         print("Sample pairings:")
         for subject in paired_subjects[:5]:
@@ -83,7 +85,7 @@ def verify_pairing_structure(adata):
             sex = subject_data['Sex'].iloc[0]
             print(f"  Subject {subject}: {regions} | {oud_status} | {sex}")
     
-    # Summary statistics
+    # Calculate summary statistics
     summary = {
         'total_subjects': len(paired_subjects),
         'total_samples': len(paired_subjects) * 2,
@@ -92,6 +94,10 @@ def verify_pairing_structure(adata):
     }
     
     return paired_subjects, summary
+
+# ==============================================================================
+# PSEUDOBULK AGGREGATION FUNCTIONS
+# ==============================================================================
 
 def create_pseudobulk_data(adata, paired_subjects):
     """
@@ -117,7 +123,29 @@ def create_pseudobulk_data(adata, paired_subjects):
         adata_paired.obs['Region'].astype(str)
     )
     
-    # Get count matrix and corresponding gene names
+    # Get count matrix and gene names
+    counts_matrix, gene_names = _extract_count_matrix_and_genes(adata_paired)
+    
+    # Aggregate counts by subject-region groups
+    pseudobulk_counts, sample_metadata = _aggregate_counts_by_group(
+        counts_matrix, gene_names, adata_paired
+    )
+    
+    # Create output dataframes
+    pseudobulk_df = pd.DataFrame(
+        pseudobulk_counts.T,  # Genes x Samples
+        index=gene_names,
+        columns=[meta['Sample_ID'] for meta in sample_metadata]
+    )
+    
+    metadata_df = pd.DataFrame(sample_metadata).set_index('Sample_ID')
+    
+    print(f"Pseudobulk matrix: {pseudobulk_df.shape[0]:,} genes × {pseudobulk_df.shape[1]} samples")
+    
+    return pseudobulk_df, metadata_df
+
+def _extract_count_matrix_and_genes(adata_paired):
+    """Extract count matrix and corresponding gene names from AnnData object."""
     if hasattr(adata_paired, 'raw') and adata_paired.raw is not None:
         counts_matrix = adata_paired.raw.X
         # Use gene symbols from the 'features' column in raw.var
@@ -137,15 +165,15 @@ def create_pseudobulk_data(adata, paired_subjects):
         counts_matrix = counts_matrix.toarray()
     
     # Verify dimensions match
-    print(f"Gene names type: {type(gene_names)}")
-    print(f"Number of genes in matrix: {counts_matrix.shape[1]}")
-    print(f"Number of gene names: {len(gene_names)}")
-    
     if counts_matrix.shape[1] != len(gene_names):
         raise ValueError(f"Mismatch: matrix has {counts_matrix.shape[1]} genes but {len(gene_names)} gene names")
     
-    # Aggregate counts by group
+    return counts_matrix, gene_names
+
+def _aggregate_counts_by_group(counts_matrix, gene_names, adata_paired):
+    """Aggregate counts by subject-region groups."""
     print("Aggregating counts by subject-region groups...")
+    
     pseudobulk_counts = []
     sample_metadata = []
     
@@ -169,27 +197,18 @@ def create_pseudobulk_data(adata, paired_subjects):
             'n_cells': group_mask.sum()
         })
     
-    # Create dataframes
-    pseudobulk_matrix = np.array(pseudobulk_counts).T  # Genes x Samples
-    pseudobulk_df = pd.DataFrame(
-        pseudobulk_matrix,
-        index=gene_names,
-        columns=[meta['Sample_ID'] for meta in sample_metadata]
-    )
-    
-    metadata_df = pd.DataFrame(sample_metadata)
-    metadata_df.set_index('Sample_ID', inplace=True)
-    
-    print(f"Pseudobulk matrix: {pseudobulk_df.shape[0]:,} genes × {pseudobulk_df.shape[1]} samples")
-    
-    return pseudobulk_df, metadata_df
+    return np.array(pseudobulk_counts), sample_metadata
+
+# ==============================================================================
+# OUTPUT FUNCTIONS
+# ==============================================================================
 
 def save_data_for_r(pseudobulk_df, metadata_df, summary):
     """
-    Save pseudobulk data in R-compatible format (matching GSE174409 structure).
+    Save pseudobulk data in R-compatible format.
     
     Args:
-        pseudobulk_df: Pseudobulk count matrix
+        pseudobulk_df: Pseudobulk count matrix (genes x samples)
         metadata_df: Sample metadata
         summary: Dataset summary statistics
     """
@@ -198,25 +217,21 @@ def save_data_for_r(pseudobulk_df, metadata_df, summary):
     # Create output directory
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
-    # Save files with proper gene names as row indices
+    # Save files
     counts_file = os.path.join(OUTPUT_DIR, "GSE225158_pseudobulk_counts.csv")
     metadata_file = os.path.join(OUTPUT_DIR, "GSE225158_pseudobulk_metadata.csv")
     
-    # Save with gene names as row names
     pseudobulk_df.to_csv(counts_file, index=True)
     metadata_df.to_csv(metadata_file, index=True)
     
     print(f"✓ Counts saved: {counts_file}")
     print(f"✓ Metadata saved: {metadata_file}")
     
-    # Verify the files were saved correctly by reading them back
-    print("\nVerifying saved files:")
-    test_counts = pd.read_csv(counts_file, index_col=0, nrows=5)
-    print(f"Reloaded counts shape: {test_counts.shape}")
-    print(f"Reloaded gene names (first 5): {list(test_counts.index)}")
-    print(f"Reloaded sample names (first 5): {list(test_counts.columns)}")
-    
-    # Print final summary
+    # Print summary
+    _print_summary(pseudobulk_df, metadata_df, summary)
+
+def _print_summary(pseudobulk_df, metadata_df, summary):
+    """Print dataset summary statistics."""
     print(f"\n=== Dataset Summary ===")
     print(f"Paired subjects: {summary['total_subjects']}")
     print(f"Total samples: {summary['total_samples']}")
@@ -225,22 +240,26 @@ def save_data_for_r(pseudobulk_df, metadata_df, summary):
     print(f"Genes: {pseudobulk_df.shape[0]:,}")
     print(f"Regions: {metadata_df['Region'].value_counts().to_dict()}")
     print(f"Sex distribution: {metadata_df['Sex'].value_counts().to_dict()}")
-    
     print(f"\n✓ Ready for R analysis using GSE174409-compatible workflow!")
+
+# ==============================================================================
+# MAIN PIPELINE
+# ==============================================================================
 
 def main():
     """
     Main pipeline: Load h5ad data, create pseudobulk aggregation, save for R.
+    
+    Returns:
+        tuple: (adata, pseudobulk_df, metadata_df)
     """
     print("="*70)
     print("GSE225158 PSEUDOBULK DATA PREPARATION")
     print("="*70)
     
     try:
-        # Load data and extract subject IDs
+        # Load and validate data
         adata = load_h5ad_data()
-        
-        # Verify paired design structure
         paired_subjects, summary = verify_pairing_structure(adata)
         
         if len(paired_subjects) < 3:
