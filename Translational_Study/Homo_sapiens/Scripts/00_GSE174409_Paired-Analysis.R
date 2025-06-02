@@ -5,6 +5,7 @@
 #          brain regions in OUD patients using bulk RNA-seq data
 # Dataset: GSE174409 - 40 subjects with paired samples (DLPFC and NAc regions)
 # Methods: Paired limma-voom, Mixed effects, and DESeq2 approaches
+# Enhanced: Now includes expression matrices for comprehensive neuroinflammatory analysis
 # ==============================================================================
 
 # File paths
@@ -13,11 +14,21 @@ OUTPUT_DIR <- "/Users/aumchampaneri/Complement-OUD/Translational_Study/Homo_sapi
 COUNTS_FILE <- file.path(DATA_DIR, "GSE174409_raw_counts_02102020.csv")
 METADATA_FILE <- file.path(DATA_DIR, "GSE174409_series_matrix.txt")
 
+# NEW: Organized figure outputs
+OUTPUTS_BASE <- "/Users/aumchampaneri/Complement-OUD/Translational_Study/Homo_sapiens/Outputs"
+GSE174409_OUTPUTS <- file.path(OUTPUTS_BASE, "GSE174409_Analysis")
+
 # Load required libraries
-library(limma)
-library(edgeR)
-library(DESeq2)
-library(dplyr)
+suppressPackageStartupMessages({
+  library(limma)
+  library(edgeR)
+  library(DESeq2)
+  library(dplyr)
+  library(ggplot2)
+  library(clusterProfiler)
+  library(org.Hs.eg.db)
+  library(tibble)  # Add tibble for proper rownames_to_column
+})
 
 # ==============================================================================
 # DATA LOADING AND PREPROCESSING
@@ -33,6 +44,62 @@ load_and_prepare_bulk <- function(counts_file, metadata_file) {
   # Load count matrix
   counts <- read.csv(counts_file, header = TRUE, row.names = 1, stringsAsFactors = FALSE)
   cat("Count matrix dimensions:", dim(counts), "\n")
+  
+  # CRITICAL: Convert Ensembl IDs to gene symbols for consistency with GSE225158
+  cat("Converting Ensembl IDs to gene symbols...\n")
+  ensembl_ids <- rownames(counts)
+  cat("Sample Ensembl IDs:", paste(head(ensembl_ids), collapse = ", "), "\n")
+  
+  # Map Ensembl IDs to gene symbols
+  tryCatch({
+    gene_mapping <- clusterProfiler::bitr(ensembl_ids, 
+                                          fromType = "ENSEMBL", 
+                                          toType = "SYMBOL", 
+                                          OrgDb = org.Hs.eg.db)
+    
+    cat("Mapped", nrow(gene_mapping), "out of", length(ensembl_ids), "Ensembl IDs\n")
+    
+    # Keep only genes with successful mapping
+    counts_mapped <- counts[gene_mapping$ENSEMBL, ]
+    
+    # Handle duplicate gene symbols BEFORE any operations
+    if (any(duplicated(gene_mapping$SYMBOL))) {
+      cat("Handling", sum(duplicated(gene_mapping$SYMBOL)), "duplicate gene symbols...\n")
+      
+      # Simple approach: aggregate using base R
+      # Create mapping between Ensembl and symbols
+      ensembl_to_symbol <- setNames(gene_mapping$SYMBOL, gene_mapping$ENSEMBL)
+      
+      # Add gene symbols to the matrix
+      gene_symbols <- ensembl_to_symbol[rownames(counts_mapped)]
+      
+      # Create a data frame for aggregation
+      temp_df <- data.frame(
+        gene_symbol = gene_symbols,
+        counts_mapped,
+        stringsAsFactors = FALSE
+      )
+      
+      # Aggregate by gene symbol using base R
+      counts_agg <- aggregate(temp_df[, -1], by = list(gene_symbol = temp_df$gene_symbol), FUN = sum)
+      
+      # Convert back to matrix
+      rownames(counts_agg) <- counts_agg$gene_symbol
+      counts_agg$gene_symbol <- NULL
+      counts <- as.matrix(counts_agg)
+      
+    } else {
+      # No duplicates, simple assignment
+      rownames(counts_mapped) <- gene_mapping$SYMBOL
+      counts <- as.matrix(counts_mapped)
+    }
+    
+    cat("Final count matrix after gene symbol conversion:", dim(counts), "\n")
+    
+  }, error = function(e) {
+    cat("Warning: Gene symbol conversion failed:", e$message, "\n")
+    cat("Proceeding with original Ensembl IDs\n")
+  })
   
   # Parse metadata from series matrix file
   lines <- readLines(metadata_file)
@@ -113,6 +180,52 @@ load_and_prepare_bulk <- function(counts_file, metadata_file) {
   cat("OUD status:", table(metadata$OUD_Status), "\n\n")
   
   return(list(counts = counts, metadata = metadata))
+}
+
+# ==============================================================================
+# ENHANCED EXPRESSION MATRIX PREPARATION
+# ==============================================================================
+
+#' Prepare expression matrices for comprehensive analysis
+prepare_expression_matrices <- function(counts, metadata) {
+  cat("\n=== Preparing Expression Matrices for Comprehensive Analysis ===\n")
+  
+  # Create DGEList for normalization
+  dge <- DGEList(counts = counts)
+  keep <- filterByExpr(dge, group = metadata$Region)
+  dge <- dge[keep, , keep.lib.sizes = FALSE]
+  dge <- calcNormFactors(dge)
+  
+  cat("Genes after filtering:", nrow(dge), "\n")
+  
+  # Log2-CPM transformation
+  log_cpm <- cpm(dge, log = TRUE, prior.count = 1)
+  
+  # Voom-transformed values
+  design <- model.matrix(~ Region + Sex + OUD_Status, data = metadata)
+  v <- voom(dge, design, plot = FALSE)
+  voom_expression <- v$E
+  
+  # Raw counts (filtered)
+  filtered_counts <- dge$counts
+  
+  expression_data <- list(
+    log_cpm = log_cpm,
+    voom_expression = voom_expression,
+    filtered_counts = filtered_counts,
+    metadata = metadata,
+    design_matrix = design,
+    normalization_factors = dge$samples$norm.factors,
+    lib_sizes = dge$samples$lib.size,
+    technology = "bulk_RNA_seq"
+  )
+  
+  cat("✓ Expression matrices prepared:\n")
+  cat("  - Log2-CPM:", dim(log_cpm)[1], "genes ×", dim(log_cpm)[2], "samples\n")
+  cat("  - Voom-transformed:", dim(voom_expression)[1], "genes ×", dim(voom_expression)[2], "samples\n")
+  cat("  - Filtered counts:", dim(filtered_counts)[1], "genes ×", dim(filtered_counts)[2], "samples\n")
+  
+  return(expression_data)
 }
 
 # ==============================================================================
@@ -223,43 +336,55 @@ deseq2_analysis <- function(counts, metadata) {
 }
 
 # ==============================================================================
-# MAIN ANALYSIS FUNCTION
+# ENHANCED RESULTS SAVING
 # ==============================================================================
 
-#' Run complete GSE174409 paired analysis
-#' @return List of results from all methods
-run_gse174409_analysis <- function() {
-  # Load and prepare data
-  bulk_data <- load_and_prepare_bulk(COUNTS_FILE, METADATA_FILE)
+#' Save enhanced analysis results with organized outputs
+save_enhanced_results <- function(results_list, metadata, expression_data) {
+  cat("\n=== Saving Enhanced Results with Expression Data ===\n")
   
-  # Run analyses
-  results_list <- list(
-    paired_limma = paired_limma_analysis(bulk_data$counts, bulk_data$metadata),
-    mixed_effects = mixed_effects_analysis(bulk_data$counts, bulk_data$metadata),
-    deseq2 = deseq2_analysis(bulk_data$counts, bulk_data$metadata)
+  # Create output directories
+  if (!dir.exists(OUTPUT_DIR)) dir.create(OUTPUT_DIR, recursive = TRUE)
+  if (!dir.exists(GSE174409_OUTPUTS)) dir.create(GSE174409_OUTPUTS, recursive = TRUE)
+  
+  # Combine results with expression data
+  enhanced_results <- list(
+    # Statistical results
+    paired_limma = results_list$paired_limma,
+    mixed_effects = results_list$mixed_effects,
+    deseq2 = results_list$deseq2,
+    
+    # Expression matrices (CRITICAL for comprehensive analysis)
+    expression_data = expression_data,
+    
+    # Metadata
+    sample_metadata = metadata,
+    
+    # Analysis info
+    analysis_date = Sys.Date(),
+    dataset = "GSE174409",
+    design = "paired_region",
+    note = "Bulk RNA-seq with expression matrices for comprehensive analysis"
   )
   
-  # Summary statistics
-  cat("=== Analysis Summary ===\n")
-  for(method in names(results_list)) {
-    res <- results_list[[method]]$results
-    pval_col <- ifelse("adj.P.Val" %in% colnames(res), "adj.P.Val", "padj")
-    sig_genes <- sum(res[[pval_col]] < 0.05, na.rm = TRUE)
-    cat(sprintf("%-15s - Significant genes (FDR < 0.05): %d\n", method, sig_genes))
+  # Save enhanced results object
+  results_file <- file.path(OUTPUT_DIR, "GSE174409_region_analysis_results.rds")
+  saveRDS(enhanced_results, results_file)
+  cat("✓ Enhanced results saved:", results_file, "\n")
+  
+  # Save expression matrices separately
+  expression_file <- file.path(OUTPUT_DIR, "GSE174409_expression_matrices.rds")
+  saveRDS(expression_data, expression_file)
+  cat("✓ Expression matrices saved:", expression_file, "\n")
+  
+  # Save individual method results as CSV
+  for (method in names(results_list)) {
+    method_file <- file.path(OUTPUT_DIR, paste0("GSE174409_", method, "_results.csv"))
+    write.csv(results_list[[method]]$results, method_file, row.names = TRUE)
+    cat("✓", method, "results:", method_file, "\n")
   }
   
-  # Save results
-  if(!dir.exists(OUTPUT_DIR)) dir.create(OUTPUT_DIR, recursive = TRUE)
-  
-  saveRDS(results_list, file.path(OUTPUT_DIR, "GSE174409_region_analysis_results.rds"))
-  
-  for(method in names(results_list)) {
-    write.csv(results_list[[method]]$results, 
-              file.path(OUTPUT_DIR, paste0("GSE174409_", method, "_results.csv")), 
-              row.names = TRUE)
-  }
-  
-  # Create comparison summary
+  # Create enhanced method comparison summary
   summary_df <- data.frame(
     Method = names(results_list),
     N_Genes_Tested = sapply(results_list, function(x) nrow(x$results)),
@@ -268,22 +393,99 @@ run_gse174409_analysis <- function() {
       pval_col <- ifelse("adj.P.Val" %in% colnames(res), "adj.P.Val", "padj")
       sum(res[[pval_col]] < 0.05, na.rm = TRUE)
     }),
-    Correlation = sapply(results_list, function(x) {
-      if("correlation" %in% names(x)) round(x$correlation, 3) else NA
-    })
+    Intra_Subject_Correlation = sapply(results_list, function(x) {
+      if ("correlation" %in% names(x)) round(x$correlation, 3) else NA
+    }),
+    N_Subjects = length(unique(metadata$Subject_ID)),
+    N_Samples = nrow(metadata),
+    Technology = "bulk_RNA_seq",
+    Expression_Matrices_Available = TRUE
   )
   
-  write.csv(summary_df, file.path(OUTPUT_DIR, "GSE174409_method_comparison.csv"), row.names = FALSE)
+  summary_file <- file.path(OUTPUT_DIR, "GSE174409_method_comparison.csv")
+  write.csv(summary_df, summary_file, row.names = FALSE)
+  cat("✓ Enhanced summary saved:", summary_file, "\n")
   
-  cat("\n=== Results Saved ===\n")
-  cat("Main results:", file.path(OUTPUT_DIR, "GSE174409_region_analysis_results.rds"), "\n")
+  # Create a summary visualization in organized outputs
+  summary_plot_dir <- file.path(GSE174409_OUTPUTS, "Summary_Plots")
+  if (!dir.exists(summary_plot_dir)) dir.create(summary_plot_dir, recursive = TRUE)
   
-  # Print structure of saved results
-  cat("\n=== Results Structure ===\n")
-  cat("The saved .rds file contains:\n")
-  str(results_list, max.level = 2, give.attr = FALSE)
+  # Method comparison plot
+  p_summary <- ggplot(summary_df, aes(x = Method, y = N_Significant_FDR05)) +
+    geom_col(fill = "steelblue", alpha = 0.7) +
+    geom_text(aes(label = N_Significant_FDR05), vjust = -0.5) +
+    labs(title = "GSE174409: Significant Genes by Method",
+         subtitle = "DLPFC vs NAc comparison",
+         x = "Analysis Method",
+         y = "Number of Significant Genes (FDR < 0.05)") +
+    theme_minimal()
   
-  return(results_list)
+  ggsave(file.path(summary_plot_dir, "GSE174409_method_comparison.png"),
+         p_summary, width = 10, height = 6, dpi = 300)
+  
+  cat("✓ Summary plot saved to organized outputs\n")
+  cat("📊 Figures location:", GSE174409_OUTPUTS, "\n")
+  cat("📁 Data location:", OUTPUT_DIR, "\n")
+  
+  return(summary_df)
+}
+
+# ==============================================================================
+# MAIN ANALYSIS FUNCTION (ENHANCED)
+# ==============================================================================
+
+#' Run complete GSE174409 paired analysis with expression matrices
+#' @return List of results from all methods plus expression data
+run_gse174409_analysis <- function() {
+  cat(paste(rep("=", 70), collapse = ""), "\n")
+  cat("GSE174409 ENHANCED PAIRED ANALYSIS\n")
+  cat("Bulk RNA-seq with expression matrices for comprehensive analysis\n")
+  cat(paste(rep("=", 70), collapse = ""), "\n")
+  
+  tryCatch({
+    # Load and prepare data
+    bulk_data <- load_and_prepare_bulk(COUNTS_FILE, METADATA_FILE)
+    
+    # Prepare expression matrices for comprehensive analysis
+    expression_data <- prepare_expression_matrices(bulk_data$counts, bulk_data$metadata)
+    
+    # Run analyses
+    results_list <- list(
+      paired_limma = paired_limma_analysis(bulk_data$counts, bulk_data$metadata),
+      mixed_effects = mixed_effects_analysis(bulk_data$counts, bulk_data$metadata),
+      deseq2 = deseq2_analysis(bulk_data$counts, bulk_data$metadata)
+    )
+    
+    # Summary statistics
+    cat("\n=== Analysis Summary ===\n")
+    for(method in names(results_list)) {
+      res <- results_list[[method]]$results
+      pval_col <- ifelse("adj.P.Val" %in% colnames(res), "adj.P.Val", "padj")
+      sig_genes <- sum(res[[pval_col]] < 0.05, na.rm = TRUE)
+      cat(sprintf("%-15s: %4d significant genes (FDR < 0.05)\n", method, sig_genes))
+    }
+    
+    # Save enhanced results
+    summary_df <- save_enhanced_results(results_list, bulk_data$metadata, expression_data)
+    
+    cat("\n", paste(rep("=", 70), collapse = ""), "\n")
+    cat("SUCCESS: Enhanced GSE174409 analysis complete!\n")
+    cat("✓ Statistical results saved\n")
+    cat("✓ Expression matrices saved for comprehensive analysis\n")
+    cat("✓ Ready for neuroinflammatory pathway analysis\n")
+    cat("Results saved to:", OUTPUT_DIR, "\n")
+    cat(paste(rep("=", 70), collapse = ""), "\n")
+    
+    return(list(
+      results = results_list,
+      expression_data = expression_data,
+      metadata = bulk_data$metadata
+    ))
+    
+  }, error = function(e) {
+    cat("\nERROR:", e$message, "\n")
+    stop(e)
+  })
 }
 
 # ==============================================================================

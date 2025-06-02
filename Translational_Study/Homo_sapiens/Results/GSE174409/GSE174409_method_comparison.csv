@@ -1,4 +1,4 @@
-"Method","N_Genes_Tested","N_Significant_FDR05","Correlation"
-"paired_limma",22289,17569,0.336
-"mixed_effects",22289,17850,0.316
-"deseq2",41794,21965,NA
+"Method","N_Genes_Tested","N_Significant_FDR05","Intra_Subject_Correlation","N_Subjects","N_Samples","Technology","Expression_Matrices_Available"
+"paired_limma",17524,14222,0.348,40,80,"bulk_RNA_seq",TRUE
+"mixed_effects",17524,14448,0.333,40,80,"bulk_RNA_seq",TRUE
+"deseq2",26842,16159,NA,40,80,"bulk_RNA_seq",TRUE

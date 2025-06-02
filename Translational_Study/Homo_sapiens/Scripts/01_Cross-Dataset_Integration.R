@@ -18,7 +18,7 @@ suppressPackageStartupMessages({
   library(dplyr)
   library(ggplot2)
   library(VennDiagram)
-  library(biomaRt)
+  library(grid)  # Add this for grid.draw
 })
 
 # ==============================================================================
@@ -121,13 +121,27 @@ load_integration_data <- function() {
   gse174409_results <- readRDS(gse174409_file)
   gse225158_results <- readRDS(gse225158_file)
   
-  cat("✓ GSE174409 loaded:", length(gse174409_results), "methods\n")
-  cat("✓ GSE225158 loaded:", length(gse225158_results), "methods\n")
+  cat("✓ GSE174409 loaded:", length(gse174409_results), "components\n")
+  cat("✓ GSE225158 loaded:", length(gse225158_results), "components\n")
   
-  # Harmonize gene identifiers
-  harmonized_data <- harmonize_gene_ids(gse174409_results, gse225158_results)
+  # Check if data uses gene symbols or Ensembl IDs
+  gse174409_genes <- rownames(gse174409_results$paired_limma$results)[1:5]
+  gse225158_genes <- rownames(gse225158_results$paired_limma$results)[1:5]
   
-  return(harmonized_data)
+  cat("GSE174409 gene IDs:", paste(gse174409_genes, collapse = ", "), "\n")
+  cat("GSE225158 gene IDs:", paste(gse225158_genes, collapse = ", "), "\n")
+  
+  # If GSE174409 still uses Ensembl IDs, convert them
+  if (any(grepl("^ENSG", gse174409_genes))) {
+    cat("⚠ GSE174409 uses Ensembl IDs - conversion needed for integration\n")
+    # For now, return the data as-is and handle in analysis
+    # In future iterations, we can add conversion here
+  }
+  
+  return(list(
+    gse174409 = gse174409_results,
+    gse225158 = gse225158_results
+  ))
 }
 
 # ==============================================================================
