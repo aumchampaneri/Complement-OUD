@@ -1,0 +1,58 @@
+TECHNOLOGY-AWARE COMPREHENSIVE NEUROINFLAMMATORY ANALYSIS
+Analysis date: 2025-06-02
+
+OUTPUT ORGANIZATION:
+📊 ALL FIGURES saved to: Outputs/Neuroinflammatory_Analysis/
+  ├── Pathway_Enrichment/
+  │   ├── GO_Enrichment/
+  │   ├── KEGG_Enrichment/
+  │   ├── Reactome_Enrichment/
+  │   ├── Hallmark_Enrichment/
+  │   └── Comparison_Plots/
+  ├── TF_Pathway_Activities/
+  │   ├── TF_Activities/
+  │   ├── Pathway_Activities/
+  │   └── Network_Plots/
+  ├── Cross_Dataset_Patterns/
+  │   ├── Concordance_Analysis/
+  │   ├── Gene_Level_Patterns/
+  │   └── Complement_Focus/
+  └── Summary_Figures/
+      ├── Dataset_Overviews/
+      ├── Method_Comparisons/
+      └── Technology_Comparisons/
+
+📁 ANALYSIS DATA saved to: Results/Neuroinflammatory_Analysis/
+
+SCIENTIFIC APPROACH:
+✓ Independent pathway enrichment per dataset (no cross-technology integration)
+✓ Technology-aware normalization and analysis methods
+✓ Cross-dataset pattern discovery (directional consistency only)
+✓ Cell-type considerations for snRNA-seq data
+
+DATASETS ANALYZED:
+- GSE174409: Bulk RNA-seq (DLPFC vs NAc)
+- GSE225158: snRNA-seq pseudobulk (Caudate vs Putamen)
+
+ANALYSIS COMPONENTS:
+1. Comprehensive gene set collections (Hallmark, GO, KEGG, Reactome, Literature)
+2. Independent pathway enrichment per dataset
+3. decoupleR TF and pathway activity inference
+4. Cross-dataset pattern concordance analysis
+5. Organized visualization suite
+
+KEY FINDINGS:
+- Gene sets analyzed: 57
+- Datasets with enrichment results: 2
+- Datasets with decoupleR results: 2
+
+INTERPRETATION GUIDELINES:
+- Results represent independent validation across brain regions and technologies
+- Pattern concordance suggests robust neuroinflammatory signatures
+- Technology-specific findings require separate interpretation
+- Clinical validation needed for translational applications
+
+FIGURE ACCESS:
+- Navigate to: /Users/aumchampaneri/Complement-OUD/Translational_Study/Homo_sapiens/Outputs/Neuroinflammatory_Analysis
+- All figures organized by analysis type and dataset
+- High-resolution PNG files ready for publication

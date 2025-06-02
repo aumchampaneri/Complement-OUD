@@ -1,0 +1,6 @@
+COMPREHENSIVE NEUROINFLAMMATORY GENE SETS
+Analysis date: 2025-06-02
+Database versions: date=20241, msigdbr_version=list(c(24, 1, 0)), clusterProfiler_version=list(c(4, 16, 0)), org.Hs.eg.db_version=list(c(3, 21, 0)), decoupleR_version=list(c(2, 14, 0))
+Failed gene sets: GO_neuronal_death
+Total gene sets: 57
+Total unique genes: 4774
