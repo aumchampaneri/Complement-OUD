@@ -84,11 +84,36 @@ def main():
     adata = sc.read_h5ad(INPUT_PATH)
     print(f"📊 Loaded dataset: {adata.shape}")
     
-    # Show available clinical metadata
-    clinical_cols = ['ID', 'Region', 'Case', 'Sex', 'Race', 'Age', 'BMI', 'PMI', 'pH', 'RIN', 
-                     'Dx_OUD', 'Dx_Substances', 'Dx_Comorbid', 'celltype1', 'celltype2', 'celltype3']
+    # Show available clinical metadata - FOCUSED LIST
+    clinical_cols = [
+        # Demographics & General (essential)
+        'ID', 'Sex', 'Race', 'Age', 'BMI', 'PMI', 'pH', 'RIN',
+        
+        # Diagnosis & Mental Health (core for OUD study)
+        'Dx_OUD', 'Dx_Substances', 'Dx_Comorbid',
+        
+        # Brain/Anatomical (essential for striatum study)
+        'Region', 'Case',
+        
+        # Cell Type Annotations (analysis-derived but useful)
+        'celltype1', 'celltype2', 'celltype3'
+    ]
+    
     available_clinical = [col for col in clinical_cols if col in adata.obs.columns]
-    print(f"📋 Available clinical metadata: {available_clinical}")
+    print(f"📋 Available clinical metadata ({len(available_clinical)}/{len(clinical_cols)}):")
+    
+    # Group and display by category for better readability
+    clinical_categories = {
+        'Demographics': ['Sex', 'Race', 'Age', 'BMI', 'PMI', 'pH', 'RIN'],
+        'Diagnosis': ['Dx_OUD', 'Dx_Substances', 'Dx_Comorbid'],
+        'Brain/Anatomical': ['Region', 'Case', 'ID'],
+        'Cell Types': ['celltype1', 'celltype2', 'celltype3']
+    }
+    
+    for category, fields in clinical_categories.items():
+        available_in_category = [col for col in fields if col in available_clinical]
+        if available_in_category:
+            print(f"   • {category}: {available_in_category}")
     
     # Extract raw counts
     print("\n🔍 Extracting raw count data...")
@@ -103,6 +128,17 @@ def main():
                 raw_adata.obs[col] = adata.obs[col].copy()
         
         print(f"✅ Copied {len(available_clinical)} metadata columns")
+        
+        # Add specific check for brain region after copying metadata
+        if 'Region' in raw_adata.obs.columns:
+            unique_regions = raw_adata.obs['Region'].unique()
+            print(f"🧠 Brain regions identified: {list(unique_regions)}")
+            print(f"   • Cells per region:")
+            region_counts = raw_adata.obs['Region'].value_counts()
+            for region, count in region_counts.items():
+                print(f"     - {region}: {count:,} cells")
+        else:
+            print("⚠️  Warning: No brain region information found")
     else:
         print("❌ No raw data found in .raw slot")
         return None
@@ -142,10 +178,9 @@ def main():
         inplace=True
     )
     
-    # Add percentage metrics with robust column name handling
-    # Handle potential column name variations
-    mt_counts_col = 'n_counts_mt' if 'n_counts_mt' in raw_adata.obs.columns else 'mt_counts'
-    ribo_counts_col = 'n_counts_ribo' if 'n_counts_ribo' in raw_adata.obs.columns else 'ribo_counts'
+    # Add percentage metrics with optimized column handling
+    mt_counts_col = 'total_counts_mt' if 'total_counts_mt' in raw_adata.obs.columns else 'n_counts_mt'
+    ribo_counts_col = 'total_counts_ribo' if 'total_counts_ribo' in raw_adata.obs.columns else 'n_counts_ribo'
     
     if mt_counts_col in raw_adata.obs.columns:
         raw_adata.obs['pct_counts_mt'] = (raw_adata.obs[mt_counts_col] / raw_adata.obs['total_counts']) * 100
@@ -179,6 +214,16 @@ def main():
         }).round(1)
         print(oud_summary)
     
+    # Show QC by brain region if available
+    if 'Region' in raw_adata.obs.columns:
+        print(f"\n🧠 QC by brain region:")
+        region_summary = raw_adata.obs.groupby('Region').agg({
+            'total_counts': 'median',
+            'n_genes_by_counts': 'median',
+            'pct_counts_mt': 'median'
+        }).round(1)
+        print(region_summary)
+    
     # Robust QC filtering using MAD
     print("\n🎯 Robust QC Filtering (MAD-based)...")
     
@@ -209,10 +254,32 @@ def main():
         print(filter_impact)
     
     # Apply cell filters
+    print(f"\n🗑️  Detailed filtering results:")
+    print(f"   • Cells before filtering: {len(cell_filter):,}")
+    print(f"   • Cells passing QC: {cell_filter.sum():,}")
+    print(f"   • Cells removed: {(~cell_filter).sum():,}")
+    print(f"   • Retention rate: {cell_filter.sum()/len(cell_filter)*100:.1f}%")
+    
+    # Show what's being removed by QC criteria
+    gene_count_fail = (raw_adata.obs['n_genes_by_counts'] < max(200, n_genes_lower)) | (raw_adata.obs['n_genes_by_counts'] > n_genes_upper)
+    umi_count_fail = (raw_adata.obs['total_counts'] < total_counts_lower) | (raw_adata.obs['total_counts'] > total_counts_upper)
+    mt_fail = raw_adata.obs['pct_counts_mt'] > min(25, mt_upper)
+    
+    print(f"\n📊 Cells failing each QC criterion:")
+    print(f"   • Gene count outliers: {gene_count_fail.sum():,} cells")
+    print(f"   • UMI count outliers: {umi_count_fail.sum():,} cells")
+    print(f"   • High MT% (>{min(25, mt_upper):.1f}%): {mt_fail.sum():,} cells")
+    
     raw_adata = raw_adata[cell_filter, :].copy()
     
     # Filter genes (expressed in at least 3 cells)
+    genes_before = raw_adata.n_vars
     sc.pp.filter_genes(raw_adata, min_cells=3)
+    genes_after = raw_adata.n_vars
+    print(f"\n🧬 Gene filtering:")
+    print(f"   • Genes before filtering: {genes_before:,}")
+    print(f"   • Genes after filtering: {genes_after:,}")
+    print(f"   • Genes removed: {genes_before - genes_after:,}")
     
     print(f"✅ After QC filtering: {raw_adata.n_obs:,} cells, {raw_adata.n_vars:,} genes")
     
@@ -390,9 +457,15 @@ def main():
         f.write(f"• Normalization: Pearson residuals (theta=100)\n")
         f.write(f"• Batch correction: {batch_key if batch_key else 'None'}\n\n")
         f.write("CLINICAL METADATA PRESERVED:\n")
-        for col in available_clinical:
-            if col in raw_adata.obs.columns:
-                f.write(f"• {col}: {raw_adata.obs[col].nunique()} unique values\n")
+        
+        # Group clinical metadata by category in summary
+        for category, fields in clinical_categories.items():
+            available_in_category = [col for col in fields if col in raw_adata.obs.columns]
+            if available_in_category:
+                f.write(f"• {category}:\n")
+                for col in available_in_category:
+                    unique_vals = raw_adata.obs[col].nunique()
+                    f.write(f"  - {col}: {unique_vals} unique values\n")
     
     print(f"💾 Saved summary to: {SUMMARY_PATH}")
     

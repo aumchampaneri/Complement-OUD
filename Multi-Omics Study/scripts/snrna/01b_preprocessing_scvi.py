@@ -133,12 +133,36 @@ def main_scvi():
     if adata.raw is not None:
         raw_adata = adata.raw.to_adata()
         
-        # Copy clinical metadata
-        clinical_cols = ['ID', 'Region', 'Case', 'Sex', 'Race', 'Age', 'BMI', 'PMI', 'pH', 'RIN', 
-                        'Dx_OUD', 'Dx_Substances', 'Dx_Comorbid', 'celltype1', 'celltype2', 'celltype3']
+        # Copy clinical metadata - FOCUSED LIST
+        clinical_cols = [
+            # Demographics & General (essential)
+            'ID', 'Sex', 'Race', 'Age', 'BMI', 'PMI', 'pH', 'RIN',
+            
+            # Diagnosis & Mental Health (core for OUD study)
+            'Dx_OUD', 'Dx_Substances', 'Dx_Comorbid',
+            
+            # Brain/Anatomical (essential for striatum study)
+            'Region', 'Case',
+            
+            # Cell Type Annotations (analysis-derived but useful)
+            'celltype1', 'celltype2', 'celltype3'
+        ]
         available_clinical = [col for col in clinical_cols if col in adata.obs.columns]
         for col in available_clinical:
             raw_adata.obs[col] = adata.obs[col].copy()
+        
+        print(f"✅ Copied {len(available_clinical)} clinical metadata columns")
+        
+        # Add specific check for brain region
+        if 'Region' in raw_adata.obs.columns:
+            unique_regions = raw_adata.obs['Region'].unique()
+            print(f"🧠 Brain regions identified: {list(unique_regions)}")
+            print(f"   • Cells per region:")
+            region_counts = raw_adata.obs['Region'].value_counts()
+            for region, count in region_counts.items():
+                print(f"     - {region}: {count:,} cells")
+        else:
+            print("⚠️  Warning: No brain region information found")
         
         del adata
         print(f"✅ Extracted raw data: {raw_adata.shape}")
@@ -165,10 +189,9 @@ def main_scvi():
         inplace=True
     )
     
-    # Add percentage metrics with robust column name handling
-    # Handle potential column name variations
-    mt_counts_col = 'n_counts_mt' if 'n_counts_mt' in raw_adata.obs.columns else 'mt_counts'
-    ribo_counts_col = 'n_counts_ribo' if 'n_counts_ribo' in raw_adata.obs.columns else 'ribo_counts'
+    # Add percentage metrics with optimized column handling (no debug prints)
+    mt_counts_col = 'total_counts_mt' if 'total_counts_mt' in raw_adata.obs.columns else 'n_counts_mt'
+    ribo_counts_col = 'total_counts_ribo' if 'total_counts_ribo' in raw_adata.obs.columns else 'n_counts_ribo'
     
     if mt_counts_col in raw_adata.obs.columns:
         raw_adata.obs['pct_counts_mt'] = (raw_adata.obs[mt_counts_col] / raw_adata.obs['total_counts']) * 100
@@ -197,8 +220,33 @@ def main_scvi():
         (raw_adata.obs['pct_counts_mt'] <= min(25, mt_upper))
     )
     
+    # Apply cell filters with detailed logging
+    print(f"\n🗑️  Detailed filtering results:")
+    print(f"   • Cells before filtering: {len(cell_filter):,}")
+    print(f"   • Cells passing QC: {cell_filter.sum():,}")
+    print(f"   • Cells removed: {(~cell_filter).sum():,}")
+    print(f"   • Retention rate: {cell_filter.sum()/len(cell_filter)*100:.1f}%")
+    
+    # Show what's being removed by QC criteria
+    gene_count_fail = (raw_adata.obs['n_genes_by_counts'] < max(200, n_genes_lower)) | (raw_adata.obs['n_genes_by_counts'] > n_genes_upper)
+    umi_count_fail = (raw_adata.obs['total_counts'] < total_counts_lower) | (raw_adata.obs['total_counts'] > total_counts_upper)
+    mt_fail = raw_adata.obs['pct_counts_mt'] > min(25, mt_upper)
+    
+    print(f"\n📊 Cells failing each QC criterion:")
+    print(f"   • Gene count outliers: {gene_count_fail.sum():,} cells")
+    print(f"   • UMI count outliers: {umi_count_fail.sum():,} cells")
+    print(f"   • High MT% (>{min(25, mt_upper):.1f}%): {mt_fail.sum():,} cells")
+    
     raw_adata = raw_adata[cell_filter, :].copy()
+    
+    # Filter genes with logging
+    genes_before = raw_adata.n_vars
     sc.pp.filter_genes(raw_adata, min_cells=3)
+    genes_after = raw_adata.n_vars
+    print(f"\n🧬 Gene filtering:")
+    print(f"   • Genes before filtering: {genes_before:,}")
+    print(f"   • Genes after filtering: {genes_after:,}")
+    print(f"   • Genes removed: {genes_before - genes_after:,}")
     
     print(f"✅ After QC: {raw_adata.n_obs:,} cells, {raw_adata.n_vars:,} genes")
     
