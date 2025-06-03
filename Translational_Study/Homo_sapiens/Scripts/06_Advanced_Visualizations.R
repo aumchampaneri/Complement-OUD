@@ -843,3 +843,12 @@ run_advanced_visualization_pipeline <- function() {
     return(NULL)
   })
 }
+
+# ==============================================================================
+# EXECUTION (UPDATED)
+# ==============================================================================
+
+# Force execution when sourced
+if (!exists("SOURCED") || !SOURCED) {
+  viz_results <- run_advanced_visualization_pipeline()
+}
