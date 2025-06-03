@@ -1,0 +1,7 @@
+"Dataset","Method","Technology","Significant_Pathways"
+"gse174409","paired_limma","Bulk RNA-seq",1807
+"gse174409","mixed_effects","Bulk RNA-seq",1878
+"gse174409","deseq2","Bulk RNA-seq",1207
+"gse225158","paired_limma","snRNA-seq",2
+"gse225158","mixed_effects","snRNA-seq",142
+"gse225158","deseq2","snRNA-seq",41

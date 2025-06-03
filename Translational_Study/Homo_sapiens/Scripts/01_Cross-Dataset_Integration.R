@@ -19,6 +19,7 @@ suppressPackageStartupMessages({
   library(ggplot2)
   library(VennDiagram)
   library(grid)  # Add this for grid.draw
+  library(biomaRt)  # Add biomaRt explicitly
 })
 
 # ==============================================================================
@@ -29,21 +30,43 @@ suppressPackageStartupMessages({
 convert_ensembl_to_symbols <- function(ensembl_ids) {
   cat("Converting Ensembl IDs to gene symbols...\n")
   
-  ensembl <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
-  gene_map <- getBM(
-    attributes = c("ensembl_gene_id", "hgnc_symbol"),
-    filters = "ensembl_gene_id",
-    values = ensembl_ids,
-    mart = ensembl
-  )
-  
-  # Remove empty symbols
-  gene_map <- gene_map[gene_map$hgnc_symbol != "", ]
-  
-  cat(sprintf("Mapped %d/%d Ensembl IDs to gene symbols\n", 
-              nrow(gene_map), length(ensembl_ids)))
-  
-  return(gene_map)
+  tryCatch({
+    # Connect to Ensembl biomart with error handling
+    ensembl <- useMart("ensembl", dataset = "hsapiens_gene_ensembl", 
+                       host = "https://useast.ensembl.org")
+    
+    gene_map <- getBM(
+      attributes = c("ensembl_gene_id", "hgnc_symbol"),
+      filters = "ensembl_gene_id",
+      values = ensembl_ids,
+      mart = ensembl
+    )
+    
+    # Remove empty symbols
+    gene_map <- gene_map[gene_map$hgnc_symbol != "", ]
+    
+    cat(sprintf("Mapped %d/%d Ensembl IDs to gene symbols\n", 
+                nrow(gene_map), length(ensembl_ids)))
+    
+    return(gene_map)
+    
+  }, error = function(e) {
+    cat("⚠ biomaRt connection failed:", e$message, "\n")
+    cat("Using alternative approach with clusterProfiler...\n")
+    
+    # Fallback to clusterProfiler approach
+    gene_map <- clusterProfiler::bitr(ensembl_ids, 
+                                      fromType = "ENSEMBL", 
+                                      toType = "SYMBOL", 
+                                      OrgDb = org.Hs.eg.db)
+    
+    colnames(gene_map) <- c("ensembl_gene_id", "hgnc_symbol")
+    
+    cat(sprintf("Mapped %d/%d Ensembl IDs using clusterProfiler\n", 
+                nrow(gene_map), length(ensembl_ids)))
+    
+    return(gene_map)
+  })
 }
 
 #' Harmonize gene identifiers between datasets
@@ -131,17 +154,83 @@ load_integration_data <- function() {
   cat("GSE174409 gene IDs:", paste(gse174409_genes, collapse = ", "), "\n")
   cat("GSE225158 gene IDs:", paste(gse225158_genes, collapse = ", "), "\n")
   
-  # If GSE174409 still uses Ensembl IDs, convert them
-  if (any(grepl("^ENSG", gse174409_genes))) {
-    cat("⚠ GSE174409 uses Ensembl IDs - conversion needed for integration\n")
-    # For now, return the data as-is and handle in analysis
-    # In future iterations, we can add conversion here
+  # Smart gene ID detection and harmonization
+  gse174409_uses_ensembl <- any(grepl("^ENSG", gse174409_genes))
+  gse225158_uses_ensembl <- any(grepl("^ENSG", gse225158_genes))
+  
+  cat("Gene ID formats - GSE174409:", ifelse(gse174409_uses_ensembl, "Ensembl", "Symbols"), 
+      "| GSE225158:", ifelse(gse225158_uses_ensembl, "Ensembl", "Symbols"), "\n")
+  
+  # If both use symbols or both use Ensembl, proceed directly
+  # If mixed, convert Ensembl to symbols
+  if (gse174409_uses_ensembl && !gse225158_uses_ensembl) {
+    cat("🔄 Converting GSE174409 from Ensembl to gene symbols...\n")
+    gse174409_results <- convert_dataset_to_symbols(gse174409_results)
+  } else if (!gse174409_uses_ensembl && gse225158_uses_ensembl) {
+    cat("🔄 Converting GSE225158 from Ensembl to gene symbols...\n")
+    gse225158_results <- convert_dataset_to_symbols(gse225158_results)
+  } else {
+    cat("✓ Gene ID formats are compatible\n")
   }
   
   return(list(
     gse174409 = gse174409_results,
     gse225158 = gse225158_results
   ))
+}
+
+#' Convert a dataset from Ensembl IDs to gene symbols
+convert_dataset_to_symbols <- function(dataset_results) {
+  tryCatch({
+    # Get all Ensembl IDs from the first method
+    all_ensembl_ids <- rownames(dataset_results$paired_limma$results)
+    
+    # Convert to gene symbols
+    gene_map <- convert_ensembl_to_symbols(all_ensembl_ids)
+    
+    # Convert each method's results
+    converted_results <- list()
+    for (method_name in names(dataset_results)) {
+      if (method_name %in% c("paired_limma", "mixed_effects", "deseq2")) {
+        method_results <- dataset_results[[method_name]]$results
+        
+        # Merge with gene mapping
+        method_results$ensembl_gene_id <- rownames(method_results)
+        harmonized <- merge(method_results, gene_map, by = "ensembl_gene_id", all.x = FALSE)
+        
+        # Handle duplicates (keep best p-value)
+        pval_col <- ifelse("adj.P.Val" %in% colnames(harmonized), "adj.P.Val", "padj")
+        harmonized <- harmonized %>%
+          group_by(hgnc_symbol) %>%
+          slice_min(order_by = !!sym(pval_col), n = 1, with_ties = FALSE) %>%
+          ungroup()
+        
+        # Set gene symbols as row names
+        harmonized <- as.data.frame(harmonized)
+        rownames(harmonized) <- harmonized$hgnc_symbol
+        harmonized$ensembl_gene_id <- NULL
+        harmonized$hgnc_symbol <- NULL
+        
+        converted_results[[method_name]] <- list(
+          results = harmonized,
+          fit = dataset_results[[method_name]]$fit,
+          correlation = dataset_results[[method_name]]$correlation
+        )
+        
+        cat(sprintf("  %s: %d genes after conversion\n", method_name, nrow(harmonized)))
+      } else {
+        # Keep other components as-is
+        converted_results[[method_name]] <- dataset_results[[method_name]]
+      }
+    }
+    
+    return(converted_results)
+    
+  }, error = function(e) {
+    cat("⚠ Gene conversion failed:", e$message, "\n")
+    cat("Returning original dataset\n")
+    return(dataset_results)
+  })
 }
 
 # ==============================================================================
@@ -335,6 +424,113 @@ create_integration_summary <- function(overlap_results, correlation_results) {
   print(summary_df)
   
   return(summary_df)
+}
+
+#' Create enhanced integration summary with statistical tests
+create_integration_summary <- function(overlap_results, correlation_results) {
+  cat("\n=== Creating Enhanced Integration Summary ===\n")
+  
+  # Create summary table
+  summary_df <- data.frame(
+    Method = names(overlap_results),
+    GSE174409_Significant = sapply(overlap_results, function(x) length(x$gse174409_sig)),
+    GSE225158_Significant = sapply(overlap_results, function(x) length(x$gse225158_sig)),
+    Overlap_Count = sapply(overlap_results, function(x) x$overlap_count),
+    Overlap_Percent = sapply(overlap_results, function(x) x$overlap_pct),
+    Effect_Correlation = sapply(names(overlap_results), function(m) {
+      if (m %in% names(correlation_results)) {
+        round(correlation_results[[m]]$correlation, 3)
+      } else {
+        NA
+      }
+    }),
+    Correlation_PValue = sapply(names(overlap_results), function(m) {
+      if (m %in% names(correlation_results)) {
+        correlation_results[[m]]$p_value
+      } else {
+        NA
+      }
+    }),
+    stringsAsFactors = FALSE
+  )
+  
+  # Calculate Fisher's exact test for overlap significance
+  for (i in 1:nrow(summary_df)) {
+    method <- summary_df$Method[i]
+    overlap_data <- overlap_results[[method]]
+    
+    # Create contingency table for Fisher's test
+    # [significant in both, significant in 174409 only]
+    # [significant in 225158 only, not significant in either]
+    
+    sig_both <- overlap_data$overlap_count
+    sig_174409_only <- length(overlap_data$gse174409_sig) - sig_both
+    sig_225158_only <- length(overlap_data$gse225158_sig) - sig_both
+    
+    # Estimate total tested genes (conservative approach)
+    total_tested <- max(overlap_data$total_tested, 15000)  # Approximate
+    not_sig_either <- total_tested - sig_both - sig_174409_only - sig_225158_only
+    
+    # Fisher's exact test
+    if (not_sig_either > 0) {
+      fisher_matrix <- matrix(c(sig_both, sig_174409_only, sig_225158_only, not_sig_either), 
+                             nrow = 2)
+      fisher_test <- fisher.test(fisher_matrix)
+      summary_df$Fisher_PValue[i] <- fisher_test$p.value
+      summary_df$Fisher_OR[i] <- round(fisher_test$estimate, 2)
+    } else {
+      summary_df$Fisher_PValue[i] <- NA
+      summary_df$Fisher_OR[i] <- NA
+    }
+  }
+  
+  # Save enhanced summary
+  summary_file <- file.path(INTEGRATION_DIR, "integration_summary_enhanced.csv")
+  write.csv(summary_df, summary_file, row.names = FALSE)
+  
+  # Create integration visualization
+  create_integration_visualization(summary_df, overlap_results)
+  
+  cat("✓ Enhanced integration summary saved:", summary_file, "\n")
+  cat("\n=== Enhanced Integration Summary ===\n")
+  print(summary_df)
+  
+  return(summary_df)
+}
+
+#' Create comprehensive integration visualization
+create_integration_visualization <- function(summary_df, overlap_results) {
+  cat("📊 Creating integration visualization...\n")
+  
+  # 1. Method comparison plot
+  p_methods <- ggplot(summary_df, aes(x = Method)) +
+    geom_col(aes(y = GSE174409_Significant), alpha = 0.7, fill = "#FF6B6B", width = 0.4, position = position_nudge(x = -0.2)) +
+    geom_col(aes(y = GSE225158_Significant), alpha = 0.7, fill = "#4ECDC4", width = 0.4, position = position_nudge(x = 0.2)) +
+    geom_text(aes(y = GSE174409_Significant, label = GSE174409_Significant), 
+              position = position_nudge(x = -0.2), vjust = -0.5, size = 3) +
+    geom_text(aes(y = GSE225158_Significant, label = GSE225158_Significant), 
+              position = position_nudge(x = 0.2), vjust = -0.5, size = 3) +
+    labs(title = "Cross-Dataset Integration: Significant Genes by Method",
+         subtitle = "GSE174409 (Bulk RNA-seq) vs GSE225158 (snRNA-seq)",
+         x = "Analysis Method", y = "Number of Significant Genes") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5))
+  
+  ggsave(file.path(INTEGRATION_DIR, "method_comparison.png"), 
+         p_methods, width = 10, height = 6, dpi = 300)
+  
+  # 2. Overlap percentage plot
+  p_overlap <- ggplot(summary_df, aes(x = Method, y = Overlap_Percent)) +
+    geom_col(fill = "steelblue", alpha = 0.7) +
+    geom_text(aes(label = paste0(Overlap_Percent, "%")), vjust = -0.5) +
+    labs(title = "Gene Overlap Percentage Between Datasets",
+         x = "Analysis Method", y = "Overlap Percentage") +
+    theme_minimal()
+  
+  ggsave(file.path(INTEGRATION_DIR, "overlap_percentage.png"), 
+         p_overlap, width = 8, height = 6, dpi = 300)
+  
+  cat("✓ Integration visualizations saved\n")
 }
 
 # ==============================================================================

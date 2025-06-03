@@ -1,0 +1,7 @@
+"Dataset","Method","Total_Pathways","Significant_Pathways","Enrichment_Rate"
+"gse174409","paired_limma",8431,1807,21.43
+"gse174409","mixed_effects",8431,1878,22.27
+"gse174409","deseq2",8431,1207,14.32
+"gse225158","paired_limma",4078,2,0.05
+"gse225158","mixed_effects",7618,142,1.86
+"gse225158","deseq2",1267,41,3.24

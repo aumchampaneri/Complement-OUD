@@ -1,0 +1,151 @@
+"Dataset","Method","Database","Pathway","P_Value","Adj_P_Value","Gene_Count"
+"gse174409","paired_limma","GO_BP","alternative mRNA splicing, via spliceosome",0.0384630657746341,0.124023142766174,53
+"gse174409","paired_limma","GO_BP","blood coagulation",0.0600463319146521,0.171409174511882,155
+"gse174409","paired_limma","GO_BP","coagulation",0.0791050176361032,0.208707480250348,157
+"gse174409","paired_limma","GO_BP","regulation of alternative mRNA splicing, via spliceosome",0.099473762566326,0.244978720215159,39
+"gse174409","paired_limma","GO_BP","stimulatory C-type lectin receptor signaling pathway",0.109395100005882,0.258913932343909,17
+"gse174409","paired_limma","GO_BP","response to lectin",0.109395100005882,0.258913932343909,17
+"gse174409","paired_limma","GO_BP","cellular response to lectin",0.109395100005882,0.258913932343909,17
+"gse174409","paired_limma","GO_BP","complement receptor mediated signaling pathway",0.199952514654509,0.384975080361115,11
+"gse174409","paired_limma","GO_BP","positive regulation of coagulation",0.218918237585598,0.409002714925983,21
+"gse174409","paired_limma","GO_BP","positive regulation of blood coagulation",0.280757280487372,0.479523496761617,18
+"gse174409","paired_limma","GO_BP","regulation of coagulation",0.367300460774465,0.572665026847629,47
+"gse174409","paired_limma","GO_BP","regulation of blood coagulation",0.539624412149317,0.735946013057602,41
+"gse174409","paired_limma","GO_BP","metanephric collecting duct development",0.613937984293961,0.790718207177146,6
+"gse174409","paired_limma","GO_BP","collecting duct development",0.768633892085121,0.910608121036111,8
+"gse174409","paired_limma","GO_BP","negative regulation of coagulation",0.833541824238023,0.955276180064293,29
+"gse174409","paired_limma","GO_BP","negative regulation of blood coagulation",0.881910920558628,0.988613662289956,26
+"gse174409","paired_limma","GO_BP","negative regulation of complement activation",0.963593999906409,1,5
+"gse174409","paired_limma","GO_BP","complement-dependent cytotoxicity",0.967033678702752,1,4
+"gse174409","paired_limma","GO_BP","blood coagulation, fibrin clot formation",0.977730130722363,1,6
+"gse174409","paired_limma","GO_BP","regulation of complement activation",0.99138687649552,1,8
+"gse174409","paired_limma","GO_BP","complement activation, lectin pathway",0.993143059371723,1,3
+"gse174409","paired_limma","GO_BP","complement activation, alternative pathway",0.998415117719951,1,5
+"gse174409","paired_limma","GO_BP","complement activation, classical pathway",0.999988580640659,1,11
+"gse174409","paired_limma","GO_BP","complement activation",0.999999985660679,1,17
+"gse174409","paired_limma","KEGG","C-type lectin receptor signaling pathway",0.274732339182468,0.388645748111784,65
+"gse174409","paired_limma","KEGG","Collecting duct acid secretion",0.488189614112924,0.6177817662229,17
+"gse174409","paired_limma","KEGG","Complement and coagulation cascades",0.999948891680182,1,34
+"gse174409","paired_limma","Reactome","Regulation of Expression and Function of Type II Classical Cadherins",0.0974153983562043,0.242663507282521,24
+"gse174409","paired_limma","Reactome","FGFR2 alternative splicing",0.137569743105201,0.300414767095873,20
+"gse174409","paired_limma","Reactome","C-type lectin receptors (CLRs)",0.219821976026473,0.408240812620592,87
+"gse174409","paired_limma","Reactome","Initial triggering of complement",0.999190672172931,1,8
+"gse174409","paired_limma","Reactome","Regulation of Complement cascade",0.99999899231962,1,15
+"gse174409","paired_limma","Reactome","Complement cascade",0.999999992351727,1,17
+"gse174409","paired_limma","Hallmark","HALLMARK_COMPLEMENT",0.963841835960028,0.999999999955514,133
+"gse174409","paired_limma","Hallmark","HALLMARK_COAGULATION",0.999938501794861,0.999999999955514,79
+"gse174409","mixed_effects","GO_BP","alternative mRNA splicing, via spliceosome",0.018110719468012,0.0745136771910648,55
+"gse174409","mixed_effects","GO_BP","regulation of alternative mRNA splicing, via spliceosome",0.0775765176924155,0.200115367024299,40
+"gse174409","mixed_effects","GO_BP","stimulatory C-type lectin receptor signaling pathway",0.127216112063803,0.279410707127559,17
+"gse174409","mixed_effects","GO_BP","response to lectin",0.127216112063803,0.279410707127559,17
+"gse174409","mixed_effects","GO_BP","cellular response to lectin",0.127216112063803,0.279410707127559,17
+"gse174409","mixed_effects","GO_BP","blood coagulation",0.130157492478735,0.282155571680416,154
+"gse174409","mixed_effects","GO_BP","coagulation",0.163385232873062,0.336546102253731,156
+"gse174409","mixed_effects","GO_BP","complement receptor mediated signaling pathway",0.221156645341661,0.408511216409814,11
+"gse174409","mixed_effects","GO_BP","positive regulation of coagulation",0.382523848371997,0.593763106184157,20
+"gse174409","mixed_effects","GO_BP","regulation of coagulation",0.431304485399739,0.643354729818583,47
+"gse174409","mixed_effects","GO_BP","positive regulation of blood coagulation",0.465649110447624,0.675101111869091,17
+"gse174409","mixed_effects","GO_BP","regulation of blood coagulation",0.601865829654454,0.79396923551558,41
+"gse174409","mixed_effects","GO_BP","metanephric collecting duct development",0.637392946494322,0.816976388855371,6
+"gse174409","mixed_effects","GO_BP","collecting duct development",0.790983210502529,0.933755289689094,8
+"gse174409","mixed_effects","GO_BP","negative regulation of coagulation",0.866415896363133,0.977635659726783,29
+"gse174409","mixed_effects","GO_BP","negative regulation of complement activation",0.904620145518453,1,6
+"gse174409","mixed_effects","GO_BP","negative regulation of blood coagulation",0.906721631408014,1,26
+"gse174409","mixed_effects","GO_BP","complement-dependent cytotoxicity",0.971541701932349,1,4
+"gse174409","mixed_effects","GO_BP","regulation of complement activation",0.979439142945998,1,9
+"gse174409","mixed_effects","GO_BP","blood coagulation, fibrin clot formation",0.981556104201813,1,6
+"gse174409","mixed_effects","GO_BP","complement activation, lectin pathway",0.99428359736791,1,3
+"gse174409","mixed_effects","GO_BP","complement activation, alternative pathway",0.998788538459117,1,5
+"gse174409","mixed_effects","GO_BP","complement activation, classical pathway",0.999971745842296,1,12
+"gse174409","mixed_effects","GO_BP","complement activation",0.999999973814299,1,18
+"gse174409","mixed_effects","KEGG","C-type lectin receptor signaling pathway",0.201516420817485,0.299691087369593,67
+"gse174409","mixed_effects","KEGG","Collecting duct acid secretion",0.52242291187792,0.658707149759117,17
+"gse174409","mixed_effects","KEGG","Complement and coagulation cascades",0.999934002351493,1,35
+"gse174409","mixed_effects","Reactome","FGFR2 alternative splicing",0.075281229796396,0.190307934213034,21
+"gse174409","mixed_effects","Reactome","Regulation of Expression and Function of Type II Classical Cadherins",0.11682885772014,0.25613072364468,24
+"gse174409","mixed_effects","Reactome","C-type lectin receptors (CLRs)",0.227937067951915,0.396271529901849,88
+"gse174409","mixed_effects","Reactome","Initial triggering of complement",0.999421592889037,1,8
+"gse174409","mixed_effects","Reactome","Regulation of Complement cascade",0.999997793198628,1,16
+"gse174409","mixed_effects","Reactome","Complement cascade",0.999999984841883,1,18
+"gse174409","mixed_effects","Hallmark","HALLMARK_COMPLEMENT",0.967647969440064,0.999999992888391,135
+"gse174409","mixed_effects","Hallmark","HALLMARK_COAGULATION",0.999996704177665,0.999999992888391,77
+"gse174409","deseq2","GO_BP","blood coagulation",0.0343317776515152,0.140435522526598,161
+"gse174409","deseq2","GO_BP","coagulation",0.0483179291525127,0.173568466312664,163
+"gse174409","deseq2","GO_BP","alternative mRNA splicing, via spliceosome",0.110348253600192,0.293028040759395,52
+"gse174409","deseq2","GO_BP","regulation of alternative mRNA splicing, via spliceosome",0.228167184823783,0.450711921656072,38
+"gse174409","deseq2","GO_BP","regulation of coagulation",0.393976132712654,0.616909249421937,48
+"gse174409","deseq2","GO_BP","complement receptor mediated signaling pathway",0.433002708500272,0.643893124080839,10
+"gse174409","deseq2","GO_BP","regulation of blood coagulation",0.459968074209943,0.669962488193759,43
+"gse174409","deseq2","GO_BP","positive regulation of blood coagulation",0.499081768416162,0.704020328470108,17
+"gse174409","deseq2","GO_BP","positive regulation of coagulation",0.562955536771857,0.748062552409756,19
+"gse174409","deseq2","GO_BP","stimulatory C-type lectin receptor signaling pathway",0.593357402902042,0.779161410786444,14
+"gse174409","deseq2","GO_BP","response to lectin",0.593357402902042,0.779161410786444,14
+"gse174409","deseq2","GO_BP","cellular response to lectin",0.593357402902042,0.779161410786444,14
+"gse174409","deseq2","GO_BP","negative regulation of coagulation",0.656557583303562,0.815599511217554,32
+"gse174409","deseq2","GO_BP","negative regulation of blood coagulation",0.719059063657238,0.859067187475699,29
+"gse174409","deseq2","GO_BP","metanephric collecting duct development",0.849296884829904,0.943186026064805,5
+"gse174409","deseq2","GO_BP","collecting duct development",0.917530035513842,0.983464960650902,7
+"gse174409","deseq2","GO_BP","blood coagulation, fibrin clot formation",0.950533652004667,1,7
+"gse174409","deseq2","GO_BP","negative regulation of complement activation",0.972839477087453,1,5
+"gse174409","deseq2","GO_BP","complement-dependent cytotoxicity",0.974941578931298,1,4
+"gse174409","deseq2","GO_BP","regulation of complement activation",0.994613532829199,1,8
+"gse174409","deseq2","GO_BP","complement activation, lectin pathway",0.995113480179486,1,3
+"gse174409","deseq2","GO_BP","complement activation, alternative pathway",0.995514537623593,1,6
+"gse174409","deseq2","GO_BP","complement activation, classical pathway",0.999928779123156,1,13
+"gse174409","deseq2","GO_BP","complement activation",0.999999788535158,1,20
+"gse174409","deseq2","KEGG","C-type lectin receptor signaling pathway",0.18294043945197,0.285671740912049,68
+"gse174409","deseq2","KEGG","Collecting duct acid secretion",0.257828043260181,0.381804932146991,19
+"gse174409","deseq2","KEGG","Complement and coagulation cascades",0.992727836340477,1,42
+"gse174409","deseq2","Reactome","C-type lectin receptors (CLRs)",0.121144476805001,0.348101672658139,90
+"gse174409","deseq2","Reactome","FGFR2 alternative splicing",0.280108664702211,0.541977695423813,19
+"gse174409","deseq2","Reactome","Regulation of Expression and Function of Type II Classical Cadherins",0.335450712402307,0.599559597677163,22
+"gse174409","deseq2","Reactome","Initial triggering of complement",0.997513000685862,1,9
+"gse174409","deseq2","Reactome","Regulation of Complement cascade",0.999642322946777,1,20
+"gse174409","deseq2","Reactome","Complement cascade",0.999995480139561,1,22
+"gse174409","deseq2","Hallmark","HALLMARK_COMPLEMENT",0.979559234112973,0.999901127353926,130
+"gse174409","deseq2","Hallmark","HALLMARK_COAGULATION",0.998349938159204,0.999901127353926,83
+"gse225158","paired_limma","GO_BP","regulation of alternative mRNA splicing, via spliceosome",0.00656205850008863,0.28696328581529,4
+"gse225158","paired_limma","GO_BP","alternative mRNA splicing, via spliceosome",0.0175991098697215,0.337759181018458,4
+"gse225158","paired_limma","GO_BP","blood coagulation",0.0974061340575706,0.520829531419898,6
+"gse225158","paired_limma","GO_BP","coagulation",0.104766193906567,0.520829531419898,6
+"gse225158","paired_limma","GO_BP","stimulatory C-type lectin receptor signaling pathway",0.26143134597393,0.550663459231169,1
+"gse225158","paired_limma","GO_BP","response to lectin",0.26143134597393,0.550663459231169,1
+"gse225158","paired_limma","GO_BP","cellular response to lectin",0.26143134597393,0.550663459231169,1
+"gse225158","paired_limma","KEGG","C-type lectin receptor signaling pathway",0.0565368442255136,0.301930806395828,4
+"gse225158","paired_limma","Reactome","C-type lectin receptors (CLRs)",0.290415864258486,0.640356777986581,3
+"gse225158","paired_limma","Hallmark","HALLMARK_COMPLEMENT",0.323588419982044,0.882873040258796,4
+"gse225158","paired_limma","Hallmark","HALLMARK_COAGULATION",0.595608237938989,0.882873040258796,2
+"gse225158","mixed_effects","GO_BP","blood coagulation",0.00368520366495979,0.0992421902858097,32
+"gse225158","mixed_effects","GO_BP","coagulation",0.00503259159684436,0.109265853019506,32
+"gse225158","mixed_effects","GO_BP","alternative mRNA splicing, via spliceosome",0.00747317253248102,0.130508767589964,13
+"gse225158","mixed_effects","GO_BP","regulation of alternative mRNA splicing, via spliceosome",0.0150109650741221,0.19353063025093,10
+"gse225158","mixed_effects","GO_BP","stimulatory C-type lectin receptor signaling pathway",0.033736063419707,0.273447163836528,5
+"gse225158","mixed_effects","GO_BP","response to lectin",0.033736063419707,0.273447163836528,5
+"gse225158","mixed_effects","GO_BP","cellular response to lectin",0.033736063419707,0.273447163836528,5
+"gse225158","mixed_effects","GO_BP","positive regulation of coagulation",0.238476299578866,0.606236839202913,4
+"gse225158","mixed_effects","GO_BP","regulation of coagulation",0.269797413434312,0.631617101067231,8
+"gse225158","mixed_effects","GO_BP","complement receptor mediated signaling pathway",0.3447000270233,0.689519700012244,2
+"gse225158","mixed_effects","GO_BP","collecting duct development",0.3447000270233,0.689519700012244,2
+"gse225158","mixed_effects","GO_BP","positive regulation of blood coagulation",0.37414098249123,0.706822043838093,3
+"gse225158","mixed_effects","GO_BP","complement activation, classical pathway",0.406508173245024,0.73462107319256,4
+"gse225158","mixed_effects","GO_BP","regulation of blood coagulation",0.487908797478525,0.79812309386491,6
+"gse225158","mixed_effects","GO_BP","metanephric collecting duct development",0.569354064584312,0.840898891388875,1
+"gse225158","mixed_effects","GO_BP","complement-dependent cytotoxicity",0.604158596422377,0.84673297450928,1
+"gse225158","mixed_effects","GO_BP","negative regulation of coagulation",0.644359030549616,0.852740845672834,4
+"gse225158","mixed_effects","GO_BP","negative regulation of blood coagulation",0.780152015373503,0.894750491705942,3
+"gse225158","mixed_effects","GO_BP","complement activation, alternative pathway",0.780582949821621,0.894750491705942,1
+"gse225158","mixed_effects","GO_BP","complement activation",0.780791293213462,0.894750491705942,4
+"gse225158","mixed_effects","GO_BP","regulation of complement activation",0.843398258242935,0.922861083528572,1
+"gse225158","mixed_effects","KEGG","C-type lectin receptor signaling pathway",0.175442364801584,0.410172149432669,12
+"gse225158","mixed_effects","KEGG","Collecting duct acid secretion",0.42640938263582,0.687530017532691,3
+"gse225158","mixed_effects","KEGG","Complement and coagulation cascades",0.765745901258015,0.931507004760901,6
+"gse225158","mixed_effects","Reactome","Initial triggering of complement",0.163390492105184,0.999999999996007,4
+"gse225158","mixed_effects","Reactome","C-type lectin receptors (CLRs)",0.412123418107426,0.999999999996007,13
+"gse225158","mixed_effects","Reactome","FGFR2 alternative splicing",0.445507301726239,0.999999999996007,3
+"gse225158","mixed_effects","Reactome","Regulation of Complement cascade",0.653979065409393,0.999999999996007,4
+"gse225158","mixed_effects","Reactome","Complement cascade",0.805487818166224,0.999999999996007,4
+"gse225158","mixed_effects","Reactome","Regulation of Expression and Function of Type II Classical Cadherins",0.95287659155114,0.999999999996007,1
+"gse225158","mixed_effects","Hallmark","HALLMARK_COMPLEMENT",0.0313326776413624,0.391658470517029,29
+"gse225158","mixed_effects","Hallmark","HALLMARK_COAGULATION",0.240801657705618,0.708240169722406,17
+"gse225158","deseq2","GO_BP","blood coagulation",0.363557521280334,0.408046518456263,1
+"gse225158","deseq2","GO_BP","coagulation",0.369535228701916,0.411691868358558,1

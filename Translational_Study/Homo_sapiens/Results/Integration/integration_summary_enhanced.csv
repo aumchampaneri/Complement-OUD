@@ -1,0 +1,4 @@
+"Method","GSE174409_Significant","GSE225158_Significant","Overlap_Count","Overlap_Percent","Effect_Correlation","Correlation_PValue","Fisher_PValue","Fisher_OR"
+"paired_limma",14222,424,227,53.54,-0.075,1.36336079554279e-19,2.40928038742238e-143,0.05
+"mixed_effects",14448,2545,1361,53.48,-0.075,1.07243449902811e-19,NA,NA
+"deseq2",16159,65,40,61.54,-0.041,2.14023178542555e-08,5.39938216495428e-08,0.22
