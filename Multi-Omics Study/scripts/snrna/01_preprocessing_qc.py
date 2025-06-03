@@ -294,9 +294,9 @@ def main():
         n_clusters = len(raw_adata.obs[f'leiden_res_{res}'].unique())
         print(f"   • Resolution {res}: {n_clusters} clusters")
     
-    # Set default clustering
-    raw_adata.obs['leiden'] = raw_adata.obs['leiden_res_0.5']
-    print(f"✅ Using resolution 0.5 as default ({len(raw_adata.obs['leiden'].unique())} clusters)")
+    # Set default clustering to resolution 0.3 (better for brain cell types)
+    raw_adata.obs['leiden'] = raw_adata.obs['leiden_res_0.3']
+    print(f"✅ Using resolution 0.3 as default ({len(raw_adata.obs['leiden'].unique())} clusters)")
     
     # =======================================
     # 📊 STEP 6: VISUALIZATION & QC PLOTS

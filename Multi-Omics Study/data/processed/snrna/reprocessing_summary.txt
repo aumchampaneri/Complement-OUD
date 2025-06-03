@@ -1,0 +1,34 @@
+GSE225158 OUD Striatum snRNA-seq Reprocessing Summary
+============================================================
+Processing date: 2025-06-03 18:37:31.621984
+Method: Fresh processing with Pearson residuals
+
+PATHS:
+• Input: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/data/raw/snrna/GSE225158_BU_OUD_Striatum_refined_all_SeuratObj_N22.h5ad
+• Output: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/data/processed/snrna/GSE225158_reprocessed_pearson.h5ad
+• Plots: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/results/snrna/qc_plots
+
+DATASET OVERVIEW:
+• Final cells: 75,942
+• Final genes: 30,527
+• New clusters: 16
+• Normalization: Pearson residuals (theta=100)
+• Batch correction: ID
+
+CLINICAL METADATA PRESERVED:
+• ID: 22 unique values
+• Region: 2 unique values
+• Case: 12 unique values
+• Sex: 2 unique values
+• Race: 2 unique values
+• Age: 10 unique values
+• BMI: 12 unique values
+• PMI: 12 unique values
+• pH: 9 unique values
+• RIN: 11 unique values
+• Dx_OUD: 2 unique values
+• Dx_Substances: 3 unique values
+• Dx_Comorbid: 3 unique values
+• celltype1: 9 unique values
+• celltype2: 14 unique values
+• celltype3: 15 unique values

@@ -11,4 +11,5 @@ design <- model.matrix(~ condition)
 dge <- estimateDisp(dge, design)
 fit <- glmQLFit(dge, design)
 qlf <- glmQLFTest(fit, coef=2)
+> Avoid Wilcoxon if replicates exist — too liberal
 '''
