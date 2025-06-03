@@ -20,6 +20,8 @@ suppressPackageStartupMessages({
   library(VennDiagram)
   library(grid)  # Add this for grid.draw
   library(biomaRt)  # Add biomaRt explicitly
+  library(metafor)  # Add for meta-analysis
+  library(meta)     # Add for additional meta-analysis functions
 })
 
 # ==============================================================================
@@ -385,6 +387,332 @@ correlate_effect_sizes <- function(data) {
 }
 
 # ==============================================================================
+# FORMAL META-ANALYSIS FUNCTIONS
+# ==============================================================================
+
+#' Perform Fisher's method for combining p-values across datasets
+#' @param data Harmonized data from both datasets
+#' @return List of Fisher's method results for each statistical method
+fisher_method_analysis <- function(data) {
+  cat("\n=== Fisher's Method P-value Combination ===\n")
+  
+  methods <- c("paired_limma", "mixed_effects", "deseq2")
+  fisher_results <- list()
+  
+  for (method in methods) {
+    cat("Processing method:", method, "\n")
+    
+    # Get results for this method
+    gse174409_res <- data$gse174409[[method]]$results
+    gse225158_res <- data$gse225158[[method]]$results
+    
+    # Get common genes
+    common_genes <- intersect(rownames(gse174409_res), rownames(gse225158_res))
+    
+    if (length(common_genes) < 100) {
+      cat("  Warning: Only", length(common_genes), "common genes found\n")
+      next
+    }
+    
+    # Extract p-values
+    pval_col_174409 <- ifelse("P.Value" %in% colnames(gse174409_res), "P.Value", "pvalue")
+    pval_col_225158 <- ifelse("P.Value" %in% colnames(gse225158_res), "P.Value", "pvalue")
+    
+    # Create combined data frame
+    combined_data <- data.frame(
+      gene = common_genes,
+      p1 = gse174409_res[common_genes, pval_col_174409],
+      p2 = gse225158_res[common_genes, pval_col_225158],
+      stringsAsFactors = FALSE
+    ) %>%
+      filter(!is.na(p1) & !is.na(p2) & p1 > 0 & p2 > 0)  # Remove invalid p-values
+    
+    # Apply Fisher's method to each gene
+    combined_data$fisher_stat <- -2 * (log(combined_data$p1) + log(combined_data$p2))
+    combined_data$fisher_pvalue <- pchisq(combined_data$fisher_stat, df = 4, lower.tail = FALSE)
+    combined_data$fisher_padj <- p.adjust(combined_data$fisher_pvalue, method = "BH")
+    
+    # Calculate effect directions and significance
+    fc_col_174409 <- ifelse("logFC" %in% colnames(gse174409_res), "logFC", "log2FoldChange")
+    fc_col_225158 <- ifelse("logFC" %in% colnames(gse225158_res), "logFC", "log2FoldChange")
+    
+    combined_data$fc1 <- gse174409_res[combined_data$gene, fc_col_174409]
+    combined_data$fc2 <- gse225158_res[combined_data$gene, fc_col_225158]
+    combined_data$direction_consistent <- sign(combined_data$fc1) == sign(combined_data$fc2)
+    
+    # Summary statistics
+    n_significant_fisher <- sum(combined_data$fisher_padj < 0.05, na.rm = TRUE)
+    n_consistent_direction <- sum(combined_data$direction_consistent & combined_data$fisher_padj < 0.05, na.rm = TRUE)
+    
+    fisher_results[[method]] <- list(
+      data = combined_data,
+      n_genes = nrow(combined_data),
+      n_significant = n_significant_fisher,
+      n_consistent = n_consistent_direction,
+      consistency_rate = round(n_consistent_direction / n_significant_fisher * 100, 1)
+    )
+    
+    cat(sprintf("  Genes tested: %d\n", nrow(combined_data)))
+    cat(sprintf("  Significant (Fisher FDR < 0.05): %d\n", n_significant_fisher))
+    cat(sprintf("  Consistent direction: %d (%.1f%%)\n", n_consistent_direction, 
+               n_consistent_direction / n_significant_fisher * 100))
+  }
+  
+  return(fisher_results)
+}
+
+#' Perform random effects meta-analysis for effect sizes
+#' @param data Harmonized data from both datasets
+#' @return List of random effects meta-analysis results
+random_effects_meta_analysis <- function(data) {
+  cat("\n=== Random Effects Meta-Analysis ===\n")
+  
+  methods <- c("paired_limma", "mixed_effects", "deseq2")
+  meta_results <- list()
+  
+  for (method in methods) {
+    cat("Processing method:", method, "\n")
+    
+    # Get results for this method
+    gse174409_res <- data$gse174409[[method]]$results
+    gse225158_res <- data$gse225158[[method]]$results
+    
+    # Get common genes
+    common_genes <- intersect(rownames(gse174409_res), rownames(gse225158_res))
+    
+    if (length(common_genes) < 100) {
+      cat("  Warning: Only", length(common_genes), "common genes found\n")
+      next
+    }
+    
+    # Extract effect sizes and standard errors
+    fc_col_174409 <- ifelse("logFC" %in% colnames(gse174409_res), "logFC", "log2FoldChange")
+    fc_col_225158 <- ifelse("logFC" %in% colnames(gse225158_res), "logFC", "log2FoldChange")
+    
+    # For standard errors, use different approaches based on method
+    if (method %in% c("paired_limma", "mixed_effects")) {
+      se_col_174409 <- "SE"  # Standard error from limma
+      se_col_225158 <- "SE"
+    } else {
+      se_col_174409 <- "lfcSE"  # Standard error from DESeq2
+      se_col_225158 <- "lfcSE"
+    }
+    
+    # Check if SE columns exist, otherwise estimate from t-statistics
+    if (!se_col_174409 %in% colnames(gse174409_res)) {
+      if ("t" %in% colnames(gse174409_res)) {
+        # Estimate SE from t-statistic and logFC
+        gse174409_res$SE <- abs(gse174409_res[[fc_col_174409]] / gse174409_res$t)
+      } else {
+        cat("  Warning: Cannot find standard errors for", method, "- using approximation\n")
+        # Very rough approximation based on p-values
+        t_stats <- qt(gse174409_res$P.Value/2, df = 30, lower.tail = FALSE)  # Approximate df
+        gse174409_res$SE <- abs(gse174409_res[[fc_col_174409]] / t_stats)
+      }
+      se_col_174409 <- "SE"
+    }
+    
+    if (!se_col_225158 %in% colnames(gse225158_res)) {
+      if ("t" %in% colnames(gse225158_res)) {
+        gse225158_res$SE <- abs(gse225158_res[[fc_col_225158]] / gse225158_res$t)
+      } else {
+        pval_col <- ifelse("P.Value" %in% colnames(gse225158_res), "P.Value", "pvalue")
+        t_stats <- qt(gse225158_res[[pval_col]]/2, df = 10, lower.tail = FALSE)  # Approximate df
+        gse225158_res$SE <- abs(gse225158_res[[fc_col_225158]] / t_stats)
+      }
+      se_col_225158 <- "SE"
+    }
+    
+    # Create meta-analysis data
+    meta_data <- data.frame(
+      gene = common_genes,
+      yi1 = gse174409_res[common_genes, fc_col_174409],    # Effect size study 1
+      sei1 = gse174409_res[common_genes, se_col_174409],   # SE study 1
+      yi2 = gse225158_res[common_genes, fc_col_225158],    # Effect size study 2
+      sei2 = gse225158_res[common_genes, se_col_225158],   # SE study 2
+      stringsAsFactors = FALSE
+    ) %>%
+      filter(!is.na(yi1) & !is.na(yi2) & !is.na(sei1) & !is.na(sei2) & 
+             sei1 > 0 & sei2 > 0)  # Remove invalid data
+    
+    # Perform random effects meta-analysis for each gene
+    gene_meta_results <- data.frame()
+    
+    # Sample analysis on first 1000 genes to avoid computation time
+    sample_genes <- head(meta_data$gene, min(1000, nrow(meta_data)))
+    
+    for (i in seq_along(sample_genes)) {
+      gene <- sample_genes[i]
+      gene_data <- meta_data[meta_data$gene == gene, ]
+      
+      tryCatch({
+        # Prepare data for metafor
+        yi <- c(gene_data$yi1, gene_data$yi2)
+        sei <- c(gene_data$sei1, gene_data$sei2)
+        
+        # Random effects meta-analysis
+        res <- rma(yi = yi, sei = sei, method = "REML")
+        
+        gene_meta_results <- rbind(gene_meta_results, data.frame(
+          gene = gene,
+          pooled_effect = res$beta[1],
+          pooled_se = res$se,
+          pooled_pval = res$pval,
+          tau2 = res$tau2,  # Between-study variance
+          i2 = max(0, (res$QE - res$k + 1) / res$QE * 100),  # I² statistic
+          stringsAsFactors = FALSE
+        ))
+        
+      }, error = function(e) {
+        # Skip genes with convergence issues
+      })
+      
+      if (i %% 100 == 0) cat("  Processed", i, "genes\n")
+    }
+    
+    # Adjust p-values
+    gene_meta_results$pooled_padj <- p.adjust(gene_meta_results$pooled_pval, method = "BH")
+    
+    # Summary statistics
+    n_significant_meta <- sum(gene_meta_results$pooled_padj < 0.05, na.rm = TRUE)
+    median_i2 <- median(gene_meta_results$i2, na.rm = TRUE)
+    
+    meta_results[[method]] <- list(
+      data = gene_meta_results,
+      n_genes = nrow(gene_meta_results),
+      n_significant = n_significant_meta,
+      median_i2 = median_i2,
+      high_heterogeneity = sum(gene_meta_results$i2 > 75, na.rm = TRUE)
+    )
+    
+    cat(sprintf("  Genes analyzed: %d\n", nrow(gene_meta_results)))
+    cat(sprintf("  Significant (meta FDR < 0.05): %d\n", n_significant_meta))
+    cat(sprintf("  Median I²: %.1f%%\n", median_i2))
+    cat(sprintf("  High heterogeneity (I² > 75%%): %d\n", 
+               sum(gene_meta_results$i2 > 75, na.rm = TRUE)))
+  }
+  
+  return(meta_results)
+}
+
+#' Create comprehensive meta-analysis visualizations
+create_meta_analysis_plots <- function(fisher_results, meta_results) {
+  cat("\n=== Creating Meta-Analysis Visualizations ===\n")
+  
+  # 1. Fisher's method results comparison
+  fisher_summary <- data.frame(
+    Method = names(fisher_results),
+    N_Genes = sapply(fisher_results, function(x) x$n_genes),
+    Fisher_Significant = sapply(fisher_results, function(x) x$n_significant),
+    Consistent_Direction = sapply(fisher_results, function(x) x$n_consistent),
+    Consistency_Rate = sapply(fisher_results, function(x) x$consistency_rate)
+  )
+  
+  p1 <- ggplot(fisher_summary, aes(x = Method)) +
+    geom_col(aes(y = Fisher_Significant), fill = "steelblue", alpha = 0.7) +
+    geom_text(aes(y = Fisher_Significant, label = Fisher_Significant), vjust = -0.5) +
+    labs(title = "Fisher's Method: Cross-Dataset Significant Genes",
+         subtitle = "Combined p-value analysis",
+         x = "Statistical Method", y = "Significant Genes (Fisher FDR < 0.05)") +
+    theme_minimal()
+  
+  ggsave(file.path(INTEGRATION_DIR, "fisher_method_results.png"), 
+         p1, width = 10, height = 6, dpi = 300)
+  
+  # 2. Consistency rate plot
+  p2 <- ggplot(fisher_summary, aes(x = Method, y = Consistency_Rate)) +
+    geom_col(fill = "darkgreen", alpha = 0.7) +
+    geom_text(aes(label = paste0(Consistency_Rate, "%")), vjust = -0.5) +
+    ylim(0, 100) +
+    labs(title = "Effect Direction Consistency",
+         subtitle = "Percentage of significant genes with consistent direction",
+         x = "Statistical Method", y = "Consistency Rate (%)") +
+    theme_minimal()
+  
+  ggsave(file.path(INTEGRATION_DIR, "direction_consistency.png"), 
+         p2, width = 10, height = 6, dpi = 300)
+  
+  # 3. Meta-analysis results comparison
+  if (length(meta_results) > 0) {
+    meta_summary <- data.frame(
+      Method = names(meta_results),
+      N_Genes = sapply(meta_results, function(x) x$n_genes),
+      Meta_Significant = sapply(meta_results, function(x) x$n_significant),
+      Median_I2 = sapply(meta_results, function(x) x$median_i2),
+      High_Heterogeneity = sapply(meta_results, function(x) x$high_heterogeneity)
+    )
+    
+    p3 <- ggplot(meta_summary, aes(x = Method)) +
+      geom_col(aes(y = Meta_Significant), fill = "darkorange", alpha = 0.7) +
+      geom_text(aes(y = Meta_Significant, label = Meta_Significant), vjust = -0.5) +
+      labs(title = "Random Effects Meta-Analysis: Pooled Effects",
+           subtitle = "Combined effect size analysis",
+           x = "Statistical Method", y = "Significant Genes (Meta FDR < 0.05)") +
+      theme_minimal()
+    
+    ggsave(file.path(INTEGRATION_DIR, "meta_analysis_results.png"), 
+           p3, width = 10, height = 6, dpi = 300)
+    
+    # 4. Heterogeneity assessment
+    p4 <- ggplot(meta_summary, aes(x = Method, y = Median_I2)) +
+      geom_col(fill = "purple", alpha = 0.7) +
+      geom_text(aes(label = paste0(round(Median_I2, 1), "%")), vjust = -0.5) +
+      geom_hline(yintercept = 75, color = "red", linetype = "dashed", alpha = 0.7) +
+      labs(title = "Between-Study Heterogeneity (I² statistic)",
+           subtitle = "Red line indicates high heterogeneity threshold (75%)",
+           x = "Statistical Method", y = "Median I² (%)") +
+      theme_minimal()
+    
+    ggsave(file.path(INTEGRATION_DIR, "heterogeneity_assessment.png"), 
+           p4, width = 10, height = 6, dpi = 300)
+  }
+  
+  cat("✓ Meta-analysis plots saved\n")
+}
+
+#' Export meta-analysis results to CSV
+export_meta_analysis_results <- function(fisher_results, meta_results) {
+  cat("\n=== Exporting Meta-Analysis Results ===\n")
+  
+  # Export Fisher's method results
+  for (method in names(fisher_results)) {
+    fisher_file <- file.path(INTEGRATION_DIR, paste0("fisher_method_", method, ".csv"))
+    write.csv(fisher_results[[method]]$data, fisher_file, row.names = FALSE)
+    cat("✓ Fisher results saved:", basename(fisher_file), "\n")
+  }
+  
+  # Export meta-analysis results
+  for (method in names(meta_results)) {
+    meta_file <- file.path(INTEGRATION_DIR, paste0("meta_analysis_", method, ".csv"))
+    write.csv(meta_results[[method]]$data, meta_file, row.names = FALSE)
+    cat("✓ Meta-analysis results saved:", basename(meta_file), "\n")
+  }
+  
+  # Create comprehensive summary
+  if (length(fisher_results) > 0 && length(meta_results) > 0) {
+    comprehensive_summary <- data.frame(
+      Method = names(fisher_results),
+      Fisher_Genes_Tested = sapply(fisher_results, function(x) x$n_genes),
+      Fisher_Significant = sapply(fisher_results, function(x) x$n_significant),
+      Fisher_Consistency_Rate = sapply(fisher_results, function(x) x$consistency_rate),
+      Meta_Genes_Tested = sapply(names(fisher_results), function(m) {
+        if (m %in% names(meta_results)) meta_results[[m]]$n_genes else NA
+      }),
+      Meta_Significant = sapply(names(fisher_results), function(m) {
+        if (m %in% names(meta_results)) meta_results[[m]]$n_significant else NA
+      }),
+      Meta_Median_I2 = sapply(names(fisher_results), function(m) {
+        if (m %in% names(meta_results)) meta_results[[m]]$median_i2 else NA
+      })
+    )
+    
+    summary_file <- file.path(INTEGRATION_DIR, "comprehensive_meta_analysis_summary.csv")
+    write.csv(comprehensive_summary, summary_file, row.names = FALSE)
+    cat("✓ Comprehensive summary saved:", basename(summary_file), "\n")
+  }
+}
+
+# ==============================================================================
 # SUMMARY AND REPORTING
 # ==============================================================================
 
@@ -555,17 +883,35 @@ run_integration_analysis <- function() {
     # Correlate effect sizes
     correlation_results <- correlate_effect_sizes(integration_data)
     
-    # Create summary
-    summary_df <- create_integration_summary(overlap_results, correlation_results)
+    # NEW: Formal meta-analysis
+    fisher_results <- fisher_method_analysis(integration_data)
+    meta_results <- random_effects_meta_analysis(integration_data)
+    
+    # Create meta-analysis visualizations
+    create_meta_analysis_plots(fisher_results, meta_results)
+    
+    # Export meta-analysis results
+    export_meta_analysis_results(fisher_results, meta_results)
+    
+    # Create enhanced summary with meta-analysis
+    summary_df <- create_integration_summary(overlap_results, correlation_results, 
+                                            fisher_results, meta_results)
     
     cat("\n", paste(rep("=", 70), collapse = ""), "\n")
-    cat("SUCCESS: Integration analysis complete!\n")
+    cat("SUCCESS: Enhanced integration analysis with meta-analysis complete!\n")
+    cat("✓ Gene overlap analysis\n")
+    cat("✓ Effect size correlations\n")
+    cat("✓ Fisher's method p-value combination\n")
+    cat("✓ Random effects meta-analysis\n")
+    cat("✓ Comprehensive visualizations and exports\n")
     cat("Results saved to:", INTEGRATION_DIR, "\n")
     cat(paste(rep("=", 70), collapse = ""), "\n")
     
     return(list(
       overlap = overlap_results,
       correlation = correlation_results,
+      fisher = fisher_results,
+      meta_analysis = meta_results,
       summary = summary_df
     ))
     

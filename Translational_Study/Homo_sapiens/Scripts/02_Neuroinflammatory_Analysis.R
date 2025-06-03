@@ -677,6 +677,75 @@ run_comprehensive_neuroinflammatory_analysis <- function() {
   })
 }
 
+#' Export all enrichment results to CSV files for easy access
+export_enrichment_csvs <- function(comprehensive_results, output_dir) {
+  cat("\n=== Exporting Enrichment Results to CSV ===\n")
+  
+  # Create CSV output directory
+  csv_dir <- file.path(output_dir, "Enrichment_CSV_Results")
+  if (!dir.exists(csv_dir)) dir.create(csv_dir, recursive = TRUE)
+  
+  # Initialize summary data frame
+  all_enrichment_summary <- data.frame()
+  
+  # Process each dataset and method
+  for (dataset in names(comprehensive_results$enrichment_results)) {
+    for (method in names(comprehensive_results$enrichment_results[[dataset]])) {
+      for (db in names(comprehensive_results$enrichment_results[[dataset]][[method]])) {
+        
+        result_obj <- comprehensive_results$enrichment_results[[dataset]][[method]][[db]]
+        
+        if (!is.null(result_obj) && nrow(result_obj@result) > 0) {
+          # Standardize columns before processing
+          enrichment_df <- standardize_enrichment_columns(result_obj@result, db)
+          
+          # Add metadata columns
+          enrichment_df$Dataset <- dataset
+          enrichment_df$Method <- method
+          enrichment_df$Database <- db
+          enrichment_df$Analysis_ID <- paste(dataset, method, db, sep = "_")
+          
+          # Save individual CSV file
+          csv_filename <- paste0(dataset, "_", method, "_", db, "_enrichment.csv")
+          csv_filepath <- file.path(csv_dir, csv_filename)
+          write.csv(enrichment_df, csv_filepath, row.names = FALSE)
+          
+          cat("✓ Saved:", csv_filename, "\n")
+          
+          # Add to master summary (significant pathways only)
+          if (any(enrichment_df$p.adjust < 0.05, na.rm = TRUE)) {
+            sig_pathways <- enrichment_df[enrichment_df$p.adjust < 0.05 & !is.na(enrichment_df$p.adjust), ]
+            
+            if (nrow(sig_pathways) > 0) {
+              # Ensure consistent column structure before rbind
+              if (nrow(all_enrichment_summary) == 0) {
+                all_enrichment_summary <- sig_pathways
+              } else {
+                # Find common columns and use only those
+                common_cols <- intersect(colnames(all_enrichment_summary), colnames(sig_pathways))
+                all_enrichment_summary <- rbind(
+                  all_enrichment_summary[, common_cols, drop = FALSE],
+                  sig_pathways[, common_cols, drop = FALSE]
+                )
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  # Save master summary of all significant pathways
+  if (nrow(all_enrichment_summary) > 0) {
+    master_file <- file.path(csv_dir, "ALL_Significant_Pathways_Master.csv")
+    write.csv(all_enrichment_summary, master_file, row.names = FALSE)
+    cat("✓ Master summary saved:", basename(master_file), "\n")
+  }
+  
+  cat("📁 All CSV files saved to:", csv_dir, "\n")
+  return(csv_dir)
+}
+
 # ==============================================================================
 # EXECUTION
 # ==============================================================================
