@@ -25,7 +25,7 @@ INPUT_PATH = "/Users/aumchampaneri/Complement-OUD/Multi-Omics Study/data/raw/snr
 
 # Output directory structure
 BASE_OUTPUT_DIR = "/Users/aumchampaneri/Complement-OUD/Multi-Omics Study"
-PROCESSED_DATA_DIR = f"{BASE_OUTPUT_DIR}/data/processed/snrna"
+PROCESSED_DATA_DIR = f"{BASE_OUTPUT_DIR}/data/processed/snrna_qc"
 RESULTS_DIR = f"{BASE_OUTPUT_DIR}/results/snrna"
 PLOTS_DIR = f"{RESULTS_DIR}/qc_plots"
 

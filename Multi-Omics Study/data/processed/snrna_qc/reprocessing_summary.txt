@@ -1,17 +1,17 @@
 GSE225158 OUD Striatum snRNA-seq Reprocessing Summary
 ============================================================
-Processing date: 2025-06-03 18:37:31.621984
+Processing date: 2025-06-03 18:54:40.424381
 Method: Fresh processing with Pearson residuals
 
 PATHS:
 • Input: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/data/raw/snrna/GSE225158_BU_OUD_Striatum_refined_all_SeuratObj_N22.h5ad
-• Output: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/data/processed/snrna/GSE225158_reprocessed_pearson.h5ad
+• Output: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/data/processed/snrna_qc/GSE225158_reprocessed_pearson.h5ad
 • Plots: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/results/snrna/qc_plots
 
 DATASET OVERVIEW:
 • Final cells: 75,942
 • Final genes: 30,527
-• New clusters: 16
+• New clusters: 14
 • Normalization: Pearson residuals (theta=100)
 • Batch correction: ID
 
