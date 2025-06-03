@@ -142,6 +142,17 @@ run_visualizations_only <- function() {
   cat("✓ Visualizations complete!\n")
 }
 
+#' Run just the neuroinflammatory analysis (to fix expression data)
+run_neuroinflammatory_only <- function() {
+  cat("🧠 Running Neuroinflammatory Analysis Only\n")
+  cat("-"*50, "\n")
+  
+  SOURCED <- TRUE
+  source(file.path(SCRIPTS_DIR, "02_Neuroinflammatory_Analysis.R"))
+  
+  cat("✓ Neuroinflammatory analysis complete!\n")
+}
+
 #' Quick status check of all analyses
 check_analysis_status <- function() {
   cat("📋 ANALYSIS STATUS CHECK\n")

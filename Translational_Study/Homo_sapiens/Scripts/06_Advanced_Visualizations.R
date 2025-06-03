@@ -671,9 +671,6 @@ create_combined_dashboard <- function(comprehensive_results) {
   dashboard_dir <- file.path(VIZ_OUTPUTS, "Combined_Dashboard")
   if (!dir.exists(dashboard_dir)) dir.create(dashboard_dir, recursive = TRUE)
   
-  # Create multiple plot components
-  plots <- list()
-  
   # 1. Method comparison bar plot
   summary_data <- data.frame()
   for (dataset in names(comprehensive_results$enrichment_results)) {
@@ -730,67 +727,119 @@ create_combined_dashboard <- function(comprehensive_results) {
   
   # 3. Technology comparison (FIXED)
   tech_data <- summary_data %>%
-    mutate(Technology = ifelse(grepl("RNA|microarray", Method, ignore.case = TRUE), "RNA-Seq/microarray",
-                            ifelse(grepl("Methylation", Method, ignore.case = TRUE), "Methylation",
-                                   ifelse(grepl("Proteomics", Method, ignore.case = TRUE), "Proteomics",
-                                          "Other")))) %>%
+    mutate(Technology = ifelse(grepl("174409", Dataset), "Bulk RNA-seq", "snRNA-seq")) %>%
     group_by(Technology) %>%
-    summarise(Total_Significant = sum(Significant_Pathways), .groups = 'drop')
+    summarise(Total = sum(Significant_Pathways), .groups = 'drop')
   
-  p3 <- ggplot(tech_data, aes(x = Technology, y = Total_Significant, fill = Technology)) +
-    geom_col(show.legend = FALSE) +
-    labs(title = "C. Total Significant Pathways by Technology", x = "Technology", y = "Count") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  p3 <- ggplot(tech_data, aes(x = Technology, y = Total, fill = Technology)) +
+    geom_col(alpha = 0.8) +
+    scale_fill_manual(values = c("Bulk RNA-seq" = "#FF6B6B", "snRNA-seq" = "#4ECDC4")) +
+    labs(title = "C. Technology Comparison", x = "Technology", y = "Total Pathways") +
+    theme_minimal()
   
-  # 4. Combined heatmap (top 10 pathways per dataset)
-  combined_heatmap_data <- pathway_matrix_data %>%
-    group_by(Pathway) %>%
-    summarise(mean_neglogp = mean(NegLogP), .groups = 'drop') %>%
-    arrange(desc(mean_neglogp)) %>%
-    slice_head(n = 10) %>%
-    inner_join(pathway_matrix_data, by = "Pathway")
-  
-  if (nrow(combined_heatmap_data) > 0) {
-    p4 <- ggplot(combined_heatmap_data, aes(x = reorder(Pathway, -mean_neglogp), y = Dataset_Method_Database)) +
-      geom_tile(aes(fill = NegLogP), color = "white") +
-      scale_fill_viridis_c(option = "C") +
-      labs(title = "D. Heatmap of Top 10 Pathways (Combined)", x = "Pathway", y = "Dataset_Method_Database") +
-      theme_minimal() +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
-            axis.text.y = element_text(size = 8))
+  # 4. Top pathways bar plot (if data available)
+  if (nrow(summary_data) > 0) {
+    p4 <- ggplot(summary_data, aes(x = reorder(paste(Dataset, Method), Significant_Pathways), 
+                                   y = Significant_Pathways)) +
+      geom_col(fill = "steelblue", alpha = 0.7) +
+      coord_flip() +
+      labs(title = "D. Pathways by Dataset-Method", x = "Analysis", y = "Significant Pathways") +
+      theme_minimal()
   } else {
-    p4 <- NULL
+    p4 <- ggplot() + theme_void() + labs(title = "D. No data available")
   }
   
-  # 5. Expression boxplots (if data available)
-  if (!is.null(comprehensive_results$expression_data)) {
-    expr_boxplot_data <- comprehensive_results$expression_data %>%
-      bind_rows(.id = "Dataset") %>%
-      pivot_longer(-c(Dataset, Sample), names_to = "Gene", values_to = "Expression") %>%
-      group_by(Dataset, Gene) %>%
-      summarise(Mean_Expression = mean(Expression, na.rm = TRUE), .groups = 'drop')
-    
-    top_expr_genes <- expr_boxplot_data %>%
-      group_by(Gene) %>%
-      summarise(Mean_Expression = mean(Mean_Expression), .groups = 'drop') %>%
-      arrange(desc(Mean_Expression)) %>%
-      slice_head(n = 10) %>%
-      pull(Gene)
-    
-    p5 <- ggplot(expr_boxplot_data %>% filter(Gene %in% top_expr_genes), aes(x = Gene, y = Mean_Expression, fill = Dataset)) +
-      geom_col(position = "dodge") +
-      labs(title = "E. Mean Expression of Top Genes", x = "Gene", y = "Mean Expression") +
-      theme_minimal() +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  } else {
-    p5 <- NULL
-  }
+  # Combine plots using patchwork
+  combined_plot <- (p1 + p2) / (p3 + p4) +
+    plot_annotation(
+      title = "Comprehensive Neuroinflammatory Pathway Analysis Dashboard",
+      subtitle = "Cross-dataset and cross-method comparison",
+      theme = theme(plot.title = element_text(size = 16, face = "bold"))
+    )
   
-  # Combine all plots into a dashboard layout
-  all_plots <- (p1 + p2 + p3 + p4 + p5) + plot_layout(ncol = 2)
+  ggsave(file.path(dashboard_dir, "combined_analysis_dashboard.png"),
+         combined_plot, width = 16, height = 12, dpi = 300)
   
-  # Save dashboard
-  ggsave(file.path(dashboard_dir, "combined_dashboard.png"), all_plots, width = 16, height = 12, dpi = 300)
   cat("✓ Combined dashboard saved\n")
+}
+
+# ==============================================================================
+# MAIN VISUALIZATION PIPELINE (UPDATED)
+# ==============================================================================
+
+#' Run complete advanced visualization pipeline (with robust error handling)
+run_advanced_visualization_pipeline <- function() {
+  cat(paste(rep("=", 70), collapse = ""), "\n")
+  cat("ADVANCED VISUALIZATION PIPELINE\n")
+  cat("Creating publication-ready plots and interactive visualizations\n")
+  cat(paste(rep("=", 70), collapse = ""), "\n")
+  
+  tryCatch({
+    # Create output directories
+    if (!dir.exists(VIZ_OUTPUTS)) dir.create(VIZ_OUTPUTS, recursive = TRUE)
+    
+    # Load comprehensive results
+    results_file <- file.path(NEUROINFLAMM_DIR, "comprehensive_neuroinflammatory_analysis_enhanced.rds")
+    
+    if (!file.exists(results_file)) {
+      stop("Comprehensive results file not found. Please run 02_Neuroinflammatory_Analysis.R first.")
+    }
+    
+    comprehensive_results <- readRDS(results_file)
+    
+    # Create visualizations with error handling
+    cat("\n🌋 Creating volcano plots...\n")
+    tryCatch(create_interactive_volcano_plots(comprehensive_results), 
+             error = function(e) cat("⚠ Volcano plots failed:", e$message, "\n"))
+    
+    cat("\n🎵 Creating pathway chord diagrams...\n")
+    tryCatch(create_pathway_chord_diagrams(comprehensive_results),
+             error = function(e) cat("⚠ Chord diagrams failed:", e$message, "\n"))
+    
+    cat("\n🌊 Creating pathway flow diagrams...\n")
+    tryCatch(create_pathway_sankey_diagrams(comprehensive_results),
+             error = function(e) cat("⚠ Flow diagrams failed:", e$message, "\n"))
+    
+    cat("\n🔥 Creating advanced heatmaps...\n")
+    tryCatch(create_advanced_heatmaps(comprehensive_results),
+             error = function(e) cat("⚠ Heatmaps failed:", e$message, "\n"))
+    
+    cat("\n🕸️ Creating pathway network graphs...\n")
+    tryCatch(create_pathway_network_graphs(comprehensive_results),
+             error = function(e) cat("⚠ Network graphs failed:", e$message, "\n"))
+    
+    cat("\n🏔️ Creating expression ridge plots...\n")
+    tryCatch(create_expression_ridge_plots(comprehensive_results),
+             error = function(e) cat("⚠ Ridge plots failed:", e$message, "\n"))
+    
+    cat("\n📊 Creating combined dashboard...\n")
+    tryCatch(create_combined_dashboard(comprehensive_results),
+             error = function(e) cat("⚠ Dashboard failed:", e$message, "\n"))
+    
+    # List all created files
+    cat("\n📁 Generated Visualizations:\n")
+    if (dir.exists(VIZ_OUTPUTS)) {
+      all_files <- list.files(VIZ_OUTPUTS, recursive = TRUE, pattern = "\\.(png|html)$")
+      if (length(all_files) > 0) {
+        for (file in all_files) {
+          cat("  ✓", file, "\n")
+        }
+      } else {
+        cat("  No visualization files found\n")
+      }
+    }
+    
+    cat("\n", paste(rep("=", 70), collapse = ""), "\n")
+    cat("✓ Advanced visualization pipeline complete!\n")
+    cat("📁 All outputs saved to:", VIZ_OUTPUTS, "\n")
+    cat("💡 Note: Some interactive features may require additional setup (pandoc)\n")
+    cat(paste(rep("=", 70), collapse = ""), "\n")
+    
+    return(VIZ_OUTPUTS)
+    
+  }, error = function(e) {
+    cat("\n💥 ERROR in visualization pipeline:", e$message, "\n")
+    cat("🔧 Please check that comprehensive analysis has been run successfully\n")
+    return(NULL)
+  })
 }
