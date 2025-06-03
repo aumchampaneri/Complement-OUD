@@ -612,11 +612,11 @@ standardize_enrichment_columns <- function(enrichment_df, database) {
 # MAIN PIPELINE
 # ==============================================================================
 
-#' Run comprehensive neuroinflammatory analysis with Excel export (FIXED)
+#' Run comprehensive neuroinflammatory analysis with pathway networks (ENHANCED)
 run_comprehensive_neuroinflammatory_analysis <- function() {
   cat(paste(rep("=", 70), collapse = ""), "\n")
   cat("COMPREHENSIVE NEUROINFLAMMATORY ANALYSIS\n")
-  cat("Cross-dataset pathway enrichment with Excel export\n")
+  cat("Cross-dataset pathway enrichment with networks and Excel export\n")
   cat(paste(rep("=", 70), collapse = ""), "\n")
   
   # Create organized output directories
@@ -638,7 +638,7 @@ run_comprehensive_neuroinflammatory_analysis <- function() {
     # Export to Excel file
     excel_file <- export_enrichment_excel(comprehensive_results, NEUROINFLAMM_DIR)
     
-    # FIXED: Export CSV with proper error handling
+    # Export CSV with proper error handling
     csv_dir <- tryCatch({
       export_enrichment_csvs(comprehensive_results, NEUROINFLAMM_DIR)
     }, error = function(e) {
@@ -651,6 +651,17 @@ run_comprehensive_neuroinflammatory_analysis <- function() {
     results_file <- file.path(NEUROINFLAMM_DIR, "comprehensive_neuroinflammatory_analysis_enhanced.rds")
     saveRDS(comprehensive_results, results_file)
     
+    # NEW: Create pathway networks
+    cat("\n🕸️ Creating pathway networks...\n")
+    network_results <- tryCatch({
+      source(file.path(BASE_DIR, "Scripts", "03_Pathway_Network_Analysis.R"), local = TRUE)
+      run_pathway_network_analysis()
+    }, error = function(e) {
+      cat("⚠ Network analysis failed:", e$message, "\n")
+      cat("Continuing without network analysis\n")
+      NULL
+    })
+    
     cat("\n", paste(rep("=", 70), collapse = ""), "\n")
     cat("SUCCESS: Comprehensive analysis complete!\n")
     cat("✓ Enrichment results saved as RDS:", results_file, "\n")
@@ -662,11 +673,16 @@ run_comprehensive_neuroinflammatory_analysis <- function() {
       cat("⚠ CSV export skipped due to column mismatch - Excel export complete\n")
     }
     
+    if (!is.null(network_results)) {
+      cat("✓ Pathway networks created successfully\n")
+    }
+    
     cat("✓ Ready for dashboard creation\n")
     cat(paste(rep("=", 70), collapse = ""), "\n")
     
     return(list(
       results = comprehensive_results,
+      network_results = network_results,
       excel_file = excel_file,
       csv_directory = csv_dir
     ))

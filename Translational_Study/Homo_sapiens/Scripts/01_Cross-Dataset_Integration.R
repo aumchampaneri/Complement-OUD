@@ -22,6 +22,8 @@ suppressPackageStartupMessages({
   library(biomaRt)  # Add biomaRt explicitly
   library(metafor)  # Add for meta-analysis
   library(meta)     # Add for additional meta-analysis functions
+  library(clusterProfiler)  # Add missing library
+  library(org.Hs.eg.db)     # Add missing library
 })
 
 # ==============================================================================
@@ -63,7 +65,6 @@ convert_ensembl_to_symbols <- function(ensembl_ids) {
                                       OrgDb = org.Hs.eg.db)
     
     colnames(gene_map) <- c("ensembl_gene_id", "hgnc_symbol")
-    
     cat(sprintf("Mapped %d/%d Ensembl IDs using clusterProfiler\n", 
                 nrow(gene_map), length(ensembl_ids)))
     
@@ -181,7 +182,7 @@ load_integration_data <- function() {
   ))
 }
 
-#' Convert a dataset from Ensembl IDs to gene symbols
+#' Convert a dataset from Ensembl IDs to gene symbols (FIXED)
 convert_dataset_to_symbols <- function(dataset_results) {
   tryCatch({
     # Get all Ensembl IDs from the first method
@@ -200,7 +201,7 @@ convert_dataset_to_symbols <- function(dataset_results) {
         method_results$ensembl_gene_id <- rownames(method_results)
         harmonized <- merge(method_results, gene_map, by = "ensembl_gene_id", all.x = FALSE)
         
-        # Handle duplicates (keep best p-value)
+        # Remove duplicates (keep best p-value)
         pval_col <- ifelse("adj.P.Val" %in% colnames(harmonized), "adj.P.Val", "padj")
         harmonized <- harmonized %>%
           group_by(hgnc_symbol) %>%
@@ -221,7 +222,7 @@ convert_dataset_to_symbols <- function(dataset_results) {
         
         cat(sprintf("  %s: %d genes after conversion\n", method_name, nrow(harmonized)))
       } else {
-        # Keep other components as-is
+        # Keep non-method components as is
         converted_results[[method_name]] <- dataset_results[[method_name]]
       }
     }
@@ -501,7 +502,6 @@ random_effects_meta_analysis <- function(data) {
     # Check if SE columns exist, otherwise estimate from t-statistics
     if (!se_col_174409 %in% colnames(gse174409_res)) {
       if ("t" %in% colnames(gse174409_res)) {
-        # Estimate SE from t-statistic and logFC
         gse174409_res$SE <- abs(gse174409_res[[fc_col_174409]] / gse174409_res$t)
       } else {
         cat("  Warning: Cannot find standard errors for", method, "- using approximation\n")
@@ -670,7 +670,7 @@ create_meta_analysis_plots <- function(fisher_results, meta_results) {
   cat("✓ Meta-analysis plots saved\n")
 }
 
-#' Export meta-analysis results to CSV
+#' Export meta-analysis results to CSV (FIXED)
 export_meta_analysis_results <- function(fisher_results, meta_results) {
   cat("\n=== Exporting Meta-Analysis Results ===\n")
   
@@ -688,7 +688,7 @@ export_meta_analysis_results <- function(fisher_results, meta_results) {
     cat("✓ Meta-analysis results saved:", basename(meta_file), "\n")
   }
   
-  # Create comprehensive summary
+  # Create comprehensive summary (FIXED)
   if (length(fisher_results) > 0 && length(meta_results) > 0) {
     comprehensive_summary <- data.frame(
       Method = names(fisher_results),
@@ -712,53 +712,11 @@ export_meta_analysis_results <- function(fisher_results, meta_results) {
   }
 }
 
-# ==============================================================================
-# SUMMARY AND REPORTING
-# ==============================================================================
-
-#' Create comprehensive integration summary
-create_integration_summary <- function(overlap_results, correlation_results) {
-  cat("\n=== Creating Integration Summary ===\n")
+#' Create enhanced integration summary with meta-analysis (FIXED)
+create_integration_summary <- function(overlap_results, correlation_results, fisher_results = NULL, meta_results = NULL) {
+  cat("\n=== Creating Enhanced Integration Summary with Meta-Analysis ===\n")
   
-  # Create summary table
-  summary_df <- data.frame(
-    Method = names(overlap_results),
-    GSE174409_Significant = sapply(overlap_results, function(x) length(x$gse174409_sig)),
-    GSE225158_Significant = sapply(overlap_results, function(x) length(x$gse225158_sig)),
-    Overlap_Count = sapply(overlap_results, function(x) x$overlap_count),
-    Overlap_Percent = sapply(overlap_results, function(x) x$overlap_pct),
-    Effect_Correlation = sapply(names(overlap_results), function(m) {
-      if (m %in% names(correlation_results)) {
-        round(correlation_results[[m]]$correlation, 3)
-      } else {
-        NA
-      }
-    }),
-    Correlation_PValue = sapply(names(overlap_results), function(m) {
-      if (m %in% names(correlation_results)) {
-        correlation_results[[m]]$p_value
-      } else {
-        NA
-      }
-    })
-  )
-  
-  # Save summary
-  summary_file <- file.path(INTEGRATION_DIR, "integration_summary.csv")
-  write.csv(summary_df, summary_file, row.names = FALSE)
-  
-  cat("✓ Integration summary saved:", summary_file, "\n")
-  cat("\n=== Integration Summary ===\n")
-  print(summary_df)
-  
-  return(summary_df)
-}
-
-#' Create enhanced integration summary with statistical tests
-create_integration_summary <- function(overlap_results, correlation_results) {
-  cat("\n=== Creating Enhanced Integration Summary ===\n")
-  
-  # Create summary table
+  # Create base summary table
   summary_df <- data.frame(
     Method = names(overlap_results),
     GSE174409_Significant = sapply(overlap_results, function(x) length(x$gse174409_sig)),
@@ -782,15 +740,32 @@ create_integration_summary <- function(overlap_results, correlation_results) {
     stringsAsFactors = FALSE
   )
   
-  # Calculate Fisher's exact test for overlap significance
+  # Add Fisher's method results if available
+  if (!is.null(fisher_results)) {
+    summary_df$Fisher_Significant <- sapply(names(overlap_results), function(m) {
+      if (m %in% names(fisher_results)) fisher_results[[m]]$n_significant else NA
+    })
+    summary_df$Fisher_Consistency_Rate <- sapply(names(overlap_results), function(m) {
+      if (m %in% names(fisher_results)) fisher_results[[m]]$consistency_rate else NA
+    })
+  }
+  
+  # Add meta-analysis results if available
+  if (!is.null(meta_results)) {
+    summary_df$Meta_Significant <- sapply(names(overlap_results), function(m) {
+      if (m %in% names(meta_results)) meta_results[[m]]$n_significant else NA
+    })
+    summary_df$Meta_Median_I2 <- sapply(names(overlap_results), function(m) {
+      if (m %in% names(meta_results)) round(meta_results[[m]]$median_i2, 1) else NA
+    })
+  }
+  
+  # Calculate Fisher's exact test for overlap significance (existing code)
   for (i in 1:nrow(summary_df)) {
     method <- summary_df$Method[i]
     overlap_data <- overlap_results[[method]]
     
     # Create contingency table for Fisher's test
-    # [significant in both, significant in 174409 only]
-    # [significant in 225158 only, not significant in either]
-    
     sig_both <- overlap_data$overlap_count
     sig_174409_only <- length(overlap_data$gse174409_sig) - sig_both
     sig_225158_only <- length(overlap_data$gse225158_sig) - sig_both
@@ -813,14 +788,14 @@ create_integration_summary <- function(overlap_results, correlation_results) {
   }
   
   # Save enhanced summary
-  summary_file <- file.path(INTEGRATION_DIR, "integration_summary_enhanced.csv")
+  summary_file <- file.path(INTEGRATION_DIR, "integration_summary_enhanced_with_meta.csv")
   write.csv(summary_df, summary_file, row.names = FALSE)
   
   # Create integration visualization
   create_integration_visualization(summary_df, overlap_results)
   
-  cat("✓ Enhanced integration summary saved:", summary_file, "\n")
-  cat("\n=== Enhanced Integration Summary ===\n")
+  cat("✓ Enhanced integration summary with meta-analysis saved:", summary_file, "\n")
+  cat("\n=== Enhanced Integration Summary with Meta-Analysis ===\n")
   print(summary_df)
   
   return(summary_df)
@@ -852,6 +827,7 @@ create_integration_visualization <- function(summary_df, overlap_results) {
     geom_col(fill = "steelblue", alpha = 0.7) +
     geom_text(aes(label = paste0(Overlap_Percent, "%")), vjust = -0.5) +
     labs(title = "Gene Overlap Percentage Between Datasets",
+         subtitle = "Percentage of overlapping significant genes",
          x = "Analysis Method", y = "Overlap Percentage") +
     theme_minimal()
   
@@ -861,15 +837,12 @@ create_integration_visualization <- function(summary_df, overlap_results) {
   cat("✓ Integration visualizations saved\n")
 }
 
-# ==============================================================================
-# MAIN PIPELINE
-# ==============================================================================
-
-#' Run complete cross-dataset integration analysis
+#' Run complete cross-dataset integration analysis with meta-analysis (FIXED)
 run_integration_analysis <- function() {
   cat(paste(rep("=", 70), collapse = ""), "\n")
-  cat("CROSS-DATASET INTEGRATION ANALYSIS\n")
+  cat("CROSS-DATASET INTEGRATION ANALYSIS WITH META-ANALYSIS\n")
   cat("GSE174409 (Bulk RNA-seq) vs GSE225158 (snRNA-seq)\n")
+  cat("Including Fisher's method and random effects pooling\n")
   cat(paste(rep("=", 70), collapse = ""), "\n")
   
   tryCatch({
