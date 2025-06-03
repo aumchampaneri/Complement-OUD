@@ -686,6 +686,313 @@ create_enrichment_dashboard <- function() {
 }
 
 # ==============================================================================
+# MASSIVE ENRICHMENT DASHBOARD (NEW!)
+# ==============================================================================
+
+#' Create massive comprehensive enrichment dashboard with 12+ panels
+create_massive_enrichment_dashboard <- function() {
+  cat("\n=== Creating MASSIVE Enrichment Dashboard ===\n")
+  
+  # Load neuroinflammatory analysis results
+  neuro_file <- file.path(RESULTS_DIR, "Neuroinflammatory_Analysis", 
+                         "comprehensive_neuroinflammatory_analysis_enhanced.rds")
+  
+  if (!file.exists(neuro_file)) {
+    cat("⚠ Neuroinflammatory results not found\n")
+    return(create_placeholder_dashboard("Massive Enrichment Analysis", 
+                                      "Run 02_Neuroinflammatory_Analysis.R first"))
+  }
+  
+  tryCatch({
+    comprehensive_results <- readRDS(neuro_file)
+    
+    # Extract ALL enrichment data in detail
+    all_enrichment_data <- extract_detailed_enrichment_data(comprehensive_results)
+    
+    if (nrow(all_enrichment_data) == 0) {
+      cat("⚠ No enrichment data found\n")
+      return(create_placeholder_dashboard("Massive Enrichment Analysis", "No enrichment data available"))
+    }
+    
+    # Create 12+ visualization panels
+    plots <- create_massive_enrichment_plots(all_enrichment_data)
+    
+    # Combine into massive multi-panel dashboard
+    massive_dashboard <- create_mega_layout(plots)
+    
+    # Save as large format dashboard
+    massive_file <- file.path(DASHBOARD_DIR, "07_MASSIVE_Enrichment_Dashboard.png")
+    ggsave(massive_file, massive_dashboard, width = 24, height = 18, dpi = 300)
+    cat("✓ MASSIVE enrichment dashboard saved:", massive_file, "\n")
+    
+    # Also save as PDF for better quality
+    massive_pdf <- file.path(DASHBOARD_DIR, "07_MASSIVE_Enrichment_Dashboard.pdf")
+    ggsave(massive_pdf, massive_dashboard, width = 24, height = 18, dpi = 300)
+    cat("✓ MASSIVE enrichment dashboard PDF saved:", massive_pdf, "\n")
+    
+    return(massive_dashboard)
+    
+  }, error = function(e) {
+    cat("⚠ Massive enrichment dashboard failed:", e$message, "\n")
+    return(create_placeholder_dashboard("Massive Enrichment Analysis", paste("Error:", e$message)))
+  })
+}
+
+#' Extract detailed enrichment data for massive visualization
+extract_detailed_enrichment_data <- function(comprehensive_results) {
+  cat("📊 Extracting detailed enrichment data for massive dashboard...\n")
+  
+  all_enrichment_data <- data.frame()
+  
+  for (dataset in names(comprehensive_results$enrichment_results)) {
+    for (method in names(comprehensive_results$enrichment_results[[dataset]])) {
+      for (db in names(comprehensive_results$enrichment_results[[dataset]][[method]])) {
+        
+        result_obj <- comprehensive_results$enrichment_results[[dataset]][[method]][[db]]
+        
+        if (!is.null(result_obj) && nrow(result_obj@result) > 0) {
+          enrichment_df <- result_obj@result
+          
+          # Get ALL significant pathways (not just top 10)
+          sig_pathways <- enrichment_df[enrichment_df$p.adjust < 0.05, ]
+          
+          if (nrow(sig_pathways) > 0) {
+            # Extract comprehensive pathway information
+            pathway_data <- data.frame(
+              Dataset = dataset,
+              Method = method,
+              Database = db,
+              Pathway = sig_pathways$Description,
+              P_Value = sig_pathways$pvalue,
+              P_Adjust = sig_pathways$p.adjust,
+              Gene_Ratio = sig_pathways$GeneRatio,
+              BG_Ratio = sig_pathways$BgRatio,
+              Count = as.numeric(sapply(strsplit(as.character(sig_pathways$GeneRatio), "/"), function(x) x[1])),
+              Background = as.numeric(sapply(strsplit(as.character(sig_pathways$GeneRatio), "/"), function(x) x[2])),
+              Fold_Enrichment = ifelse("FoldEnrichment" %in% colnames(sig_pathways), 
+                                     sig_pathways$FoldEnrichment, NA),
+              Gene_Names = ifelse("geneID" %in% colnames(sig_pathways), 
+                                sig_pathways$geneID, ""),
+              stringsAsFactors = FALSE
+            )
+            
+            all_enrichment_data <- rbind(all_enrichment_data, pathway_data)
+          }
+        }
+      }
+    }
+  }
+  
+  cat("✓ Extracted", nrow(all_enrichment_data), "total pathway enrichments\n")
+  return(all_enrichment_data)
+}
+
+#' Create massive collection of enrichment plots (12+ panels)
+create_massive_enrichment_plots <- function(enrichment_data) {
+  cat("📊 Creating massive collection of enrichment plots...\n")
+  
+  plots <- list()
+  
+  # Panel 1: Overview - Pathways by Database and Dataset
+  db_summary <- enrichment_data %>%
+    group_by(Database, Dataset) %>%
+    summarise(N_Pathways = n(), .groups = "drop")
+  
+  plots$p1 <- ggplot(db_summary, aes(x = Database, y = N_Pathways, fill = Dataset)) +
+    geom_col(position = "dodge", alpha = 0.8) +
+    geom_text(aes(label = N_Pathways), position = position_dodge(width = 0.9), vjust = -0.3, size = 3) +
+    scale_fill_manual(values = c("GSE174409" = "#FF6B6B", "GSE225158" = "#4ECDC4")) +
+    labs(title = "A. Pathways by Database", x = "Database", y = "Pathways") +
+    theme_minimal() + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom")
+  
+  # Panel 2: Top 15 Most Significant Pathways (Cross-Dataset)
+  top_pathways_cross <- enrichment_data %>%
+    group_by(Pathway) %>%
+    summarise(
+      Avg_P_Adjust = mean(P_Adjust),
+      Min_P_Adjust = min(P_Adjust),
+      N_Datasets = n_distinct(Dataset),
+      Total_Count = sum(Count),
+      .groups = "drop"
+    ) %>%
+    arrange(Min_P_Adjust) %>%
+    head(15)
+  
+  plots$p2 <- ggplot(top_pathways_cross, aes(x = reorder(Pathway, -Min_P_Adjust), y = -log10(Min_P_Adjust))) +
+    geom_col(aes(fill = N_Datasets), alpha = 0.8) +
+    scale_fill_viridis_c(name = "Datasets", option = "plasma") +
+    coord_flip() +
+    labs(title = "B. Top 15 Cross-Dataset Pathways", x = "Pathway", y = "-log10(Min P.adj)") +
+    theme_minimal() + 
+    theme(axis.text.y = element_text(size = 7), legend.position = "bottom")
+  
+  # Panel 3: Method Comparison Heatmap
+  method_pathway_matrix <- enrichment_data %>%
+    group_by(Method, Dataset) %>%
+    summarise(N_Pathways = n(), .groups = "drop") %>%
+    mutate(Method_Dataset = paste(Method, Dataset, sep = "_"))
+  
+  plots$p3 <- ggplot(method_pathway_matrix, aes(x = Method, y = Dataset, fill = N_Pathways)) +
+    geom_tile(color = "white", linewidth = 1) +
+    geom_text(aes(label = N_Pathways), color = "white", fontface = "bold") +
+    scale_fill_viridis_c(name = "Pathways", option = "viridis") +
+    labs(title = "C. Method × Dataset Heatmap", x = "Method", y = "Dataset") +
+    theme_minimal() +
+    theme(legend.position = "bottom")
+  
+  # Panel 4: P-value Distribution by Database
+  plots$p4 <- ggplot(enrichment_data, aes(x = -log10(P_Adjust), fill = Database)) +
+    geom_histogram(alpha = 0.7, bins = 20, position = "identity") +
+    scale_fill_brewer(type = "qual", palette = "Set3") +
+    labs(title = "D. P-value Distribution", x = "-log10(P.adj)", y = "Count") +
+    theme_minimal() + 
+    theme(legend.position = "bottom")
+  
+  # Panel 5: Gene Count Distribution
+  plots$p5 <- ggplot(enrichment_data, aes(x = Count, fill = Dataset)) +
+    geom_histogram(alpha = 0.7, bins = 15, position = "identity") +
+    scale_fill_manual(values = c("GSE174409" = "#FF6B6B", "GSE225158" = "#4ECDC4")) +
+    labs(title = "E. Gene Count Distribution", x = "Genes per Pathway", y = "Count") +
+    theme_minimal() + 
+    theme(legend.position = "bottom")
+  
+  # Panel 6: Top GSE174409-Specific Pathways
+  gse174409_specific <- enrichment_data %>%
+    filter(Dataset == "GSE174409") %>%
+    arrange(P_Adjust) %>%
+    head(10)
+  
+  plots$p6 <- ggplot(gse174409_specific, aes(x = reorder(Pathway, -P_Adjust), y = -log10(P_Adjust))) +
+    geom_col(aes(fill = Database), alpha = 0.8) +
+    scale_fill_brewer(type = "qual", palette = "Set2") +
+    coord_flip() +
+    labs(title = "F. Top GSE174409 Pathways", x = "Pathway", y = "-log10(P.adj)") +
+    theme_minimal() + 
+    theme(axis.text.y = element_text(size = 7), legend.position = "bottom")
+  
+  # Panel 7: Top GSE225158-Specific Pathways
+  gse225158_specific <- enrichment_data %>%
+    filter(Dataset == "GSE225158") %>%
+    arrange(P_Adjust) %>%
+    head(10)
+  
+  plots$p7 <- ggplot(gse225158_specific, aes(x = reorder(Pathway, -P_Adjust), y = -log10(P_Adjust))) +
+    geom_col(aes(fill = Database), alpha = 0.8) +
+    scale_fill_brewer(type = "qual", palette = "Set1") +
+    coord_flip() +
+    labs(title = "G. Top GSE225158 Pathways", x = "Pathway", y = "-log10(P.adj)") +
+    theme_minimal() + 
+    theme(axis.text.y = element_text(size = 7), legend.position = "bottom")
+  
+  # Panel 8: Enrichment Strength (Fold Enrichment if available)
+  if (!all(is.na(enrichment_data$Fold_Enrichment))) {
+    fold_enrich_data <- enrichment_data[!is.na(enrichment_data$Fold_Enrichment), ]
+    plots$p8 <- ggplot(fold_enrich_data, aes(x = Fold_Enrichment, fill = Database)) +
+      geom_histogram(alpha = 0.7, bins = 15, position = "identity") +
+      scale_fill_brewer(type = "qual", palette = "Dark2") +
+      labs(title = "H. Fold Enrichment Distribution", x = "Fold Enrichment", y = "Count") +
+      theme_minimal() + 
+      theme(legend.position = "bottom")
+  } else {
+    plots$p8 <- ggplot(enrichment_data, aes(x = Count, y = -log10(P_Adjust), color = Database)) +
+      geom_point(alpha = 0.7, size = 2) +
+      scale_color_brewer(type = "qual", palette = "Dark2") +
+      labs(title = "H. Gene Count vs Significance", x = "Gene Count", y = "-log10(P.adj)") +
+      theme_minimal() + 
+      theme(legend.position = "bottom")
+  }
+  
+  # Panel 9: Database-Specific Analysis - GO_BP
+  go_bp_data <- enrichment_data %>% filter(Database == "GO_BP") %>% arrange(P_Adjust) %>% head(8)
+  if (nrow(go_bp_data) > 0) {
+    plots$p9 <- ggplot(go_bp_data, aes(x = reorder(Pathway, Count), y = Count, fill = Dataset)) +
+      geom_col(position = "dodge", alpha = 0.8) +
+      scale_fill_manual(values = c("GSE174409" = "#FF6B6B", "GSE225158" = "#4ECDC4")) +
+      coord_flip() +
+      labs(title = "I. Top GO Biological Process", x = "Pathway", y = "Gene Count") +
+      theme_minimal() + 
+      theme(axis.text.y = element_text(size = 7), legend.position = "bottom")
+  } else {
+    plots$p9 <- create_missing_plot("No GO_BP data available")
+  }
+  
+  # Panel 10: Database-Specific Analysis - KEGG
+  kegg_data <- enrichment_data %>% filter(Database == "KEGG") %>% arrange(P_Adjust) %>% head(8)
+  if (nrow(kegg_data) > 0) {
+    plots$p10 <- ggplot(kegg_data, aes(x = reorder(Pathway, Count), y = Count, fill = Dataset)) +
+      geom_col(position = "dodge", alpha = 0.8) +
+      scale_fill_manual(values = c("GSE174409" = "#FF6B6B", "GSE225158" = "#4ECDC4")) +
+      coord_flip() +
+      labs(title = "J. Top KEGG Pathways", x = "Pathway", y = "Gene Count") +
+      theme_minimal() + 
+      theme(axis.text.y = element_text(size = 7), legend.position = "bottom")
+  } else {
+    plots$p10 <- create_missing_plot("No KEGG data available")
+  }
+  
+  # Panel 11: Database-Specific Analysis - Reactome
+  reactome_data <- enrichment_data %>% filter(Database == "Reactome") %>% arrange(P_Adjust) %>% head(8)
+  if (nrow(reactome_data) > 0) {
+    plots$p11 <- ggplot(reactome_data, aes(x = reorder(Pathway, Count), y = Count, fill = Dataset)) +
+      geom_col(position = "dodge", alpha = 0.8) +
+      scale_fill_manual(values = c("GSE174409" = "#FF6B6B", "GSE225158" = "#4ECDC4")) +
+      coord_flip() +
+      labs(title = "K. Top Reactome Pathways", x = "Pathway", y = "Gene Count") +
+      theme_minimal() + 
+      theme(axis.text.y = element_text(size = 7), legend.position = "bottom")
+  } else {
+    plots$p11 <- create_missing_plot("No Reactome data available")
+  }
+  
+  # Panel 12: Shared vs Unique Pathways
+  pathway_sharing <- enrichment_data %>%
+    group_by(Pathway) %>%
+    summarise(
+      N_Datasets = n_distinct(Dataset),
+      Datasets = paste(unique(Dataset), collapse = " + "),
+      Min_P_Adjust = min(P_Adjust),
+      .groups = "drop"
+    ) %>%
+    mutate(Sharing_Type = ifelse(N_Datasets == 2, "Shared", "Unique"))
+  
+  plots$p12 <- ggplot(pathway_sharing, aes(x = Sharing_Type, fill = Sharing_Type)) +
+    geom_bar(alpha = 0.8) +
+    geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5) +
+    scale_fill_manual(values = c("Shared" = "darkgreen", "Unique" = "orange")) +
+    labs(title = "L. Shared vs Unique Pathways", x = "Pathway Type", y = "Count") +
+    theme_minimal() + 
+    theme(legend.position = "bottom")
+  
+  cat("✓ Created", length(plots), "massive enrichment plots\n")
+  return(plots)
+}
+
+#' Create mega layout for massive dashboard (3×4 or 4×3 grid)
+create_mega_layout <- function(plots) {
+  cat("📊 Creating mega layout for massive dashboard...\n")
+  
+  # Ensure we have 12 plots
+  while (length(plots) < 12) {
+    plots[[length(plots) + 1]] <- create_missing_plot("Panel not available")
+  }
+  
+  # Create massive 4×3 layout
+  mega_dashboard <- (plots$p1 + plots$p2 + plots$p3) /
+                   (plots$p4 + plots$p5 + plots$p6) /
+                   (plots$p7 + plots$p8 + plots$p9) /
+                   (plots$p10 + plots$p11 + plots$p12) +
+    plot_annotation(
+      title = "MASSIVE Pathway Enrichment Analysis Dashboard",
+      subtitle = "Comprehensive cross-dataset neuroinflammatory pathway analysis (GSE174409 vs GSE225158)",
+      theme = theme(plot.title = element_text(size = 20, face = "bold"),
+                   plot.subtitle = element_text(size = 14))
+    )
+  
+  return(mega_dashboard)
+}
+
+# ==============================================================================
 # UTILITY FUNCTIONS
 # ==============================================================================
 
@@ -709,7 +1016,7 @@ create_missing_plot <- function(message) {
 # MAIN DASHBOARD PIPELINE
 # ==============================================================================
 
-#' Run complete dashboard creation pipeline
+#' Run complete dashboard creation pipeline (ENHANCED for neuroinflammatory results)
 run_comprehensive_dashboards <- function() {
   cat(paste(rep("=", 70), collapse = ""), "\n")
   cat("COMPREHENSIVE DASHBOARD CREATION PIPELINE\n")
@@ -728,14 +1035,20 @@ run_comprehensive_dashboards <- function() {
     dashboard3 <- create_pathways_dashboard()
     dashboard4 <- create_expression_dashboard()
     dashboard5 <- create_final_summary_dashboard()
-    dashboard6 <- create_enrichment_dashboard()  # NEW!
+    dashboard6 <- create_enrichment_dashboard()
+    dashboard7 <- create_massive_enrichment_dashboard()  # MASSIVE 12-panel dashboard!
+    
+    # NEW: Create neuroinflammatory-specific dashboard
+    dashboard8 <- create_neuroinflammatory_dashboard()
     
     # Create index file
     cat("\n📋 Creating dashboard index...\n")
     create_dashboard_index()
     
     cat("\n", paste(rep("=", 70), collapse = ""), "\n")
-    cat("✅ COMPREHENSIVE DASHBOARDS COMPLETE!\n")
+    cat("✅ ALL 8 COMPREHENSIVE DASHBOARDS COMPLETE!\n")
+    cat("🎯 Including MASSIVE 12-panel enrichment dashboard!\n")
+    cat("🧠 Including neuroinflammatory-specific dashboard!\n")
     cat("📁 All dashboards saved to:", DASHBOARD_DIR, "\n")
     cat("💡 Check the dashboard index for overview\n")
     cat(paste(rep("=", 70), collapse = ""), "\n")
@@ -748,7 +1061,149 @@ run_comprehensive_dashboards <- function() {
   })
 }
 
-#' Create dashboard index
+#' Create neuroinflammatory-specific dashboard (NEW!)
+create_neuroinflammatory_dashboard <- function() {
+  cat("\n=== Creating Neuroinflammatory-Specific Dashboard ===\n")
+  
+  # Load the comprehensive results
+  neuro_file <- file.path(RESULTS_DIR, "Neuroinflammatory_Analysis", 
+                         "comprehensive_neuroinflammatory_analysis_enhanced.rds")
+  
+  if (!file.exists(neuro_file)) {
+    cat("⚠ Neuroinflammatory results not found\n")
+    return(create_placeholder_dashboard("Neuroinflammatory Analysis", 
+                                      "Run 02_Neuroinflammatory_Analysis.R first"))
+  }
+  
+  comprehensive_results <- readRDS(neuro_file)
+  
+  # Focus on complement and immune pathways
+  neuro_keywords <- c("complement", "immune", "inflammation", "cytokine", "microglia", 
+                     "astrocyte", "neuroinflam", "C1Q", "C3", "TNF", "IL1", "IL6")
+  
+  # Extract neuroinflammatory pathways
+  neuro_pathways <- extract_neuroinflammatory_pathways(comprehensive_results, neuro_keywords)
+  
+  if (nrow(neuro_pathways) == 0) {
+    return(create_placeholder_dashboard("Neuroinflammatory Analysis", "No neuroinflammatory pathways found"))
+  }
+  
+  # Create 4-panel neuroinflammatory dashboard
+  plots <- list()
+  
+  # Panel 1: Top neuroinflammatory pathways
+  top_neuro <- neuro_pathways %>%
+    arrange(P_Adjust) %>%
+    head(15)
+  
+  plots$p1 <- ggplot(top_neuro, aes(x = reorder(Pathway, -P_Adjust), y = -log10(P_Adjust))) +
+    geom_col(aes(fill = Database), alpha = 0.8) +
+    scale_fill_brewer(type = "qual", palette = "Set2") +
+    coord_flip() +
+    labs(title = "A. Top Neuroinflammatory Pathways", x = "Pathway", y = "-log10(P.adj)") +
+    theme_minimal() + 
+    theme(axis.text.y = element_text(size = 7), legend.position = "bottom")
+  
+  # Panel 2: Dataset comparison for neuroinflammatory pathways
+  neuro_by_dataset <- neuro_pathways %>%
+    group_by(Dataset, Database) %>%
+    summarise(N_Pathways = n(), .groups = "drop")
+  
+  plots$p2 <- ggplot(neuro_by_dataset, aes(x = Database, y = N_Pathways, fill = Dataset)) +
+    geom_col(position = "dodge", alpha = 0.8) +
+    geom_text(aes(label = N_Pathways), position = position_dodge(width = 0.9), vjust = -0.3) +
+    scale_fill_manual(values = c("GSE174409" = "#FF6B6B", "GSE225158" = "#4ECDC4")) +
+    labs(title = "B. Neuroinflammatory Pathways by Dataset", x = "Database", y = "Pathways") +
+    theme_minimal() + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom")
+  
+  # Panel 3: Complement-specific analysis
+  complement_pathways <- neuro_pathways %>%
+    filter(grepl("complement|C1Q|C3|C5", Pathway, ignore.case = TRUE)) %>%
+    arrange(P_Adjust) %>%
+    head(10)
+  
+  if (nrow(complement_pathways) > 0) {
+    plots$p3 <- ggplot(complement_pathways, aes(x = reorder(Pathway, Count), y = Count, fill = Dataset)) +
+      geom_col(position = "dodge", alpha = 0.8) +
+      scale_fill_manual(values = c("GSE174409" = "#FF6B6B", "GSE225158" = "#4ECDC4")) +
+      coord_flip() +
+      labs(title = "C. Complement System Pathways", x = "Pathway", y = "Gene Count") +
+      theme_minimal() + 
+      theme(axis.text.y = element_text(size = 7), legend.position = "bottom")
+  } else {
+    plots$p3 <- create_missing_plot("No complement pathways found")
+  }
+  
+  # Panel 4: Pathway significance distribution
+  plots$p4 <- ggplot(neuro_pathways, aes(x = -log10(P_Adjust), fill = Dataset)) +
+    geom_histogram(alpha = 0.7, bins = 15, position = "identity") +
+    scale_fill_manual(values = c("GSE174409" = "#FF6B6B", "GSE225158" = "#4ECDC4")) +
+    labs(title = "D. Significance Distribution", x = "-log10(P.adj)", y = "Count") +
+    theme_minimal() + 
+    theme(legend.position = "bottom")
+  
+  # Combine plots
+  neuro_dashboard <- (plots$p1 + plots$p2) / (plots$p3 + plots$p4) +
+    plot_annotation(
+      title = "Neuroinflammatory Pathway Analysis Dashboard",
+      subtitle = "Complement system and immune pathways in opioid use disorder",
+      theme = theme(plot.title = element_text(size = 16, face = "bold"))
+    )
+  
+  # Save dashboard
+  neuro_file <- file.path(DASHBOARD_DIR, "08_Neuroinflammatory_Specific_Dashboard.png")
+  ggsave(neuro_file, neuro_dashboard, width = 16, height = 12, dpi = 300)
+  cat("✓ Neuroinflammatory dashboard saved:", neuro_file, "\n")
+  
+  return(neuro_dashboard)
+}
+
+#' Extract neuroinflammatory pathways from comprehensive results
+extract_neuroinflammatory_pathways <- function(comprehensive_results, keywords) {
+  neuro_pathways <- data.frame()
+  
+  for (dataset in names(comprehensive_results$enrichment_results)) {
+    for (method in names(comprehensive_results$enrichment_results[[dataset]])) {
+      for (db in names(comprehensive_results$enrichment_results[[dataset]][[method]])) {
+        
+        result_obj <- comprehensive_results$enrichment_results[[dataset]][[method]][[db]]
+        
+        if (!is.null(result_obj) && nrow(result_obj@result) > 0) {
+          enrichment_df <- result_obj@result
+          
+          # Filter for neuroinflammatory pathways
+          neuro_matches <- enrichment_df[grepl(paste(keywords, collapse = "|"), 
+                                              enrichment_df$Description, ignore.case = TRUE), ]
+          
+          if (nrow(neuro_matches) > 0 && any(neuro_matches$p.adjust < 0.05)) {
+            sig_neuro <- neuro_matches[neuro_matches$p.adjust < 0.05, ]
+            
+            pathway_data <- data.frame(
+              Dataset = dataset,
+              Method = method,
+              Database = db,
+              Pathway = sig_neuro$Description,
+              P_Adjust = sig_neuro$p.adjust,
+              Count = as.numeric(sapply(strsplit(as.character(sig_neuro$GeneRatio), "/"), function(x) x[1])),
+              stringsAsFactors = FALSE
+            )
+            
+            neuro_pathways <- rbind(neuro_pathways, pathway_data)
+          }
+        }
+      }
+    }
+  }
+  
+  return(neuro_pathways)
+}
+
+# ==============================================================================
+# DASHBOARD INDEX CREATION
+# ==============================================================================
+
+#' Create dashboard index (UPDATED)
 create_dashboard_index <- function() {
   index_content <- paste(
     "# Comprehensive Neuroinflammatory OUD Analysis Dashboards",
@@ -780,21 +1235,35 @@ create_dashboard_index <- function() {
     "- Key findings and conclusions",
     "- Publication-ready summary",
     "",
-    "### 06_Pathway_Enrichment_Dashboard.png",  # NEW!
+    "### 06_Pathway_Enrichment_Dashboard.png",
     "- Detailed pathway enrichment visualization",
     "- Cross-database pathway comparison",
     "- Significance distributions and top pathways",
     "",
+    "### 07_MASSIVE_Enrichment_Dashboard.png & .pdf",  # NEW!
+    "- MASSIVE 12-panel enrichment analysis",
+    "- All pathways from both datasets",
+    "- Database-specific deep dives",
+    "- Cross-dataset pathway sharing analysis",
+    "- Available in both PNG and PDF formats",
+    "",
+    "### 08_Neuroinflammatory_Specific_Dashboard.png",  # NEW!
+    "- Neuroinflammatory-specific pathway analysis",
+    "- Focus on complement and immune pathways",
+    "- Top pathways, dataset comparisons",
+    "",
     "## Usage",
     "These dashboards provide publication-ready multi-panel figures",
     "suitable for manuscripts, presentations, and supplementary materials.",
+    "The MASSIVE enrichment dashboard is particularly suitable for",
+    "detailed pathway analysis and supplementary figures.",
     "",
     paste("Generated:", Sys.time()),
     sep = "\n"
   )
   
   writeLines(index_content, file.path(DASHBOARD_DIR, "README.md"))
-  cat("✓ Dashboard index created\n")
+  cat("✓ Dashboard index created with MASSIVE dashboard info\n")
 }
 
 # ==============================================================================

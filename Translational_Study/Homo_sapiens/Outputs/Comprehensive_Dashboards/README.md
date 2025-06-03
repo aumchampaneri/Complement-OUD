@@ -32,8 +32,17 @@
 - Cross-database pathway comparison
 - Significance distributions and top pathways
 
+### 07_MASSIVE_Enrichment_Dashboard.png & .pdf
+- MASSIVE 12-panel enrichment analysis
+- All pathways from both datasets
+- Database-specific deep dives
+- Cross-dataset pathway sharing analysis
+- Available in both PNG and PDF formats
+
 ## Usage
 These dashboards provide publication-ready multi-panel figures
 suitable for manuscripts, presentations, and supplementary materials.
+The MASSIVE enrichment dashboard is particularly suitable for
+detailed pathway analysis and supplementary figures.
 
-Generated: 2025-06-02 23:03:42.930585
+Generated: 2025-06-02 23:08:32.600505
