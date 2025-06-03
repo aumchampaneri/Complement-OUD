@@ -1,0 +1,14 @@
+'''
+🔬 5. Differential Expression (DE)
+
+Use pseudo-bulk DE methods for statistical rigor:
+Tools: edgeR, DESeq2, limma-voom
+Aggregate raw counts by donor/condition/cluster → then run DE
+# DE pipeline in R (edgeR)
+dge <- DGEList(counts = counts, group = condition)
+dge <- calcNormFactors(dge)
+design <- model.matrix(~ condition)
+dge <- estimateDisp(dge, design)
+fit <- glmQLFit(dge, design)
+qlf <- glmQLFTest(fit, coef=2)
+'''
