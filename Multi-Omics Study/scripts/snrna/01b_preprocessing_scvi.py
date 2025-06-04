@@ -35,6 +35,7 @@ import scvi
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+matplotlib.use('Agg')  # Use non-interactive backend to prevent plot display
 import seaborn as sns
 from scipy import sparse
 import warnings

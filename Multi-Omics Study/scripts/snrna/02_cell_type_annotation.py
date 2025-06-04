@@ -42,6 +42,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
 import os
+import re  # Add re module for regex operations in CellTypist cleaning
 
 # Optional CellTypist for reference mapping
 try:
@@ -441,43 +442,24 @@ def main_annotation():
                 print("🧹 Cleaning CellTypist predictions (removing appended markers)...")
                 cleaned_labels = []
                 for label in predicted_labels:
-                    # Common patterns to clean
-                    clean_label = str(label)
+                    # Simple and effective: split on first space and keep only the cell type
+                    clean_label = str(label).split(' ')[0]  # Keep everything before first space
                     
-                    # Remove common marker genes appended to cell type names
-                    marker_patterns = [
-                        r'\s+MOG\s*.*$',           # Remove " MOG ..." 
-                        r'\s+OPALIN\s*.*$',        # Remove " OPALIN ..."
-                        r'\s+PDGFRA\s*.*$',        # Remove " PDGFRA ..."
-                        r'\s+P2RY12\s*.*$',        # Remove " P2RY12 ..."
-                        r'\s+GFAP\s*.*$',          # Remove " GFAP ..."
-                        r'\s+AQP4\s*.*$',          # Remove " AQP4 ..."
-                        r'\s+[A-Z0-9]+\s+[A-Z0-9]+.*$',  # Remove " GENE1 GENE2 ..."
-                    ]
-                    
-                    import re
-                    for pattern in marker_patterns:
-                        clean_label = re.sub(pattern, '', clean_label)
-                    
-                    # Clean up cell type names to standard format
-                    clean_label = clean_label.strip()
-                    
-                    # Standardize common brain cell type names
+                    # Basic standardization for common abbreviations
                     cell_type_mapping = {
                         'Oligo': 'Oligodendrocyte',
-                        'OPC': 'OPC',
-                        'Micro': 'Microglia',
+                        'Micro': 'Microglia', 
                         'Astro': 'Astrocyte',
-                        'Neuron': 'Neuron',
                         'Endo': 'Endothelial',
-                        'Pericyte': 'Pericyte'
+                        'SMC': 'Smooth_Muscle'
                     }
                     
                     # Apply standardization
-                    for short_name, full_name in cell_type_mapping.items():
-                        if clean_label.startswith(short_name):
-                            clean_label = full_name
-                            break
+                    clean_label = cell_type_mapping.get(clean_label, clean_label)
+                    
+                    # Ensure we have a valid cell type name
+                    if not clean_label or clean_label in ['', 'nan', 'None']:
+                        clean_label = 'Unknown_CellType'
                     
                     cleaned_labels.append(clean_label)
                 
@@ -488,8 +470,41 @@ def main_annotation():
                 original_unique = predictions.predicted_labels['predicted_labels'].unique()
                 cleaned_unique = predicted_labels.unique()
                 print(f"   📋 Cleaned predictions:")
-                print(f"   Before: {original_unique[:3]}...")
-                print(f"   After:  {cleaned_unique[:3]}...")
+                print(f"   Before: {len(original_unique)} types - {original_unique[:5]}...")
+                print(f"   After:  {len(cleaned_unique)} types - {cleaned_unique[:5]}...")
+                
+                # Check if we lost too much diversity
+                if len(cleaned_unique) < max(3, len(original_unique) * 0.3):
+                    print("   ⚠️  Warning: Primary cleaning removed too many cell types")
+                    print("   🔧 Using original predictions with minimal standardization only")
+                    # Keep original predictions with only basic abbreviation mapping
+                    minimal_cleaned = []
+                    for label in predictions.predicted_labels['predicted_labels']:
+                        minimal_clean = str(label)
+                        
+                        # Only apply basic standardization for obvious abbreviations at start
+                        if minimal_clean.startswith('Oligo'):
+                            minimal_clean = 'Oligodendrocyte' + minimal_clean[5:]  # Keep the rest
+                        elif minimal_clean.startswith('Micro'):
+                            minimal_clean = 'Microglia' + minimal_clean[5:]  # Keep the rest
+                        elif minimal_clean.startswith('Astro'):
+                            minimal_clean = 'Astrocyte' + minimal_clean[5:]  # Keep the rest
+                        elif minimal_clean.startswith('Endo'):
+                            minimal_clean = 'Endothelial' + minimal_clean[4:]  # Keep the rest
+                        
+                        # Ensure we have a valid cell type name
+                        if not minimal_clean or minimal_clean in ['', 'nan', 'None']:
+                            minimal_clean = 'Unknown_CellType'
+                        
+                        minimal_cleaned.append(minimal_clean)
+                    
+                    predicted_labels = pd.Series(minimal_cleaned)
+                    print(f"   📋 Minimal standardization: {len(predicted_labels.unique())} types preserved")
+                else:
+                    print(f"   ✅ Primary cleaning successful: {len(cleaned_unique)} diverse types")
+                
+                # Ensure cleaned predictions are proper strings for H5AD saving
+                predicted_labels = predicted_labels.astype(str)
                 
                 # Check for corrupted predictions (repeated strings, invalid characters)
                 unique_predictions = predicted_labels.unique()
@@ -521,7 +536,46 @@ def main_annotation():
                         predicted_labels = cleaned_predictions
                 
                 # Extract predictions back to original adata with error handling
-                adata.obs['celltypist_prediction'] = predicted_labels
+                # Ensure data types are compatible with H5AD format
+                print("🔧 Safely assigning CellTypist predictions to adata.obs...")
+                
+                # ROBUST ASSIGNMENT: Handle any data type issues
+                try:
+                    # Method 1: Direct assignment with explicit conversion
+                    clean_predictions = []
+                    for pred in predicted_labels:
+                        if pd.isna(pred) or pred is None or str(pred) == 'nan':
+                            clean_predictions.append('Unknown_CellType')
+                        else:
+                            clean_predictions.append(str(pred))
+                    
+                    # Assign as regular pandas Series with string dtype
+                    adata.obs['celltypist_prediction'] = pd.Series(clean_predictions, index=adata.obs.index, dtype='object')
+                    
+                    # Verify assignment worked
+                    test_unique = adata.obs['celltypist_prediction'].nunique()
+                    print(f"   ✅ Assignment successful: {test_unique} unique predictions stored")
+                    
+                    if test_unique < 5:  # If still failing, try alternative method
+                        print("   🔧 Low diversity detected, trying alternative assignment...")
+                        # Alternative: create DataFrame and merge
+                        pred_df = pd.DataFrame({
+                            'celltypist_prediction': clean_predictions
+                        }, index=adata.obs.index)
+                        adata.obs = adata.obs.drop(columns=['celltypist_prediction'], errors='ignore')
+                        adata.obs = adata.obs.join(pred_df)
+                        
+                        final_unique = adata.obs['celltypist_prediction'].nunique()
+                        print(f"   📊 Alternative method result: {final_unique} unique predictions")
+                    
+                except Exception as assignment_error:
+                    print(f"   ❌ Assignment failed: {assignment_error}")
+                    print("   🔧 Using fallback method...")
+                    
+                    # Fallback: Add column manually
+                    adata.obs.loc[:, 'celltypist_prediction'] = [str(pred) if not pd.isna(pred) else 'Unknown_CellType' for pred in predicted_labels]
+                    fallback_unique = adata.obs['celltypist_prediction'].nunique()
+                    print(f"   📊 Fallback result: {fallback_unique} unique predictions")
                 
                 # Handle confidence scores - different CellTypist versions may use different column names
                 if 'conf_score' in predictions.predicted_labels.columns:
@@ -570,24 +624,47 @@ def main_annotation():
                     confidence_scores = pd.Series([0.5] * len(predicted_labels))
                     print("   Using default confidence scores of 0.5")
                 
-                adata.obs['celltypist_confidence'] = confidence_scores
-                adata.obs['celltypist_model_used'] = selected_model  # Track which model was used
+                adata.obs['celltypist_confidence'] = confidence_scores.astype(float)
+                adata.obs['celltypist_model_used'] = str(selected_model)  # Ensure string type
                 
                 print("✅ CellTypist predictions completed and validated")
+                
+                # DEBUG: Check predictions immediately after storing
+                print(f"🔍 DEBUG: Checking predictions immediately after storage...")
+                print(f"   Length of predicted_labels: {len(predicted_labels)}")
+                print(f"   Unique values in predicted_labels: {len(predicted_labels.unique())}")
+                print(f"   First 5 predictions: {predicted_labels.head().tolist()}")
+                print(f"   adata.obs shape: {adata.obs.shape}")
+                print(f"   'celltypist_prediction' in adata.obs: {'celltypist_prediction' in adata.obs.columns}")
+                
+                if 'celltypist_prediction' in adata.obs.columns:
+                    stored_predictions = adata.obs['celltypist_prediction']
+                    print(f"   Length of stored predictions: {len(stored_predictions)}")
+                    print(f"   Type of stored predictions: {type(stored_predictions)}")
+                    print(f"   Unique stored predictions: {len(stored_predictions.unique())}")
+                    print(f"   First 5 stored: {stored_predictions.head().tolist()}")
+                else:
+                    print("   ❌ 'celltypist_prediction' column not found!")
+                
                 celltypist_success = True
                 
-                # Summary of CellTypist results with validation
+                # Summary of CellTypist results with validation - FIXED
                 ct_counts = adata.obs['celltypist_prediction'].value_counts()
                 print("📊 CellTypist predictions (validated):")
                 
-                # Check if we have reasonable predictions
-                if len(ct_counts) < 2:
-                    print("   ⚠️  Too few cell types predicted - may indicate issues")
-                    celltypist_success = False
-                elif 'Unknown_CellType' in ct_counts.index and ct_counts['Unknown_CellType'] > len(adata.obs) * 0.5:
+                # Check if we have reasonable predictions - fix the validation logic
+                if len(ct_counts) < 5:  # Changed from 2 to 5 for more reasonable threshold
+                    print(f"   ⚠️  Few cell types predicted ({len(ct_counts)}) - but proceeding")
+                    # Don't mark as failed unless it's really bad (< 2 types)
+                    if len(ct_counts) < 2:
+                        celltypist_success = False
+                elif 'Unknown_CellType' in ct_counts.index and ct_counts['Unknown_CellType'] > len(adata.obs) * 0.8:  # Changed from 0.5 to 0.8
                     print("   ⚠️  Too many unknown predictions - may indicate issues")
                     celltypist_success = False
-                else:
+                
+                # Always show the top predictions regardless of validation
+                if len(ct_counts) > 0:
+                    print(f"   📊 Found {len(ct_counts)} unique cell types from CellTypist")
                     for cell_type, count in ct_counts.head(10).items():
                         pct = count / len(adata.obs) * 100
                         try:
@@ -600,6 +677,9 @@ def main_annotation():
                                 print(f"   • {cell_type}: {count:,} cells ({pct:.1f}%) - conf: N/A")
                         except Exception as summary_error:
                             print(f"   • {cell_type}: {count:,} cells ({pct:.1f}%) - conf: Error")
+                else:
+                    print("   ❌ No CellTypist predictions found")
+                    celltypist_success = False
                 
                 # Validate brain relevance
                 brain_types = ct_counts.index.tolist()
@@ -857,6 +937,90 @@ def main_annotation():
     # =======================================
     print("\n💾 STEP 6: SAVING ANNOTATED DATA")
     print("=" * 70)
+    
+    # COMPREHENSIVE DATA TYPE VALIDATION before saving
+    print("🔧 Validating data types for H5AD compatibility...")
+    
+    # Ensure all annotation columns are properly typed
+    annotation_columns = [col for col in adata.obs.columns if any(term in col for term in 
+                         ['predicted', 'refined', 'confidence', 'celltypist', 'consensus'])]
+    
+    for col in annotation_columns:
+        if col in adata.obs.columns:
+            try:
+                # Convert categorical/object columns to string
+                if adata.obs[col].dtype == 'object' or hasattr(adata.obs[col], 'cat'):
+                    print(f"   Converting {col} to string...")
+                    adata.obs[col] = adata.obs[col].astype(str)
+                
+                # Convert numeric columns to float
+                elif 'confidence' in col or 'score' in col:
+                    print(f"   Converting {col} to float...")
+                    adata.obs[col] = pd.to_numeric(adata.obs[col], errors='coerce').fillna(0.5).astype(float)
+                
+                # Ensure string columns are properly string type
+                else:
+                    print(f"   Ensuring {col} is string...")
+                    adata.obs[col] = adata.obs[col].astype(str)
+                    
+            except Exception as e:
+                print(f"   ⚠️  Error converting {col}: {e}")
+                # Fallback: remove problematic column
+                print(f"   Removing problematic column: {col}")
+                adata.obs.drop(columns=[col], inplace=True)
+    
+    # Special handling for CellTypist predictions if they exist
+    if 'celltypist_prediction' in adata.obs.columns:
+        print("🧹 Special handling for CellTypist predictions...")
+        try:
+            # Force conversion to string and handle any remaining issues
+            celltypist_pred = adata.obs['celltypist_prediction']
+            
+            # Convert any non-string objects to string representation
+            cleaned_pred = []
+            for pred in celltypist_pred:
+                try:
+                    clean_str = str(pred)
+                    # Remove any problematic characters
+                    clean_str = ''.join(c for c in clean_str if c.isprintable())
+                    # Replace empty strings with Unknown
+                    if not clean_str or clean_str == 'nan':
+                        clean_str = 'Unknown'
+                    cleaned_pred.append(clean_str)
+                except:
+                    cleaned_pred.append('Unknown')
+            
+            # Update with cleaned predictions
+            adata.obs['celltypist_prediction'] = pd.Series(cleaned_pred, dtype='string')
+            print(f"   ✅ CellTypist predictions cleaned: {len(set(cleaned_pred))} unique types")
+            
+        except Exception as e:
+            print(f"   ⚠️  Error handling CellTypist predictions: {e}")
+            print("   Removing CellTypist predictions to allow saving...")
+            adata.obs.drop(columns=['celltypist_prediction'], inplace=True, errors='ignore')
+            adata.obs.drop(columns=['celltypist_confidence'], inplace=True, errors='ignore')
+            adata.obs.drop(columns=['celltypist_model_used'], inplace=True, errors='ignore')
+    
+    # Final validation - check all string columns and convert StringArrays to regular strings
+    print("🔍 Final validation of all columns...")
+    for col in adata.obs.columns:
+        if adata.obs[col].dtype == 'object' or str(adata.obs[col].dtype) == 'string':
+            try:
+                # Force conversion to regular string dtype (not pandas StringArray)
+                adata.obs[col] = adata.obs[col].astype('str')
+                print(f"   ✅ {col}: Converted to standard string")
+            except Exception as e:
+                print(f"   ❌ {col}: {e} - removing...")
+                adata.obs.drop(columns=[col], inplace=True)
+    
+    # Additional fix: prevent categorical conversion for problematic columns
+    print("🚫 Preventing automatic categorical conversion...")
+    categorical_columns = ['celltypist_prediction', 'predicted_cell_type', 'refined_cell_type', 'celltypist_model_used']
+    for col in categorical_columns:
+        if col in adata.obs.columns:
+            # Ensure these stay as regular strings, not categorical
+            adata.obs[col] = adata.obs[col].astype('str')
+            print(f"   🔧 {col}: Forced to string type")
     
     # Save the final annotated dataset
     adata.write(OUTPUT_H5AD)

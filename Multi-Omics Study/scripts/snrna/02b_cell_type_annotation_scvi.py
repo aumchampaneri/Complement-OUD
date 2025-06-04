@@ -35,7 +35,8 @@ ANNOTATION_SUMMARY = f"{PROCESSED_DATA_DIR_SCVI}/cell_type_annotation_summary_sc
 import scanpy as sc
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib.
+matplotlib.use('Agg')  # Use non-interactive backend to prevent plot display
 import seaborn as sns
 import warnings
 import os
