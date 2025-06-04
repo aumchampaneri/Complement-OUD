@@ -437,12 +437,66 @@ def main_annotation():
                 print("🔍 Validating CellTypist predictions...")
                 predicted_labels = predictions.predicted_labels['predicted_labels']
                 
+                # Clean CellTypist predictions - remove appended marker genes
+                print("🧹 Cleaning CellTypist predictions (removing appended markers)...")
+                cleaned_labels = []
+                for label in predicted_labels:
+                    # Common patterns to clean
+                    clean_label = str(label)
+                    
+                    # Remove common marker genes appended to cell type names
+                    marker_patterns = [
+                        r'\s+MOG\s*.*$',           # Remove " MOG ..." 
+                        r'\s+OPALIN\s*.*$',        # Remove " OPALIN ..."
+                        r'\s+PDGFRA\s*.*$',        # Remove " PDGFRA ..."
+                        r'\s+P2RY12\s*.*$',        # Remove " P2RY12 ..."
+                        r'\s+GFAP\s*.*$',          # Remove " GFAP ..."
+                        r'\s+AQP4\s*.*$',          # Remove " AQP4 ..."
+                        r'\s+[A-Z0-9]+\s+[A-Z0-9]+.*$',  # Remove " GENE1 GENE2 ..."
+                    ]
+                    
+                    import re
+                    for pattern in marker_patterns:
+                        clean_label = re.sub(pattern, '', clean_label)
+                    
+                    # Clean up cell type names to standard format
+                    clean_label = clean_label.strip()
+                    
+                    # Standardize common brain cell type names
+                    cell_type_mapping = {
+                        'Oligo': 'Oligodendrocyte',
+                        'OPC': 'OPC',
+                        'Micro': 'Microglia',
+                        'Astro': 'Astrocyte',
+                        'Neuron': 'Neuron',
+                        'Endo': 'Endothelial',
+                        'Pericyte': 'Pericyte'
+                    }
+                    
+                    # Apply standardization
+                    for short_name, full_name in cell_type_mapping.items():
+                        if clean_label.startswith(short_name):
+                            clean_label = full_name
+                            break
+                    
+                    cleaned_labels.append(clean_label)
+                
+                # Replace original predictions with cleaned ones
+                predicted_labels = pd.Series(cleaned_labels)
+                
+                # Show before/after cleaning example
+                original_unique = predictions.predicted_labels['predicted_labels'].unique()
+                cleaned_unique = predicted_labels.unique()
+                print(f"   📋 Cleaned predictions:")
+                print(f"   Before: {original_unique[:3]}...")
+                print(f"   After:  {cleaned_unique[:3]}...")
+                
                 # Check for corrupted predictions (repeated strings, invalid characters)
                 unique_predictions = predicted_labels.unique()
                 corrupted_predictions = []
                 for pred in unique_predictions:
                     if (len(str(pred)) > 50 or  # Abnormally long cell type names
-                        str(pred).count('OG') > 3 or  # Repeated patterns like in your output
+                        str(pred).count('OG') > 3 or  # Repeated patterns
                         str(pred).count('OPALIN') > 1 or
                         any(char * 3 in str(pred) for char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')):  # Triple repeated characters
                         corrupted_predictions.append(pred)
@@ -469,6 +523,85 @@ def main_annotation():
                 # Extract predictions back to original adata with error handling
                 adata.obs['celltypist_prediction'] = predicted_labels
                 
+                # Handle confidence scores - different CellTypist versions may use different column names
+                if 'conf_score' in predictions.predicted_labels.columns:
+                    confidence_scores = predictions.predicted_labels['conf_score']
+                elif 'confidence' in predictions.predicted_labels.columns:
+                    confidence_scores = predictions.predicted_labels['confidence']
+                elif 'max_prob' in predictions.predicted_labels.columns:
+                    confidence_scores = predictions.predicted_labels['max_prob']
+                else:
+                    # Calculate confidence from probability columns if available
+                    prob_cols = [col for col in predictions.predicted_labels.columns if col not in ['predicted_labels']]
+                    if prob_cols:
+                        prob_matrix = predictions.predicted_labels[prob_cols].values
+                        confidence_scores = pd.Series(np.max(prob_matrix, axis=1))
+                        print(f"   📊 Calculated confidence from {len(prob_cols)} probability columns")
+                    else:
+                        # Fallback: assign medium confidence
+                        confidence_scores = pd.Series([0.5] * len(predicted_labels))
+                        print("   ⚠️  No confidence scores found - using default 0.5")
+                
+                # Robust confidence score validation and cleaning
+                print("   🔧 Cleaning and validating confidence scores...")
+                try:
+                    # Convert to pandas Series if not already
+                    if not isinstance(confidence_scores, pd.Series):
+                        confidence_scores = pd.Series(confidence_scores)
+                    
+                    # Convert to numeric, forcing errors to NaN
+                    confidence_scores = pd.to_numeric(confidence_scores, errors='coerce')
+                    
+                    # Fill NaN values with 0.5 (medium confidence)
+                    confidence_scores = confidence_scores.fillna(0.5)
+                    
+                    # Clip values to valid range [0, 1]
+                    confidence_scores = confidence_scores.clip(0, 1)
+                    
+                    # Final validation - ensure all values are numeric
+                    if not confidence_scores.dtype.kind in 'biufc':  # numeric types
+                        print("   ⚠️  Non-numeric confidence scores detected - using default")
+                        confidence_scores = pd.Series([0.5] * len(predicted_labels))
+                    
+                    print(f"   ✅ Confidence scores cleaned: range [{confidence_scores.min():.3f}, {confidence_scores.max():.3f}]")
+                    
+                except Exception as conf_error:
+                    print(f"   ⚠️  Error processing confidence scores: {conf_error}")
+                    confidence_scores = pd.Series([0.5] * len(predicted_labels))
+                    print("   Using default confidence scores of 0.5")
+                
+                adata.obs['celltypist_confidence'] = confidence_scores
+                adata.obs['celltypist_model_used'] = selected_model  # Track which model was used
+                
+                print("✅ CellTypist predictions completed and validated")
+                celltypist_success = True
+                
+                # Summary of CellTypist results with validation
+                ct_counts = adata.obs['celltypist_prediction'].value_counts()
+                print("📊 CellTypist predictions (validated):")
+                
+                # Check if we have reasonable predictions
+                if len(ct_counts) < 2:
+                    print("   ⚠️  Too few cell types predicted - may indicate issues")
+                    celltypist_success = False
+                elif 'Unknown_CellType' in ct_counts.index and ct_counts['Unknown_CellType'] > len(adata.obs) * 0.5:
+                    print("   ⚠️  Too many unknown predictions - may indicate issues")
+                    celltypist_success = False
+                else:
+                    for cell_type, count in ct_counts.head(10).items():
+                        pct = count / len(adata.obs) * 100
+                        try:
+                            # Safe confidence calculation
+                            mask = adata.obs['celltypist_prediction'] == cell_type
+                            if mask.sum() > 0:
+                                avg_conf = adata.obs.loc[mask, 'celltypist_confidence'].mean()
+                                print(f"   • {cell_type}: {count:,} cells ({pct:.1f}%) - avg conf: {avg_conf:.3f}")
+                            else:
+                                print(f"   • {cell_type}: {count:,} cells ({pct:.1f}%) - conf: N/A")
+                        except Exception as summary_error:
+                            print(f"   • {cell_type}: {count:,} cells ({pct:.1f}%) - conf: Error")
+                
+                # Validate brain relevance
                 brain_types = ct_counts.index.tolist()
                 brain_keywords = ['neuron', 'astro', 'oligo', 'microglia', 'brain', 'neural', 'glia', 'cortical', 'pyramidal', 'interneuron']
                 brain_relevant = any(keyword in ' '.join(brain_types).lower() for keyword in brain_keywords)

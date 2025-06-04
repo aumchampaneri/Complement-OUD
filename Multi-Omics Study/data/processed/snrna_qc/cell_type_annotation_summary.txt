@@ -1,10 +1,12 @@
 GSE225158 Cell Type Annotation Summary (Pearson Residuals)
 ============================================================
-Date: 2025-06-03 21:09:14.645748
+Date: 2025-06-03 21:21:09.615424
 Data source: Pearson residuals normalization
 
 ANNOTATION METHODS USED:
 • Marker-based signature scoring
+• CellTypist reference mapping
+• Consensus prediction combining both methods
 • Cluster-based refinement
 • Statistical validation with cluster markers
 
