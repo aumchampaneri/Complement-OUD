@@ -1,3 +1,3 @@
-Region,scds.hybrid
-Caudate,43896
-Putamen,32046
+Region,Oligodendrocytes,Uncertain_Astrocytes,Uncertain_D1_MSN,Uncertain_Endothelial,Uncertain_Microglia,Uncertain_OPCs,Uncertain_Oligodendrocytes,Uncertain_PV_Interneurons,Uncertain_Patch_MSN,scds.hybrid
+Caudate,5643,3443,68,274,2082,2993,17945,7103,868,3477
+Putamen,2681,1834,67,140,2310,1894,15877,5943,516,784

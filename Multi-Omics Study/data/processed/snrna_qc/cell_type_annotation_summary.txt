@@ -1,16 +1,61 @@
 GSE225158 Cell Type Annotation Summary (Pearson Residuals)
 ============================================================
-Date: 2025-06-03 20:17:46.228582
+Date: 2025-06-03 21:09:14.645748
 Data source: Pearson residuals normalization
 
 ANNOTATION METHODS USED:
 • Marker-based signature scoring
 • Cluster-based refinement
+• Statistical validation with cluster markers
 
 FINAL CELL TYPE COUNTS:
-• scds.hybrid: 75,942 cells (100.0%)
+• Uncertain_Oligodendrocytes: 33,822 cells (44.5%)
+• Uncertain_PV_Interneurons: 13,046 cells (17.2%)
+• Oligodendrocytes: 8,324 cells (11.0%)
+• Uncertain_Astrocytes: 5,277 cells (6.9%)
+• Uncertain_OPCs: 4,887 cells (6.4%)
+• Uncertain_Microglia: 4,392 cells (5.8%)
+• scds.hybrid: 4,261 cells (5.6%)
+• Uncertain_Patch_MSN: 1,384 cells (1.8%)
+• Uncertain_Endothelial: 414 cells (0.5%)
+• Uncertain_D1_MSN: 135 cells (0.2%)
 
 TOTAL CELLS: 75,942
-CELL TYPES: 1
+CELL TYPES: 10
 
 MARKER GENES USED:
+• D1_MSN: DRD1, TAC1, PDYN, PPP1R1B, FOXP1, RGS9, CALB1
+• D2_MSN: DRD2, PENK, ADORA2A, PPP1R1B, FOXP2, GPR6, EPHA4
+• Cholinergic_Interneurons: CHAT, SLC5A7, ISL1, LHX8, TNFAIP8L3
+• PV_Interneurons: PVALB, TAC1, ERBB4, LHX6, GAD1
+• SST_Interneurons: SST, NPY, RELN, NOS1, CHODL
+• Calretinin_Interneurons: CALB2, VIP, LAMP5, NDNF, NTNG1
+• GABA_Interneurons: GAD1, GAD2, SLC32A1, LHX6, LAMP5
+• Cortical_Inputs: SLC17A7, CAMK2A, SATB2
+• Astrocytes: GFAP, AQP4, S100B, ALDH1L1, SLC1A2, CLU, GJA1
+• Oligodendrocytes: PLP1, MOG, MBP, CNP, MAG, OPALIN
+• OPCs: PDGFRA, CSPG4, OLIG1, OLIG2, SOX10, GPR17, TNR
+• Microglia: CX3CR1, TMEM119, P2RY12, AIF1, TREM2, SALL1, CSF1R
+• Endothelial: CLDN5, FLT1, VWF, PECAM1, CDH5, TIE1
+• Pericytes: PDGFRB, RGS5, ACTA2, MCAM, NOTCH3, ABCC9
+• VLMC: COL1A2, LUM, DCN, EMCN, MRC1
+• Ependymal: FOXJ1, RSPH1, PIFO, CCDC153
+• Tanycytes: RAX, FXYD1, DIO2, LHX1
+• Patch_MSN: OPRM1, PDYN
+• Matrix_MSN: CALB1, TAC1
+
+CLUSTER VALIDATION:
+• Cluster 0: Uncertain_Oligodendrocytes (16529 cells)
+• Cluster 1: Uncertain_PV_Interneurons (12320 cells)
+• Cluster 10: Uncertain_Astrocytes (1069 cells)
+• Cluster 11: Uncertain_PV_Interneurons (726 cells)
+• Cluster 12: Uncertain_Endothelial (414 cells)
+• Cluster 13: Uncertain_D1_MSN (135 cells)
+• Cluster 2: Uncertain_Oligodendrocytes (9382 cells)
+• Cluster 3: Oligodendrocytes (8324 cells)
+• Cluster 4: Uncertain_Oligodendrocytes (7911 cells)
+• Cluster 5: Uncertain_OPCs (4887 cells)
+• Cluster 6: Uncertain_Microglia (4392 cells)
+• Cluster 7: scds.hybrid (4261 cells)
+• Cluster 8: Uncertain_Astrocytes (4208 cells)
+• Cluster 9: Uncertain_Patch_MSN (1384 cells)

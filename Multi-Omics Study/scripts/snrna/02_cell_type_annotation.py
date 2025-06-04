@@ -36,16 +36,29 @@ ANNOTATION_SUMMARY = f"{PROCESSED_DATA_DIR_QC}/cell_type_annotation_summary.txt"
 import scanpy as sc
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to prevent plot display
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
 import os
+
+# Optional CellTypist for reference mapping
+try:
+    import celltypist
+    CELLTYPIST_AVAILABLE = True
+    print("✅ CellTypist available for reference mapping")
+except ImportError:
+    CELLTYPIST_AVAILABLE = False
+    print("⚠️  CellTypist not available - using marker-based only")
 
 warnings.filterwarnings('ignore')
 
 # Set scanpy settings
 sc.settings.verbosity = 3
 sc.settings.set_figure_params(dpi=300, facecolor='white')
+# Ensure scanpy doesn't show plots
+sc.settings.autoshow = False
 
 def main_annotation():
     """Cell type annotation pipeline for Pearson residuals data"""
@@ -224,6 +237,10 @@ def main_annotation():
     print("\n🔍 STEP 4: ANNOTATION REFINEMENT")
     print("=" * 70)
     
+    # STATISTICAL VALIDATION: Find cluster marker genes
+    print("🔬 Computing cluster-specific marker genes for validation...")
+    sc.tl.rank_genes_groups(adata, 'leiden', method='wilcoxon', use_raw=False)
+    
     # ENHANCED REFINEMENT WITH MARKER EXPRESSION VALIDATION
     print("🔧 Refining annotations using cluster information and marker validation...")
     
@@ -242,13 +259,35 @@ def main_annotation():
             cluster_cells = adata[cluster_mask]
             marker_genes = signature_scores[most_common]
             
-            # Check if cluster expresses the markers
-            marker_expression = cluster_cells[:, marker_genes].X.mean(axis=0)
-            mean_marker_expr = np.mean(marker_expression)
+            # MEMORY-OPTIMIZED: Check if cluster expresses the markers
+            # Use sparse-safe operations instead of .toarray()
+            from scipy import sparse
+            if sparse.issparse(cluster_cells[:, marker_genes].X):
+                # For sparse matrices, use .A (equivalent to .toarray() but more memory efficient)
+                marker_expression = cluster_cells[:, marker_genes].X.mean(axis=0).A1
+                mean_marker_expr = np.mean(marker_expression)
+                
+                # Calculate background expression more efficiently
+                if sparse.issparse(adata.X):
+                    background_threshold = np.percentile(adata.X.data, 25)  # Only use non-zero values
+                else:
+                    background_threshold = np.percentile(adata.X, 25)
+            else:
+                # For dense matrices
+                marker_expression = cluster_cells[:, marker_genes].X.mean(axis=0)
+                mean_marker_expr = np.mean(marker_expression)
+                background_threshold = np.percentile(adata.X, 25)
             
-            # If low marker expression, mark as uncertain
-            if mean_marker_expr < np.percentile(adata.X.toarray(), 25):
+            # STATISTICAL VALIDATION: Check if cluster markers support prediction
+            cluster_markers = adata.uns['rank_genes_groups']['names'][str(cluster)][:10]  # Top 10 markers
+            marker_overlap = len(set(marker_genes) & set(cluster_markers))
+            
+            print(f"     Cluster {cluster} -> {most_common}: marker overlap {marker_overlap}/{len(marker_genes)}")
+            
+            # If low marker expression OR low statistical support, mark as uncertain
+            if mean_marker_expr < background_threshold or marker_overlap < max(1, len(marker_genes) * 0.3):
                 most_common = f"Uncertain_{most_common}"
+                print(f"     ⚠️  Low confidence: expr={mean_marker_expr:.3f}, overlap={marker_overlap}")
         
         cluster_annotations[cluster] = most_common
         
@@ -282,47 +321,422 @@ def main_annotation():
         print(f"   • {cell_type}: {count:,} cells ({pct:.1f}%)")
     
     # =======================================
-    # 📊 STEP 5: VISUALIZATION
+    # 🎯 STEP 2.5: OPTIONAL CELLTYPIST REFERENCE MAPPING
+    # =======================================
+    if CELLTYPIST_AVAILABLE:
+        print("\n🎯 STEP 2.5: CELLTYPIST REFERENCE MAPPING")
+        print("=" * 70)
+        
+        celltypist_success = False  # Track if CellTypist works
+        
+        try:
+            print("🔍 Loading CellTypist models...")
+            models = celltypist.models.get_all_models()
+            print(f"   Available models: {len(models)}")
+            
+            # Prioritized models for human striatum (adult brain tissue)
+            preferred_models = [
+                'Adult_Human_PrefrontalCortex.pkl',    # Best - adult human brain cortex (113 types)
+                'Adult_Human_MTG.pkl',                 # Excellent - adult human middle temporal gyrus (127 types)
+                'Human_AdultAged_Hippocampus.pkl',     # Good - adult human hippocampus (15 types)
+                'Human_Longitudinal_Hippocampus.pkl',  # Good - adult human hippocampus (24 types)
+                'Developing_Human_Brain.pkl',          # Developmental but human brain (129 types)
+                'Adult_CynomolgusMacaque_Hippocampus.pkl', # Non-human primate brain (34 types)
+                'Mouse_Isocortex_Hippocampus.pkl',     # Mouse brain but relevant (42 types)
+                'Mouse_Whole_Brain.pkl',               # Comprehensive mouse brain (334 types)
+                'Pan_Fetal_Human.pkl',                 # General human fetal (138 types)
+                'Immune_All_Low.pkl'                   # Fallback general immune (98 types)
+            ]
+            
+            selected_model = None
+            for model in preferred_models:
+                if model in models:
+                    selected_model = model
+                    print(f"   🧠 Selected optimal brain model: {selected_model}")
+                    
+                    # Provide context about the selected model
+                    model_info = {
+                        'Adult_Human_PrefrontalCortex.pkl': "Adult human prefrontal cortex - ideal for cortical inputs to striatum",
+                        'Adult_Human_MTG.pkl': "Adult human middle temporal gyrus - excellent cortical reference",
+                        'Human_AdultAged_Hippocampus.pkl': "Adult human hippocampus - good for limbic connections",
+                        'Human_Longitudinal_Hippocampus.pkl': "Adult human hippocampus - longitudinal study",
+                        'Developing_Human_Brain.pkl': "Developing human brain - comprehensive but developmental",
+                        'Adult_CynomolgusMacaque_Hippocampus.pkl': "Non-human primate brain - close evolutionary match",
+                        'Mouse_Isocortex_Hippocampus.pkl': "Mouse brain - well-characterized reference",
+                        'Mouse_Whole_Brain.pkl': "Comprehensive mouse brain atlas",
+                        'Pan_Fetal_Human.pkl': "General human fetal tissue reference",
+                        'Immune_All_Low.pkl': "General immune cell reference"
+                    }
+                    
+                    print(f"      📋 {model_info.get(selected_model, 'Brain-relevant model')}")
+                    break
+            
+            if not selected_model:
+                print("   ⚠️  No preferred brain models found. Available models:")
+                for i, model in enumerate(models[:15]):
+                    print(f"      {i}: {model}")
+                selected_model = models[0] if models else None
+                print(f"   Using first available model: {selected_model}")
+            
+            if selected_model:
+                # PREPARE DATA FOR CELLTYPIST
+                print("🔧 Preparing data for CellTypist...")
+                
+                # CellTypist expects log1p normalized data to 10,000 counts per cell
+                # Our Pearson residuals data needs to be converted
+                
+                # Create a copy for CellTypist with proper normalization
+                adata_ct = adata.copy()
+                
+                # Check if we have raw counts available
+                if adata_ct.raw is not None:
+                    print("   Using raw counts for CellTypist normalization")
+                    # Use raw counts and normalize
+                    adata_ct.X = adata_ct.raw.X.copy()
+                    sc.pp.normalize_total(adata_ct, target_sum=1e4)
+                    sc.pp.log1p(adata_ct)
+                else:
+                    print("   ⚠️  No raw counts available - converting Pearson residuals")
+                    # Convert Pearson residuals to pseudo-normalized data
+                    # This is a workaround since we don't have raw counts
+                    
+                    # Shift and scale Pearson residuals to positive range
+                    from scipy import sparse
+                    if sparse.issparse(adata_ct.X):
+                        X_min = adata_ct.X.data.min() if adata_ct.X.data.size > 0 else 0
+                    else:
+                        X_min = adata_ct.X.min()
+                    
+                    # Shift to make all values positive
+                    if X_min < 0:
+                        adata_ct.X = adata_ct.X - X_min
+                    
+                    # Scale to reasonable range (simulate normalized counts)
+                    if sparse.issparse(adata_ct.X):
+                        scale_factor = 10.0 / (adata_ct.X.data.max() if adata_ct.X.data.size > 0 else 1.0)
+                    else:
+                        scale_factor = 10.0 / adata_ct.X.max()
+                    
+                    adata_ct.X = adata_ct.X * scale_factor
+                    
+                    # Apply log1p
+                    sc.pp.log1p(adata_ct)
+                
+                print("   ✅ Data prepared for CellTypist")
+                
+                # Run CellTypist prediction
+                print("🔬 Running CellTypist annotation...")
+                predictions = celltypist.annotate(
+                    adata_ct, 
+                    model=selected_model, 
+                    majority_voting=True,  # Use majority voting for robustness
+                    over_clustering='leiden'  # Use existing leiden clusters
+                )
+                
+                # Validate CellTypist predictions before using them
+                print("🔍 Validating CellTypist predictions...")
+                predicted_labels = predictions.predicted_labels['predicted_labels']
+                
+                # Check for corrupted predictions (repeated strings, invalid characters)
+                unique_predictions = predicted_labels.unique()
+                corrupted_predictions = []
+                for pred in unique_predictions:
+                    if (len(str(pred)) > 50 or  # Abnormally long cell type names
+                        str(pred).count('OG') > 3 or  # Repeated patterns like in your output
+                        str(pred).count('OPALIN') > 1 or
+                        any(char * 3 in str(pred) for char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')):  # Triple repeated characters
+                        corrupted_predictions.append(pred)
+                
+                if corrupted_predictions:
+                    print(f"⚠️  Detected corrupted CellTypist predictions: {len(corrupted_predictions)} types")
+                    print(f"   Examples: {corrupted_predictions[:3]}")
+                    print("   This may be due to memory issues or model corruption")
+                    
+                    # Try to clean predictions or skip CellTypist
+                    valid_predictions = [pred for pred in unique_predictions if pred not in corrupted_predictions]
+                    
+                    if len(valid_predictions) < 3:  # Too few valid predictions
+                        print("   ❌ Too few valid predictions - skipping CellTypist")
+                        raise Exception("Corrupted CellTypist predictions detected")
+                    else:
+                        print(f"   🔧 Using only valid predictions: {len(valid_predictions)} types")
+                        # Replace corrupted predictions with 'Unknown'
+                        cleaned_predictions = predicted_labels.copy()
+                        for corrupt_pred in corrupted_predictions:
+                            cleaned_predictions = cleaned_predictions.replace(corrupt_pred, 'Unknown_CellType')
+                        predicted_labels = cleaned_predictions
+                
+                # Extract predictions back to original adata with error handling
+                adata.obs['celltypist_prediction'] = predicted_labels
+                
+                brain_types = ct_counts.index.tolist()
+                brain_keywords = ['neuron', 'astro', 'oligo', 'microglia', 'brain', 'neural', 'glia', 'cortical', 'pyramidal', 'interneuron']
+                brain_relevant = any(keyword in ' '.join(brain_types).lower() for keyword in brain_keywords)
+                
+                if brain_relevant:
+                    print("   ✅ Model appears highly brain-relevant based on predicted cell types")
+                else:
+                    print("   ⚠️  Model may not be optimal for brain tissue")
+                    print(f"   📋 Top predictions: {', '.join(ct_counts.head(5).index.tolist())}")
+            else:
+                raise Exception("No CellTypist models available")
+                
+        except Exception as e:
+            print(f"⚠️  CellTypist failed: {e}")
+            print("   Continuing with marker-based annotation only...")
+            celltypist_success = False
+
+    # =======================================
+    # 🔀 STEP 3.5: CONSENSUS ANNOTATION (IF CELLTYPIST AVAILABLE)
+    # =======================================
+    if CELLTYPIST_AVAILABLE and celltypist_success and 'celltypist_prediction' in adata.obs.columns:
+        print("\n🔀 STEP 3.5: CREATING CONSENSUS ANNOTATIONS")
+        print("=" * 70)
+        
+        # Enhanced mapping for brain tissue
+        celltypist_to_marker_mapping = {
+            # Neurons - more specific for brain
+            'Neuron': ['D1_MSN', 'D2_MSN', 'Cortical_Inputs'],
+            'GABAergic neuron': ['D1_MSN', 'D2_MSN', 'PV_Interneurons', 'SST_Interneurons', 'GABA_Interneurons'],
+            'Glutamatergic neuron': ['Cortical_Inputs'],
+            'Inhibitory neuron': ['PV_Interneurons', 'SST_Interneurons', 'GABA_Interneurons'],
+            'Excitatory neuron': ['Cortical_Inputs'],
+            'Projection neuron': ['D1_MSN', 'D2_MSN'],
+            'Interneuron': ['PV_Interneurons', 'SST_Interneurons', 'Cholinergic_Interneurons'],
+            
+            # Glia - brain specific
+            'Astrocyte': ['Astrocytes'],
+            'Oligodendrocyte': ['Oligodendrocytes'], 
+            'OPC': ['OPCs'],
+            'Oligodendrocyte precursor cell': ['OPCs'],
+            'Microglia': ['Microglia'],
+            'Microglial cell': ['Microglia'],
+            
+            # Vascular - brain specific
+            'Endothelial cell': ['Endothelial'],
+            'Brain endothelial cell': ['Endothelial'],
+            'Pericyte': ['Pericytes'],
+            'Vascular smooth muscle cell': ['Pericytes'],
+            'VLMC': ['VLMC'],
+            
+            # Rare brain cells
+            'Ependymal cell': ['Ependymal'],
+            'Choroidal epithelial cell': ['Ependymal'],
+            'Tanycyte': ['Tanycytes'],
+            
+            # General fallbacks
+            'Neural cell': ['D1_MSN', 'D2_MSN', 'Cortical_Inputs'],
+            'Brain cell': ['D1_MSN', 'D2_MSN', 'Astrocytes'],
+        }
+        
+        print("🔀 Computing consensus between marker-based and CellTypist predictions...")
+        consensus_predictions = []
+        consensus_confidence = []
+        
+        for i in range(len(adata.obs)):
+            marker_pred = adata.obs.iloc[i]['predicted_cell_type']
+            marker_conf = adata.obs.iloc[i]['prediction_confidence']
+            ct_pred = adata.obs.iloc[i]['celltypist_prediction']
+            ct_conf = adata.obs.iloc[i]['celltypist_confidence']
+            
+            # Check if predictions are compatible
+            compatible_markers = celltypist_to_marker_mapping.get(ct_pred, [])
+            is_compatible = marker_pred in compatible_markers
+            
+            # Consensus logic
+            if is_compatible and ct_conf > 0.7 and marker_conf > 0.3:
+                # High confidence agreement
+                consensus_predictions.append(marker_pred)  # Use more specific marker prediction
+                consensus_confidence.append(max(marker_conf, ct_conf))
+            elif ct_conf > 0.8 and marker_conf < 0.3:
+                # High confidence CellTypist, low confidence marker
+                # Map to best compatible marker type
+                if compatible_markers:
+                    consensus_predictions.append(compatible_markers[0])
+                else:
+                    consensus_predictions.append(f"CT_{ct_pred}")
+                consensus_confidence.append(ct_conf * 0.9)
+            elif marker_conf > 0.5:
+                # Higher confidence marker prediction
+                consensus_predictions.append(marker_pred)
+                consensus_confidence.append(marker_conf * 0.8)
+            else:
+                # Low confidence both - mark as uncertain
+                consensus_predictions.append(f"Uncertain_{marker_pred}")
+                consensus_confidence.append(min(marker_conf, ct_conf))
+        
+        # Update predictions with consensus
+        adata.obs['consensus_prediction'] = consensus_predictions
+        adata.obs['consensus_confidence'] = consensus_confidence
+        adata.obs['predicted_cell_type'] = consensus_predictions  # Use consensus as main prediction
+        adata.obs['prediction_confidence'] = consensus_confidence
+        
+        print("✅ Consensus predictions created")
+
+    # =======================================
+    # 📊 STEP 5: ENHANCED VISUALIZATION
     # =======================================
     print("\n📊 STEP 5: GENERATING VISUALIZATIONS")
     print("=" * 70)
     
     os.makedirs(PLOTS_DIR, exist_ok=True)
     
-    # Main annotation plot (simplified for marker-based only)
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    
-    # Refined cell types
-    sc.pl.umap(adata, color='refined_cell_type', ax=axes[0,0], show=False, 
-               legend_loc='right margin', legend_fontsize=8, size=3)
-    axes[0,0].set_title('Final Cell Type Annotations', fontsize=16)
-    
-    # Clusters
-    sc.pl.umap(adata, color='leiden', ax=axes[0,1], show=False, 
-               legend_loc='on data', legend_fontsize=10, size=3)
-    axes[0,1].set_title('Leiden Clusters', fontsize=16)
-    
-    # Prediction confidence
-    sc.pl.umap(adata, color='final_confidence', ax=axes[1,0], show=False, size=3)
-    axes[1,0].set_title('Annotation Confidence', fontsize=16)
-    
-    # Compare with original if available
-    if 'celltype1' in adata.obs.columns:
-        sc.pl.umap(adata, color='celltype1', ax=axes[1,1], show=False, 
+    # Enhanced visualization comparing all annotation methods
+    if CELLTYPIST_AVAILABLE and celltypist_success and 'celltypist_prediction' in adata.obs.columns:
+        # Create comprehensive 3x2 layout for all methods
+        fig, axes = plt.subplots(3, 2, figsize=(20, 24))
+        
+        # ROW 1: Original vs Final annotations
+        if 'celltype1' in adata.obs.columns:
+            sc.pl.umap(adata, color='celltype1', ax=axes[0,0], show=False, 
+                       legend_loc='right margin', legend_fontsize=8, size=3)
+            axes[0,0].set_title('Original Paper Annotations', fontsize=16, weight='bold')
+        else:
+            sc.pl.umap(adata, color='leiden', ax=axes[0,0], show=False, 
+                       legend_loc='on data', legend_fontsize=8, size=3)
+            axes[0,0].set_title('Leiden Clusters (No Original Annotations)', fontsize=16, weight='bold')
+        
+        sc.pl.umap(adata, color='refined_cell_type', ax=axes[0,1], show=False, 
+                   legend_loc='right margin', legend_fontsize=8, size=3)
+        axes[0,1].set_title('Final Refined Annotations', fontsize=16, weight='bold')
+        
+        # ROW 2: Marker-based vs CellTypist
+        sc.pl.umap(adata, color='predicted_cell_type', ax=axes[1,0], show=False, 
+                   legend_loc='right margin', legend_fontsize=8, size=3)
+        axes[1,0].set_title('Marker-Based Predictions', fontsize=16, weight='bold')
+        
+        sc.pl.umap(adata, color='celltypist_prediction', ax=axes[1,1], show=False, 
+                   legend_loc='right margin', legend_fontsize=8, size=3)
+        axes[1,1].set_title('CellTypist Predictions\n(Adult Human Prefrontal Cortex)', fontsize=16, weight='bold')
+        
+        # ROW 3: Confidence scores and additional info
+        sc.pl.umap(adata, color='final_confidence', ax=axes[2,0], show=False, size=3,
+                   color_map='viridis')
+        axes[2,0].set_title('Final Annotation Confidence', fontsize=16, weight='bold')
+        
+        sc.pl.umap(adata, color='celltypist_confidence', ax=axes[2,1], show=False, size=3,
+                   color_map='plasma')
+        axes[2,1].set_title('CellTypist Confidence Scores', fontsize=16, weight='bold')
+        
+        plt.suptitle('Comprehensive Cell Type Annotation Comparison\n(Marker-Based + CellTypist)', 
+                     fontsize=20, weight='bold', y=0.98)
+        plt.tight_layout()
+        plt.savefig(f"{PLOTS_DIR}/comprehensive_annotation_comparison.png", dpi=300, bbox_inches='tight')
+        plt.close()  # Explicitly close to prevent display
+        
+        # Create focused comparison plot (2x2)
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        
+        # Original vs marker-based vs CellTypist vs final
+        if 'celltype1' in adata.obs.columns:
+            sc.pl.umap(adata, color='celltype1', ax=axes[0,0], show=False, 
+                       legend_loc='right margin', legend_fontsize=6, size=3)
+            axes[0,0].set_title('Original Annotations', fontsize=14)
+        else:
+            sc.pl.umap(adata, color='leiden', ax=axes[0,0], show=False, 
+                       legend_loc='on data', legend_fontsize=8, size=3)
+            axes[0,0].set_title('Leiden Clusters', fontsize=14)
+        
+        sc.pl.umap(adata, color='predicted_cell_type', ax=axes[0,1], show=False, 
                    legend_loc='right margin', legend_fontsize=6, size=3)
-        axes[1,1].set_title('Original Annotations', fontsize=16)
-    elif 'Dx_OUD' in adata.obs.columns:
-        sc.pl.umap(adata, color='Dx_OUD', ax=axes[1,1], show=False, size=3)
-        axes[1,1].set_title('OUD Diagnosis', fontsize=16)
+        axes[0,1].set_title('Marker-Based Predictions', fontsize=14)
+        
+        sc.pl.umap(adata, color='celltypist_prediction', ax=axes[1,0], show=False, 
+                   legend_loc='right margin', legend_fontsize=6, size=3)
+        axes[1,0].set_title('CellTypist Predictions', fontsize=14)
+        
+        sc.pl.umap(adata, color='refined_cell_type', ax=axes[1,1], show=False, 
+                   legend_loc='right margin', legend_fontsize=6, size=3)
+        axes[1,1].set_title('Final Refined Annotations', fontsize=14)
+        
+        plt.suptitle('Cell Type Annotation Methods Comparison', fontsize=16, y=0.98)
+        
+    else:
+        # Fallback visualization without CellTypist (2x2 layout)
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+        
+        # Original annotations
+        if 'celltype1' in adata.obs.columns:
+            sc.pl.umap(adata, color='celltype1', ax=axes[0,0], show=False, 
+                       legend_loc='right margin', legend_fontsize=8, size=3)
+            axes[0,0].set_title('Original Paper Annotations', fontsize=16, weight='bold')
+        else:
+            sc.pl.umap(adata, color='leiden', ax=axes[0,0], show=False, 
+                       legend_loc='on data', legend_fontsize=10, size=3)
+            axes[0,0].set_title('Leiden Clusters', fontsize=16, weight='bold')
+        
+        # Marker-based predictions
+        sc.pl.umap(adata, color='predicted_cell_type', ax=axes[0,1], show=False, 
+                   legend_loc='right margin', legend_fontsize=8, size=3)
+        axes[0,1].set_title('Marker-Based Predictions', fontsize=16, weight='bold')
+        
+        # Final refined annotations
+        sc.pl.umap(adata, color='refined_cell_type', ax=axes[1,0], show=False, 
+                   legend_loc='right margin', legend_fontsize=8, size=3)
+        axes[1,0].set_title('Final Refined Annotations', fontsize=16, weight='bold')
+        
+        # Confidence scores
+        sc.pl.umap(adata, color='final_confidence', ax=axes[1,1], show=False, size=3,
+                   color_map='viridis')
+        axes[1,1].set_title('Annotation Confidence', fontsize=16, weight='bold')
+        
+        plt.suptitle('Cell Type Annotation Results (Marker-Based Only)', 
+                     fontsize=18, weight='bold', y=0.98)
     
-    plt.suptitle('Cell Type Annotation Results (Pearson Residuals)', fontsize=20, y=0.98)
     plt.tight_layout()
     plt.savefig(f"{PLOTS_DIR}/cell_type_annotation_pearson.png", dpi=300, bbox_inches='tight')
-    plt.close()
+    plt.close()  # Explicitly close to prevent display
 
-    print(f"✅ Annotation plots saved to: {PLOTS_DIR}/")
+    # Create individual method plots for detailed inspection
+    if CELLTYPIST_AVAILABLE and celltypist_success and 'celltypist_prediction' in adata.obs.columns:
+        print("📊 Creating individual annotation method plots...")
+        
+        # Individual plot for marker-based
+        plt.figure(figsize=(10, 8))
+        sc.pl.umap(adata, color='predicted_cell_type', show=False, 
+                   legend_loc='right margin', legend_fontsize=10, size=5)
+        plt.title('Marker-Based Cell Type Predictions\n(Striatum-Specific Gene Signatures)', 
+                  fontsize=16, weight='bold', pad=20)
+        plt.savefig(f"{PLOTS_DIR}/marker_based_annotations.png", dpi=300, bbox_inches='tight')
+        plt.close()  # Explicitly close to prevent display
+        
+        # Individual plot for CellTypist
+        plt.figure(figsize=(10, 8))
+        sc.pl.umap(adata, color='celltypist_prediction', show=False, 
+                   legend_loc='right margin', legend_fontsize=10, size=5)
+        plt.title('CellTypist Reference-Based Predictions\n(Adult Human Prefrontal Cortex Model)', 
+                  fontsize=16, weight='bold', pad=20)
+        plt.savefig(f"{PLOTS_DIR}/celltypist_annotations.png", dpi=300, bbox_inches='tight')
+        plt.close()  # Explicitly close to prevent display
+        
+        # Individual plot for original (if available)
+        if 'celltype1' in adata.obs.columns:
+            plt.figure(figsize=(10, 8))
+            sc.pl.umap(adata, color='celltype1', show=False, 
+                       legend_loc='right margin', legend_fontsize=10, size=5)
+            plt.title('Original Paper Annotations\n(GSE225158 Published Cell Types)', 
+                      fontsize=16, weight='bold', pad=20)
+            plt.savefig(f"{PLOTS_DIR}/original_annotations.png", dpi=300, bbox_inches='tight')
+            plt.close()  # Explicitly close to prevent display
 
-    # Save annotation summary (simplified)
+    # =======================================
+    # 💾 STEP 6: SAVE ANNOTATED DATA
+    # =======================================
+    print("\n💾 STEP 6: SAVING ANNOTATED DATA")
+    print("=" * 70)
+    
+    # Save the final annotated dataset
+    adata.write(OUTPUT_H5AD)
+    print(f"✅ Annotated data saved to: {OUTPUT_H5AD}")
+    
+    # Summary of saved annotations
+    print(f"📊 Saved annotations include:")
+    annotation_columns = [col for col in adata.obs.columns if any(term in col for term in 
+                         ['predicted', 'refined', 'confidence', 'celltypist', 'consensus'])]
+    for col in annotation_columns:
+        print(f"   • {col}")
+
+    # Enhanced summary with CellTypist info
     with open(ANNOTATION_SUMMARY, 'w') as f:
         f.write("GSE225158 Cell Type Annotation Summary (Pearson Residuals)\n")
         f.write("=" * 60 + "\n")
@@ -331,7 +745,11 @@ def main_annotation():
         
         f.write("ANNOTATION METHODS USED:\n")
         f.write("• Marker-based signature scoring\n")
-        f.write("• Cluster-based refinement\n\n")
+        if CELLTYPIST_AVAILABLE and celltypist_success and 'celltypist_prediction' in adata.obs.columns:
+            f.write("• CellTypist reference mapping\n")
+            f.write("• Consensus prediction combining both methods\n")
+        f.write("• Cluster-based refinement\n")
+        f.write("• Statistical validation with cluster markers\n\n")
         
         f.write("FINAL CELL TYPE COUNTS:\n")
         for cell_type, count in final_counts.items():
@@ -344,6 +762,13 @@ def main_annotation():
         f.write("MARKER GENES USED:\n")
         for cell_type, markers in signature_scores.items():
             f.write(f"• {cell_type}: {', '.join(markers)}\n")
+        
+        # Add cluster validation results
+        f.write("\nCLUSTER VALIDATION:\n")
+        for cluster in sorted(adata.obs['leiden'].unique()):
+            cluster_size = (adata.obs['leiden'] == cluster).sum()
+            annotation = cluster_annotations[cluster]
+            f.write(f"• Cluster {cluster}: {annotation} ({cluster_size} cells)\n")
 
     print(f"💾 Summary saved to: {ANNOTATION_SUMMARY}")
     
