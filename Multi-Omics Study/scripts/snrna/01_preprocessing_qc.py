@@ -43,9 +43,10 @@ SUMMARY_PATH = f"{PROCESSED_DATA_DIR}/{SUMMARY_FILE}"
 
 # Import necessary libraries
 import scanpy as sc
-import scanpy.experimental as sce
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to prevent plot display
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import sparse
@@ -56,6 +57,8 @@ warnings.filterwarnings('ignore')
 # Set scanpy settings
 sc.settings.verbosity = 3
 sc.settings.set_figure_params(dpi=300, facecolor='white')
+# Ensure scanpy doesn't show plots automatically
+sc.settings.autoshow = False
 
 def calculate_mad_outliers(values, n_mads=3):
     """Calculate outliers using Median Absolute Deviation (MAD)"""

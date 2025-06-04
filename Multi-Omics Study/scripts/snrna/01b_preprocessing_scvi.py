@@ -34,14 +34,18 @@ import scanpy as sc
 import scvi
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend to prevent plot display
+import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import sparse
 import warnings
 import os
 import torch
 warnings.filterwarnings('ignore')
+
+# Set scanpy to not show plots automatically
+sc.settings.autoshow = False
 
 # =======================================
 # 🚀 M1 MAX OPTIMIZATIONS
