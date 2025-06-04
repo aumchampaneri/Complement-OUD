@@ -287,8 +287,17 @@ def main_scvi():
         gene_likelihood="nb"  # Negative binomial for count data
     )
     
-    # Optimized training parameters for M1 Max
-    print(f"   • Model device: {next(model.module.parameters()).device}")
+    # Force model to MPS device if available
+    if torch.backends.mps.is_available():
+        try:
+            print(f"🔧 Moving model to MPS device...")
+            model.module = model.module.to(device)
+            print(f"   • Model device after move: {next(model.module.parameters()).device}")
+        except Exception as e:
+            print(f"   ⚠️  Could not move to MPS: {e}")
+            print(f"   • Model device: {next(model.module.parameters()).device}")
+    else:
+        print(f"   • Model device: {next(model.module.parameters()).device}")
     
     model.train(
         max_epochs=400,              # More epochs with faster training
@@ -307,9 +316,9 @@ def main_scvi():
             'lr_patience': 8,
             'lr_factor': 0.6
         },
-        # Remove use_gpu parameter - scvi-tools auto-detects MPS
-        accelerator='auto',         # Let scvi-tools auto-detect MPS/GPU/CPU
-        devices='auto'              # Auto-select available devices
+        # Force MPS usage
+        accelerator='mps' if torch.backends.mps.is_available() else 'auto',
+        devices=1 if torch.backends.mps.is_available() else 'auto'
     )
     
     # Create plots directory before saving

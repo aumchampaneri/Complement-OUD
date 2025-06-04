@@ -1,0 +1,16 @@
+GSE225158 Cell Type Annotation Summary (Pearson Residuals)
+============================================================
+Date: 2025-06-03 20:17:46.228582
+Data source: Pearson residuals normalization
+
+ANNOTATION METHODS USED:
+• Marker-based signature scoring
+• Cluster-based refinement
+
+FINAL CELL TYPE COUNTS:
+• scds.hybrid: 75,942 cells (100.0%)
+
+TOTAL CELLS: 75,942
+CELL TYPES: 1
+
+MARKER GENES USED:
