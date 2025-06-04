@@ -1,9 +1,18 @@
 GSE225158 OUD Striatum snRNA-seq scVI Processing Summary
 ============================================================
-Processing date: 2025-06-04 15:11:05.442993
+Processing date: 2025-06-04 19:19:23.654756
 Method: scVI probabilistic modeling
 
 DATASET OVERVIEW:
 • Final cells: 75,942
 • Final genes: 30,527
 • Clusters: 7
+• Batch correction: ID
+
+OUTPUTS:
+• Processed data: GSE225158_reprocessed_scvi.h5ad
+• Marker genes: scvi_marker_genes.csv
+• Plots: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/results/snrna_scvi/qc_plots/
+
+NEXT STEPS:
+• Run 02_cell_type_annotation.py for cell type assignment

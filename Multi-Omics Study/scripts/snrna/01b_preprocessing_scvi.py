@@ -176,6 +176,23 @@ def main_scvi(resume_from_step=None):
         raw_adata = load_checkpoint(CHECKPOINT_QC, "Quality Control")
         if raw_adata is not None:
             print(f"✅ Resumed from QC: {raw_adata.n_obs:,} cells, {raw_adata.n_vars:,} genes")
+            
+            # 🧬 CRITICAL FIX: Ensure gene names are properly set even when resuming
+            print("🔧 Verifying gene names after checkpoint loading...")
+            if 'features' in raw_adata.var.columns:
+                # Check if gene names are numeric (indicating they need fixing)
+                if raw_adata.var_names[0].isdigit():
+                    print("   ⚠️  Gene names are numeric indices, fixing...")
+                    raw_adata.var_names = raw_adata.var['features'].values
+                    raw_adata.var_names_make_unique()  # Ensure unique names
+                    print(f"   ✅ Gene names fixed from features column")
+                    print(f"   📋 Sample gene names: {raw_adata.var_names[:5].tolist()}")
+                else:
+                    print(f"   ✅ Gene names already correct: {raw_adata.var_names[:5].tolist()}")
+            else:
+                print("   ⚠️  Warning: 'features' column not found in var")
+                print(f"   📋 Available var columns: {raw_adata.var.columns.tolist()}")
+            
             goto_step = resume_from_step
         else:
             print("❌ QC checkpoint not found, starting from beginning...")
@@ -200,7 +217,7 @@ def main_scvi(resume_from_step=None):
             if 'features' in raw_adata.var.columns:
                 # Set the gene names as the index
                 raw_adata.var_names = raw_adata.var['features'].values
-                raw_adata.var_names_unique()  # Ensure unique names
+                raw_adata.var_names_make_unique()  # Ensure unique names
                 print(f"✅ Gene names set from features column")
                 print(f"📋 Sample gene names: {raw_adata.var_names[:5].tolist()}")
             else:
@@ -467,10 +484,6 @@ def main_scvi(resume_from_step=None):
             print(f"   ⚠️  Error with full normalized expression: {e}")
             print("   🔧 Skipping normalized expression layer to save memory...")
             # Continue without this layer if memory issues persist
-        
-        # Skip uncertainty calculation to save memory
-        print("🔍 Skipping uncertainty calculation to prevent memory issues...")
-        print("   ⚠️  Gene expression uncertainty calculation disabled for memory optimization")
         
         # Enable uncertainty calculation with 64GB RAM optimizations
         CALCULATE_UNCERTAINTY = True  # Enable for 64GB RAM system
