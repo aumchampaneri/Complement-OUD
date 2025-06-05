@@ -4,6 +4,14 @@ GSE225158 - OUD Striatum snRNA-seq using validated original annotations
 
 Strategy: Use original author annotations (celltype3) as ground truth
 Rationale: Original annotations are well-balanced and biologically validated
+
+OUTPUT RECOMMENDATION:
+Use scVI outputs for downstream analysis because:
+✅ Batch correction - Removes technical batch effects
+✅ Denoising - Reduces technical noise while preserving biological signal  
+✅ Uncertainty quantification - Provides confidence estimates
+✅ Better DE detection - More sensitive differential expression analysis
+✅ Latent space - Clean embedding for visualization and clustering
 '''
 
 # =======================================
@@ -161,11 +169,24 @@ def save_results(adata):
         f.write(f"Total cells: {len(adata):,}\n")
         f.write(f"Cell types: {len(counts)}\n\n")
         
+        f.write("RECOMMENDED FOR DOWNSTREAM ANALYSIS:\n")
+        f.write("Use scVI outputs (this file) because:\n")
+        f.write("• Batch corrected and denoised\n")
+        f.write("• Better for differential expression\n") 
+        f.write("• Includes uncertainty quantification\n")
+        f.write("• Clean latent space representation\n\n")
+        
         f.write("Cell Type Counts:\n")
         f.write("-" * 30 + "\n")
         for cell_type, count in counts.items():
             pct = count / len(adata) * 100
             f.write(f"{cell_type:25s}: {count:6,} ({pct:5.1f}%)\n")
+        
+        # Add data layer information
+        f.write(f"\nDATA LAYERS AVAILABLE:\n")
+        for layer in adata.layers.keys():
+            f.write(f"• {layer}: {adata.layers[layer].shape}\n")
+        f.write(f"• X (main): {adata.X.shape}\n")
     
     print(f"   Summary: {SUMMARY_FILE}")
     
