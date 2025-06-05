@@ -1,8 +1,8 @@
-# edgeR Analysis Pipeline - GSE225158 OUD Study
+# Comprehensive edgeR Analysis Pipeline - GSE225158 OUD Study
 
 ## Overview
 
-This directory contains a comprehensive pipeline for differential expression analysis using edgeR followed by pathway enrichment analysis. The pipeline analyzes single-cell RNA-seq data from GSE225158 (OUD vs Control) with a focus on complement system pathways.
+This directory contains a comprehensive pipeline for differential expression analysis using edgeR followed by **advanced pathway enrichment analysis**. The pipeline analyzes single-cell RNA-seq data from GSE225158 (OUD vs Control) with specialized focus on complement system and neuroinflammation pathways.
 
 ## Pipeline Components
 
@@ -12,11 +12,14 @@ This directory contains a comprehensive pipeline for differential expression ana
 - **Contrasts**: 7 different comparisons including subgroup and interaction analyses
 - **Output**: CSV files with DE results, plots, and statistical summaries
 
-### 2. 🛤️ Pathway Enrichment (`04_pathway_enrichment_edgeR.py`)
-- **Purpose**: Comprehensive pathway enrichment from edgeR results
-- **Methods**: Gene Ontology (GO), KEGG, Reactome pathway analysis
-- **Features**: Complement system focus, visualization, cross-contrast comparison
-- **Output**: Enrichment tables, plots, and biological interpretation
+### 2. 🛤️ **Advanced Pathway Enrichment** (`04_pathway_enrichment_edgeR.py`)
+- **Purpose**: Comprehensive multi-level pathway enrichment analysis
+- **Basic Methods**: Gene Ontology (GO), KEGG, Reactome pathway analysis
+- **Advanced Methods**: GSEA, MSigDB enrichment, leading edge analysis
+- **Specialized Analysis**: Complement system, neuroinflammation pathways
+- **Comparative Analysis**: Pathway crosstalk, functional modules, meta-analysis
+- **Visualizations**: Heatmaps, volcano plots, network maps, UpSet plots
+- **Output**: Organized multi-level results with comprehensive biological insights
 
 ### 3. 🚀 Complete Pipeline (`run_edgeR_pipeline.py`)
 - **Purpose**: Automated execution of the full analysis workflow
@@ -75,12 +78,20 @@ python3 04_pathway_enrichment_edgeR.py
 7. **Pooled_OUD_vs_Control** - Overall OUD vs Control (all samples)
 
 ### Statistical Thresholds
-- **FDR**: < 0.05 (multiple testing correction)
-- **Log Fold Change**: |logFC| > 0.5
-- **Minimum genes per pathway**: 5
+- **Pathway Enrichment**: p < 0.05 (nominal) for pathway inclusion
+- **GSEA**: NES (Normalized Enrichment Score) with p < 0.25
+- **Meta-Analysis**: Fisher's method for combining p-values
+- **Minimum genes per pathway**: 5 (ORA), 15 (GSEA)
 - **Maximum genes per pathway**: 500
 
-### Output Structure
+### Analysis Methods
+- **Over-Representation Analysis (ORA)**: Significant genes vs background
+- **Gene Set Enrichment Analysis (GSEA)**: Ranked gene list analysis
+- **Leading Edge Analysis**: Core genes driving enrichments
+- **Pathway Crosstalk**: Jaccard similarity between pathway gene sets
+- **Functional Modules**: Hierarchical clustering of pathways
+
+### Comprehensive Output Structure
 ```
 results/snrna_scvi/
 ├── differential_expression_edgeR/
@@ -92,45 +103,85 @@ results/snrna_scvi/
 │   ├── pseudobulk_metadata.csv       # Sample metadata
 │   └── plots/                        # Visualization files
 │
-├── pathway_enrichment_edgeR/
-│   ├── GO_BP_*_enrichment.csv        # Gene Ontology Biological Process
-│   ├── GO_MF_*_enrichment.csv        # Gene Ontology Molecular Function
-│   ├── GO_CC_*_enrichment.csv        # Gene Ontology Cellular Component
-│   ├── KEGG_*_enrichment.csv         # KEGG pathway enrichment
-│   ├── Reactome_*_enrichment.csv     # Reactome pathway enrichment
-│   ├── all_pathway_enrichment_results.csv  # Combined enrichment
-│   ├── complement_pathway_enrichment.csv   # Complement-focused results
-│   ├── pathway_enrichment_summary.txt      # Analysis summary
-│   └── plots/                        # Enrichment visualizations
+├── pathway_enrichment_edgeR/         # 🆕 ORGANIZED HIERARCHICAL STRUCTURE
+│   ├── 01_basic_enrichment/          # Basic pathway enrichment
+│   │   ├── GO_BP_*_enrichment.csv    # Gene Ontology Biological Process
+│   │   ├── GO_MF_*_enrichment.csv    # Gene Ontology Molecular Function
+│   │   ├── GO_CC_*_enrichment.csv    # Gene Ontology Cellular Component
+│   │   ├── KEGG_*_enrichment.csv     # KEGG pathway enrichment
+│   │   ├── Reactome_*_enrichment.csv # Reactome pathway enrichment
+│   │   └── all_basic_enrichment_results.csv
+│   │
+│   ├── 02_advanced_analysis/         # 🆕 Advanced enrichment methods
+│   │   ├── gsea_analysis/            # Gene Set Enrichment Analysis
+│   │   │   ├── GSEA_GO_BP_*.csv      # GSEA GO Biological Process
+│   │   │   └── GSEA_KEGG_*.csv       # GSEA KEGG pathways
+│   │   ├── msigdb_enrichment/        # MSigDB pathway collections
+│   │   │   ├── MSigDB_Hallmark_*.csv # Hallmark gene sets
+│   │   │   └── MSigDB_C2_Canonical_*.csv # Canonical pathways
+│   │   └── leading_edge/             # Leading edge gene analysis
+│   │       └── leading_edge_*.csv    # Core genes driving enrichment
+│   │
+│   ├── 03_specialized_analysis/      # 🆕 Disease-specific analyses
+│   │   ├── complement_system/        # Complement pathway focus
+│   │   │   └── complement_pathway_enrichment.csv
+│   │   └── neuroinflammation/        # Neuroinflammation pathways
+│   │       └── neuroinflammation_pathways.csv
+│   │
+│   ├── 04_visualizations/            # 🆕 Comprehensive plots
+│   │   ├── plots/                    # Basic visualization plots
+│   │   ├── network_maps/             # Pathway network visualizations
+│   │   ├── upset_plots/              # Pathway overlap analysis
+│   │   └── volcano_plots_*.png       # Pathway significance plots
+│   │
+│   ├── 05_comparative_analysis/      # 🆕 Cross-contrast comparisons
+│   │   ├── pathway_crosstalk/        # Pathway interaction analysis
+│   │   ├── functional_modules/       # Clustered pathway modules
+│   │   ├── pathway_occurrence_matrix.csv # Pattern analysis
+│   │   └── meta_pathway_analysis.csv # Meta-analysis results
+│   │
+│   └── 06_summary_reports/           # Analysis summaries
+│       └── pathway_enrichment_summary.txt
 │
 └── edgeR_pipeline_report.txt         # Complete pipeline summary
 ```
 
 ## Key Features
 
-### 🧬 Complement System Focus
-- Automated identification of complement-related pathways
-- Keywords: complement activation, classical/alternative/lectin pathways, MAC
-- Separate analysis and visualization of complement results
+### 🔬 **Multi-Level Enrichment Analysis**
+- **Basic Enrichment**: GO, KEGG, Reactome pathway analysis
+- **Advanced Methods**: GSEA with ranked gene lists, MSigDB collections
+- **Leading Edge Analysis**: Core genes driving pathway enrichments
+- **Meta-Analysis**: Combined evidence across contrasts
 
-### 📈 Comprehensive Visualizations
-- **Volcano plots** - DE gene distributions
-- **MA plots** - Mean-difference relationships
-- **Heatmaps** - Pathway enrichment across contrasts
-- **Dot plots** - Enrichment significance and gene counts
-- **Network plots** - Pathway relationships
-- **Comparison plots** - Cross-contrast analysis
+### 🧬 **Specialized Disease Focus**
+- **Complement System**: Automated identification of complement pathways
+  - Keywords: complement activation, classical/alternative/lectin pathways, MAC
+- **Neuroinflammation**: Addiction and neuroinflammation pathway focus
+  - Keywords: microglia, cytokines, dopamine, opioid, synaptic transmission
 
-### 🔄 Interaction Analysis
+### 📊 **Advanced Comparative Analysis**
+- **Pathway Crosstalk**: Interaction analysis between pathways
+- **Functional Modules**: Clustering of related pathways
+- **Pattern Analysis**: Pathway occurrence patterns across contrasts
+- **UpSet Plots**: Sophisticated overlap visualization
+
+### 📈 **Comprehensive Visualizations**
+- **Basic Plots**: Heatmaps, dot plots, volcano plots
+- **Network Visualizations**: Enrichment maps, pathway networks
+- **Comparative Plots**: Cross-contrast analysis, overlap matrices
+- **Advanced Graphics**: UpSet plots, module visualizations
+
+### 🔄 **Robust Statistical Framework**
+- **Multiple Methods**: Over-representation + GSEA approaches
+- **Proper Corrections**: FDR adjustment across all analyses
+- **Quality Controls**: Minimum gene set sizes, filtering
+- **Meta-Analysis**: Fisher's method for combining evidence
+
+### 🎯 **Interaction Analysis**
 - Sex-specific OUD effects (Male vs Female interaction)
 - Region-specific OUD effects (Putamen vs Caudate interaction)
 - Proper statistical modeling using GLM interaction terms
-
-### 🎯 Quality Control
-- Minimum sample size checks
-- Gene filtering (low expression removal)
-- Dispersion estimation validation
-- Multiple testing correction (Benjamini-Hochberg)
 
 ## Troubleshooting
 
@@ -161,8 +212,10 @@ results/snrna_scvi/
 
 ### Expected Runtime
 - **edgeR analysis**: 5-15 minutes (depending on sample size)
-- **Pathway enrichment**: 10-30 minutes (depending on number of contrasts)
-- **Total pipeline**: 15-45 minutes
+- **Basic pathway enrichment**: 10-20 minutes
+- **Advanced analyses (GSEA, MSigDB)**: 15-30 minutes
+- **Specialized & comparative analyses**: 5-10 minutes
+- **Total comprehensive pipeline**: 35-75 minutes
 
 ## Interpretation Guide
 
@@ -172,18 +225,30 @@ results/snrna_scvi/
 - **FDR**: Adjusted p-value (controls false discovery rate)
 - **Count**: Number of samples contributing to the analysis
 
-### Pathway Enrichment Results
+### Basic Pathway Enrichment Results
 - **pvalue**: Raw enrichment p-value
 - **qvalue**: FDR-adjusted p-value
 - **Count**: Number of DE genes in pathway
 - **geneID**: Contributing genes (gene symbols)
 
-### Biological Interpretation
-1. **Review top significant pathways** in each contrast
-2. **Focus on complement pathways** for study relevance
-3. **Compare patterns across** brain regions and sexes
-4. **Validate key findings** with literature and experiments
-5. **Consider pathway interactions** and crosstalk
+### GSEA Results
+- **NES**: Normalized Enrichment Score (positive = upregulated, negative = downregulated)
+- **core_enrichment**: Leading edge genes driving the enrichment
+- **setSize**: Total genes in the pathway
+
+### Advanced Analysis Results
+- **Leading Edge**: Core genes consistently driving pathway enrichments
+- **Crosstalk Matrix**: Similarity scores between pathway pairs
+- **Functional Modules**: Pathway clusters based on biological similarity
+- **Meta-Analysis**: Combined statistical evidence across contrasts
+
+### Biological Interpretation Workflow
+1. **Start with basic enrichment** - identify key biological processes
+2. **Examine GSEA results** - understand directional changes
+3. **Focus on specialized analyses** - complement system, neuroinflammation
+4. **Explore comparative results** - pathway patterns, crosstalk, modules
+5. **Validate leading edge genes** - prioritize for experimental follow-up
+6. **Consider meta-analysis** - pathways with strongest overall evidence
 
 ## Citation
 
@@ -191,6 +256,8 @@ If you use this pipeline, please cite:
 - **edgeR**: Robinson MD, McCarthy DJ, Smyth GK (2010). Bioinformatics
 - **clusterProfiler**: Yu G, Wang LG, Han Y, He QY (2012). OMICS
 - **ReactomePA**: Yu G, He QY (2016). Molecular BioSystems
+- **MSigDB**: Liberzon A, et al. (2011). Bioinformatics
+- **GSEA**: Subramanian A, et al. (2005). PNAS
 
 ## Support
 
@@ -199,8 +266,15 @@ For questions or issues:
 2. Review the console output for specific error messages
 3. Verify all dependencies are properly installed
 4. Ensure input data format matches requirements
+5. Check organized output directories for expected results
 
 ## Version History
 
-- **v1.0**: Initial implementation with comprehensive DE and pathway analysis
-- **Features**: edgeR GLM, multi-contrast analysis, complement focus, automated pipeline
+- **v1.0**: Initial implementation with basic DE and pathway analysis
+- **v2.0**: 🆕 **Comprehensive Advanced Analysis** - GSEA, MSigDB, specialized analyses
+- **Features**: 
+  - Multi-level enrichment analysis (ORA + GSEA)
+  - Specialized disease focus (complement, neuroinflammation)
+  - Advanced comparative analysis (crosstalk, modules, meta-analysis)
+  - Organized hierarchical output structure
+  - Comprehensive visualization suite
