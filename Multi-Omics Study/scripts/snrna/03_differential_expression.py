@@ -228,12 +228,13 @@ def run_edger_de(counts_df, metadata_df):
             print(f"   ⚠️  Too few replicates per condition: {condition_counts.to_dict()}")
             return None
         
-        # Use context-based conversion instead of activate()
+        # Use context-based conversion for safer R integration
         with ro.conversion.localconverter(ro.default_converter + pandas2ri.converter + numpy2ri.converter):
             # Import R packages
             try:
                 edger = importr('edgeR')
                 base = importr('base')
+                print("   ✅ edgeR package loaded successfully")
             except Exception as e:
                 print(f"   ⚠️  Could not import edgeR: {e}")
                 return None
@@ -255,7 +256,7 @@ def run_edger_de(counts_df, metadata_df):
                 r_region = ro.StrVector(region_sex_split[0].astype(str).values)
                 r_sex = ro.StrVector(region_sex_split[1].astype(str).values)
                 
-                print(f"     Debug: R objects created successfully")
+                print(f"     ✅ R objects created successfully")
                 
             except Exception as e:
                 print(f"   ❌ R conversion failed: {e}")
@@ -290,30 +291,41 @@ def run_edger_de(counts_df, metadata_df):
                 
                 # Normalization
                 dge <- calcNormFactors(dge)
+                print("Normalization completed")
                 
                 # Estimate dispersions
                 dge <- estimateDisp(dge, design)
+                print("Dispersion estimation completed")
                 
                 # Fit model
                 fit <- glmQLFit(dge, design)
+                print("Model fitting completed")
                 
                 # Test different contrasts
-                # 1. OUD vs Control effect
+                # 1. OUD vs Control effect (main effect)
                 qlf_condition <- glmQLFTest(fit, coef=2)
                 results_condition <- topTags(qlf_condition, n=Inf)$table
                 
-                # 2. Region effect (Putamen vs Caudate)  
-                qlf_region <- glmQLFTest(fit, coef=3)
-                results_region <- topTags(qlf_region, n=Inf)$table
+                # 2. Region effect (if present)
+                if (ncol(design) >= 4) {
+                    qlf_region <- glmQLFTest(fit, coef=3)
+                    results_region <- topTags(qlf_region, n=Inf)$table
+                } else {
+                    results_region <- NULL
+                }
                 
-                # 3. Sex effect (M vs F)
-                qlf_sex <- glmQLFTest(fit, coef=4)
-                results_sex <- topTags(qlf_sex, n=Inf)$table
+                # 3. Sex effect (if present)
+                if (ncol(design) >= 5) {
+                    qlf_sex <- glmQLFTest(fit, coef=4)
+                    results_sex <- topTags(qlf_sex, n=Inf)$table
+                } else {
+                    results_sex <- NULL
+                }
                 
                 print("edgeR analysis completed successfully")
                 ''')
                 
-                print(f"     Debug: edgeR pipeline completed")
+                print(f"     ✅ edgeR pipeline completed")
                 
             except Exception as e:
                 print(f"   ❌ edgeR pipeline failed: {e}")
@@ -324,47 +336,77 @@ def run_edger_de(counts_df, metadata_df):
                 results = {}
                 
                 # Convert results to DataFrames manually to avoid index issues
-                for contrast_name, r_result_name in [
+                contrasts_to_extract = [
                     ('OUD_vs_Control', 'results_condition'),
-                    ('Putamen_vs_Caudate', 'results_region'), 
-                    ('Male_vs_Female', 'results_sex')
-                ]:
-                    # Get the R dataframe using alternative method
-                    ro.r(f'current_result <- {r_result_name}')
-                    
-                    # Extract data manually using R commands
-                    ro.r('''
-                    result_logFC <- current_result$logFC
-                    result_PValue <- current_result$PValue  
-                    result_FDR <- current_result$FDR
-                    result_genes <- rownames(current_result)
-                    ''')
-                    
-                    # Convert each column separately
-                    logFC = list(ro.r('result_logFC'))
-                    pvals = list(ro.r('result_PValue'))
-                    fdr = list(ro.r('result_FDR'))
-                    genes = list(ro.r('result_genes'))
-                    
-                    # Create DataFrame
-                    results_df = pd.DataFrame({
-                        'gene': genes,
-                        'logFC': logFC,
-                        'PValue': pvals,
-                        'FDR': fdr,
-                        'contrast': contrast_name
-                    })
-                    
-                    results[contrast_name] = results_df
-                    print(f"     ✅ {contrast_name}: {len(results_df)} genes")
+                ]
                 
-                print(f"   ✅ All contrasts: edgeR completed successfully")
-                return results
+                # Check if region and sex results exist
+                try:
+                    ro.r('exists("results_region")')
+                    contrasts_to_extract.append(('Putamen_vs_Caudate', 'results_region'))
+                except:
+                    pass
                 
+                try:
+                    ro.r('exists("results_sex")')
+                    contrasts_to_extract.append(('Male_vs_Female', 'results_sex'))
+                except:
+                    pass
+                
+                for contrast_name, r_result_name in contrasts_to_extract:
+                    try:
+                        # Get the R dataframe using alternative method
+                        ro.r(f'current_result <- {r_result_name}')
+                        
+                        # Check if result exists and is not NULL
+                        ro.r('result_exists <- !is.null(current_result)')
+                        result_exists = list(ro.r('result_exists'))[0]
+                        
+                        if not result_exists:
+                            print(f"     ⚠️  {contrast_name}: No results (NULL)")
+                            continue
+                        
+                        # Extract data manually using R commands
+                        ro.r('''
+                        result_logFC <- current_result$logFC
+                        result_PValue <- current_result$PValue  
+                        result_FDR <- current_result$FDR
+                        result_genes <- rownames(current_result)
+                        ''')
+                        
+                        # Convert each column separately
+                        logFC = list(ro.r('result_logFC'))
+                        pvals = list(ro.r('result_PValue'))
+                        fdr = list(ro.r('result_FDR'))
+                        genes = list(ro.r('result_genes'))
+                        
+                        # Create DataFrame
+                        results_df = pd.DataFrame({
+                            'gene': genes,
+                            'logFC': logFC,
+                            'PValue': pvals,
+                            'FDR': fdr,
+                            'contrast': contrast_name
+                        })
+                        
+                        results[contrast_name] = results_df
+                        print(f"     ✅ {contrast_name}: {len(results_df)} genes")
+                        
+                    except Exception as e:
+                        print(f"     ⚠️  Failed to extract {contrast_name}: {e}")
+                        continue
+                
+                if results:
+                    print(f"   ✅ edgeR completed successfully with {len(results)} contrasts")
+                    return results
+                else:
+                    print(f"   ❌ No valid results extracted from edgeR")
+                    return None
+                    
             except Exception as e:
                 print(f"   ❌ Results conversion failed: {e}")
                 return None
-        
+    
     except Exception as e:
         print(f"   ❌ edgeR failed: {e}")
         return None
@@ -600,6 +642,24 @@ def run_differential_expression(pseudobulk_df, metadata_df):
     print("\n🔬 RUNNING DIFFERENTIAL EXPRESSION ANALYSIS")
     print("=" * 50)
     print("   🧠 Testing OUD vs Control in different contexts:")
+    print("     • Primary method: edgeR (if R available)")
+    print("     • Fallback method: Python t-tests")
+    
+    # Try edgeR first (if R is available)
+    if R_AVAILABLE:
+        print("\n   🔬 Attempting edgeR analysis...")
+        edger_results = run_edger_de(pseudobulk_df, metadata_df)
+        
+        if edger_results is not None:
+            print("   ✅ edgeR analysis successful!")
+            total_tests = sum(len(df) for df in edger_results.values())
+            print(f"   ✅ edgeR complete: {total_tests} total tests across {len(edger_results)} contrasts")
+            return edger_results
+        else:
+            print("   ⚠️  edgeR failed, falling back to Python analysis...")
+    
+    # Fallback to Python approach for subgroup-specific contrasts
+    print("\n   🐍 Running Python fallback analysis...")
     print("     • OUD vs Control in Putamen")
     print("     • OUD vs Control in Caudate")
     print("     • OUD vs Control in Males") 
@@ -607,12 +667,11 @@ def run_differential_expression(pseudobulk_df, metadata_df):
     print("     • How OUD effects differ between Males vs Females")
     print("     • How OUD effects differ between Putamen vs Caudate")
     
-    # Use Python approach for subgroup-specific contrasts
     results = run_python_de_fallback(pseudobulk_df, metadata_df)
     
     if results is not None:
         total_tests = sum(len(df) for df in results.values())
-        print(f"   ✅ DE analysis complete: {total_tests} total tests across {len(results)} contrasts")
+        print(f"   ✅ Python DE analysis complete: {total_tests} total tests across {len(results)} contrasts")
         return results
     else:
         print("   ❌ No DE results generated")
@@ -661,7 +720,7 @@ def analyze_de_results(de_results_dict):
         n_sig_nominal = de_results['significant_nominal'].sum()
         n_sig_strict = de_results['significant_strict'].sum()
         n_up = ((de_results['significant']) & (de_results['logFC'] > 0)).sum()
-        n_down = ((de_results['significant']) & (de_results['logFC'] < 0)).sum()
+        n_down = ((de_results['significant']) & (de_results['logFC'] < 0)).sum();
         
         print(f"     • Significant (nominal p<0.01, |FC|>0.5): {n_sig_nominal}")
         print(f"     • Significant (strict p<0.001, |FC|>1.0): {n_sig_strict}")
@@ -828,7 +887,7 @@ def create_de_plots(de_results_dict, summary_df):
         n_sig = de_results['significant'].sum()
         n_up = ((de_results['significant']) & (de_results['logFC'] > 0)).sum()
         n_down = ((de_results['significant']) & (de_results['logFC'] < 0)).sum()
-        n_nonsig = len(de_results) - n_sig
+        n_nonsig = len(de_results) - n_sig;
         
         categories = ['Upregulated', 'Downregulated', 'Non-significant']
         counts = [n_up, n_down, n_nonsig]

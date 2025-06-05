@@ -1,0 +1,9 @@
+sample_id,pseudobulk_group,condition,n_cells,region,sex
+Caudate_F_None,Caudate_F,None,11176,Caudate,F
+Caudate_M_OUD,Caudate_M,OUD,11638,Caudate,M
+Caudate_F_OUD,Caudate_F,OUD,14484,Caudate,F
+Caudate_M_None,Caudate_M,None,6598,Caudate,M
+Putamen_F_None,Putamen_F,None,7569,Putamen,F
+Putamen_M_OUD,Putamen_M,OUD,8802,Putamen,M
+Putamen_F_OUD,Putamen_F,OUD,6935,Putamen,F
+Putamen_M_None,Putamen_M,None,8740,Putamen,M

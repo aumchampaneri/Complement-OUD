@@ -1,0 +1,8 @@
+contrast,total_genes,significant_genes,significant_strict,upregulated,downregulated,pct_significant,genes_p05,genes_p01,genes_p001,genes_fdr05,genes_fdr20
+OUD_vs_Control_Putamen,30527,135,5,81,54,0.44223146722573464,917,208,22,0,0
+OUD_vs_Control_Caudate,30527,87,7,79,8,0.28499361221214004,474,93,9,0,0
+OUD_vs_Control_Male,30527,375,34,357,18,1.2284207422937072,1851,395,42,0,0
+OUD_vs_Control_Female,30527,152,17,44,108,0.49791987420971595,687,158,20,0,0
+OUD_Effect_Male_vs_Female,30527,18,0,15,3,0.05896419563009795,315,54,3,0,0
+OUD_Effect_Putamen_vs_Caudate,30527,17,0,7,10,0.05568840698398139,315,54,3,0,0
+Pooled_OUD_vs_Control,30527,122,7,113,9,0.3996462148262194,758,122,10,0,0
