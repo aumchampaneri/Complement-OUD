@@ -1,0 +1,21 @@
+GSE225158 Cell Type Annotation Summary (Multi-Method Validation)
+======================================================================
+Date: 2025-06-04 21:40:59.179696
+Data source: scVI processed data
+
+ANNOTATION METHODS USED:
+• scVI-optimized
+• Reference-based
+• Scanpy-standard
+• Multi-method consensus validation
+
+FINAL CELL TYPE COUNTS:
+• Oligodendrocytes: 58,668 cells (77.3%)
+• Microglia: 5,564 cells (7.3%)
+• Astrocytes: 5,305 cells (7.0%)
+• OPCs: 4,894 cells (6.4%)
+• Endothelial: 786 cells (1.0%)
+• D2_MSN: 725 cells (1.0%)
+
+TOTAL CELLS: 75,942
+CELL TYPES: 6

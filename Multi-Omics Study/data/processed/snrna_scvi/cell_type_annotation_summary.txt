@@ -1,0 +1,22 @@
+GSE225158 Cell Type Annotation Summary
+==================================================
+Date: 2025-06-04 22:13:51.016596
+Method: Original author annotations
+Total cells: 75,942
+Cell types: 13
+
+Cell Type Counts:
+------------------------------
+Oligodendrocytes         : 58,693 ( 77.3%)
+Microglia                :  5,775 (  7.6%)
+Astrocytes               :  5,277 (  6.9%)
+OPCs                     :  4,883 (  6.4%)
+Endothelial              :    421 (  0.6%)
+D2_MSN                   :    292 (  0.4%)
+D1_MSN                   :    201 (  0.3%)
+Pericytes                :    166 (  0.2%)
+Cholinergic_Interneurons :     72 (  0.1%)
+Mixed_MSN                :     55 (  0.1%)
+PTHLH_Interneurons       :     54 (  0.1%)
+SST_Interneurons         :     33 (  0.0%)
+CCK_Interneurons         :     20 (  0.0%)
