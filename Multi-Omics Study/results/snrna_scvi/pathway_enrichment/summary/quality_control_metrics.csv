@@ -1,0 +1,4 @@
+contrast,de_genes,up_genes,down_genes,conversion_rate,databases_tested,gsea_performed
+OUD_Effect_Male_vs_Female,2289,1146,1143,0.714546561168594,13,TRUE
+OUD_vs_Control_Female,2640,1100,1540,0.7021688330655762,13,TRUE
+OUD_vs_Control_Male,8,2,6,0.7103915043188872,11,TRUE

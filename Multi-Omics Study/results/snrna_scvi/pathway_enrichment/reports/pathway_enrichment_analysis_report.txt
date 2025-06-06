@@ -1,0 +1,147 @@
+# Pathway Enrichment Analysis Report
+# Generated: 2025-06-06 14:27:28
+
+## Analysis Overview
+- Input directory: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/results/snrna_scvi/differential_expression_edgeR
+- Output directory: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/results/snrna_scvi/pathway_enrichment
+- Contrasts analyzed: OUD_Effect_Male_vs_Female, OUD_Effect_Putamen_vs_Caudate, OUD_vs_Control_Caudate, OUD_vs_Control_Female, OUD_vs_Control_Male, OUD_vs_Control_Putamen, Pooled_OUD_vs_Control
+- Gene universe size: 19505 genes
+
+## Analysis Parameters
+- ORA p-value cutoff: 0.05
+- ORA q-value cutoff: 0.05
+- GSEA p-value cutoff: 0.25
+- Min gene set size: 10
+- Max gene set size: 500
+
+## Databases Analyzed
+### Primary Databases:
+1. Gene Ontology (GO) - Biological Process, Molecular Function, Cellular Component
+2. KEGG Pathways
+3. Reactome Pathways
+4. MSigDB Hallmark Gene Sets
+
+### Secondary Databases:
+5. Disease Ontology (DO)
+6. MSigDB C2 Curated Gene Sets
+7. MSigDB C3 Motif Gene Sets (TF/miRNA targets)
+8. MSigDB C7 Immunologic Signatures
+9. MSigDB C8 Cell Type Signatures
+10. WikiPathways
+11. PharmGKB/PID Pathways
+
+## Summary Statistics
+
+### Enriched Pathways by Contrast and Database:
+
+#### OUD_Effect_Male_vs_Female
+
+- GO_BP ( ORA ): 5677 pathways
+- GO_MF ( ORA ): 1229 pathways
+- GO_CC ( ORA ): 659 pathways
+- KEGG ( ORA ): 339 pathways
+- Reactome ( ORA ): 1473 pathways
+- DO ( ORA ): 930 pathways
+- Hallmark ( ORA ): 50 pathways
+- C2_Curated ( ORA ): 17 pathways
+- C3_Motif ( ORA ): 3207 pathways
+- C7_Immunologic ( ORA ): 4872 pathways
+- C8_CellType ( ORA ): 750 pathways
+- WikiPathways ( ORA ): 677 pathways
+- PharmGKB ( ORA ): 191 pathways
+- GO_BP ( GSEA ): 2125 pathways
+- KEGG ( GSEA ): 189 pathways
+- Hallmark ( GSEA ): 41 pathways
+- C7_Immunologic ( GSEA ): 3882 pathways
+- C8_CellType ( GSEA ): 505 pathways
+
+#### OUD_vs_Control_Female
+
+- GO_BP ( ORA ): 5757 pathways
+- GO_MF ( ORA ): 1232 pathways
+- GO_CC ( ORA ): 644 pathways
+- KEGG ( ORA ): 340 pathways
+- Reactome ( ORA ): 1485 pathways
+- DO ( ORA ): 942 pathways
+- Hallmark ( ORA ): 50 pathways
+- C2_Curated ( ORA ): 17 pathways
+- C3_Motif ( ORA ): 3224 pathways
+- C7_Immunologic ( ORA ): 4872 pathways
+- C8_CellType ( ORA ): 754 pathways
+- WikiPathways ( ORA ): 670 pathways
+- PharmGKB ( ORA ): 195 pathways
+- GO_BP ( GSEA ): 1377 pathways
+- KEGG ( GSEA ): 174 pathways
+- Hallmark ( GSEA ): 43 pathways
+- C7_Immunologic ( GSEA ): 2944 pathways
+- C8_CellType ( GSEA ): 518 pathways
+
+#### OUD_vs_Control_Male
+
+- GO_BP ( ORA ): 278 pathways
+- GO_MF ( ORA ): 42 pathways
+- GO_CC ( ORA ): 22 pathways
+- KEGG ( ORA ): 20 pathways
+- Reactome ( ORA ): 23 pathways
+- DO ( ORA ): 34 pathways
+- Hallmark ( ORA ): 1 pathways
+- C3_Motif ( ORA ): 100 pathways
+- C7_Immunologic ( ORA ): 234 pathways
+- C8_CellType ( ORA ): 65 pathways
+- WikiPathways ( ORA ): 13 pathways
+- GO_BP ( GSEA ): 2009 pathways
+- KEGG ( GSEA ): 194 pathways
+- Hallmark ( GSEA ): 32 pathways
+- C7_Immunologic ( GSEA ): 3616 pathways
+- C8_CellType ( GSEA ): 418 pathways
+
+## OUD-Relevant Pathways
+Found 2003 pathways related to opioid use disorder
+
+### Top OUD-Relevant Pathways:
+
+1 . DESCARTES_FETAL_CEREBRUM_MICROGLIA ( OUD_vs_Control_Female , p.adj = 2.47e-57 )
+2 . ZHONG_PFC_MAJOR_TYPES_MICROGLIA ( OUD_vs_Control_Female , p.adj = 6.84e-50 )
+3 . FAN_EMBRYONIC_CTX_BIG_GROUPS_MICROGLIA ( OUD_vs_Control_Female , p.adj = 1.79e-46 )
+4 . HU_FETAL_RETINA_MICROGLIA ( OUD_vs_Control_Female , p.adj = 1.71e-45 )
+5 . DESCARTES_MAIN_FETAL_MICROGLIA ( OUD_vs_Control_Female , p.adj = 3.58e-26 )
+6 . DESCARTES_FETAL_EYE_MICROGLIA ( OUD_vs_Control_Female , p.adj = 4.09e-17 )
+7 . FAN_EMBRYONIC_CTX_ASTROCYTE_2 ( OUD_vs_Control_Female , p.adj = 7.36e-13 )
+8 . ZHONG_PFC_MAJOR_TYPES_ASTROCYTES ( OUD_vs_Control_Female , p.adj = 7.56e-12 )
+9 . WP_TYROBP_CAUSAL_NETWORK_IN_MICROGLIA ( OUD_vs_Control_Female , p.adj = 4.5e-11 )
+10 . positive regulation of cytokine production ( OUD_vs_Control_Female , p.adj = 1.35e-10 )
+
+## Output Files
+
+### Tables (CSV files):
+- all_pathway_enrichment_results.csv: Combined results from all analyses
+- pathway_enrichment_summary.csv: Summary statistics
+- pathway_overlap_summary.csv: Analysis of pathway overlap between contrasts
+- OUD_relevant_pathways.csv: Pathways relevant to opioid use disorder
+- Individual enrichment results for each contrast and database
+
+### Gene Lists:
+- Up and down-regulated genes for each contrast
+- Ranked gene lists for GSEA
+
+## Analysis Notes
+- Gene symbol to ENTREZ ID conversion performed using org.Hs.eg.db
+- Statistical significance assessed using Benjamini-Hochberg FDR correction
+- GSEA performed using signed ranking based on logFC and p-value
+- Cross-contrast analysis focused on pathways significant in multiple contrasts
+- All available contrasts from edgeR analysis were automatically detected and processed
+- Global FDR correction applied across all databases and contrasts
+- Effect sizes calculated with 95% confidence intervals
+- Pathway redundancy analysis performed using Jaccard similarity
+- Random gene set validation controls generated
+- Quality control metrics tracked throughout analysis
+
+## Statistical Rigor
+- Gene conversion rate threshold: 70 %
+- Global FDR threshold: 0.05
+- Random validation sets: 1000
+- Effect sizes reported with confidence intervals
+- Multiple testing correction applied at global level
+- Pathway redundancy assessed and reported
+
+Analysis completed: 2025-06-06 14:27:28

@@ -1,0 +1,31 @@
+# Statistical Validation Report
+Generated: 2025-06-06 14:27:28
+
+## Gene Universe Quality
+- Total input genes: 28064
+- Successfully converted: 19505
+- Conversion rate: 69.5 %
+- Failed conversions: 8559
+
+## Multiple Testing Correction
+- Total pathways tested: 41085
+- Original significant pathways: 4184
+- Globally significant pathways: 4046
+- Global FDR threshold: 0.05
+
+## Quality Control Parameters
+- Minimum gene set size: 10
+- Maximum gene set size: 500
+- Minimum conversion rate: 0.7
+- Random sets generated: 1000
+
+## Effect Size Reporting
+- Fold enrichment calculated with 95% confidence intervals
+- Effect sizes computed using hypergeometric distribution
+- Confidence intervals calculated using normal approximation
+
+## Redundancy Analysis
+- Pathway similarity assessed using Jaccard index
+- Redundant pathway pairs identified and reported
+- Similarity threshold: 0.7
+
