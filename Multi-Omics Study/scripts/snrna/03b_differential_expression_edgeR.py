@@ -18,7 +18,7 @@ import scanpy as sc
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-# import seaborn as sns  # Removed - not used in this script
+import seaborn as sns
 import os
 from scipy import sparse
 import warnings
@@ -113,7 +113,7 @@ def create_pseudobulk(adata):
     # Create aggregation metadata
     agg_metadata = adata.obs[['pseudobulk_group', 'Dx_OUD']].copy()
     agg_metadata['sample_id'] = (
-        agg_metadata['pseudobulk_group'].astype(str) + '_' +
+        agg_metadata['pseudobulk_group'].astype(str) + '_' + 
         agg_metadata['Dx_OUD'].astype(str)
     )
     
@@ -141,11 +141,10 @@ def create_pseudobulk(adata):
         })
     
     # Create DataFrame
-    sample_ids = [s['sample_id'] for s in sample_metadata]
     pseudobulk_df = pd.DataFrame(
         pseudobulk_counts.T,
         columns=gene_names,
-        index=sample_ids
+        index=[s['sample_id'] for s in sample_metadata]
     )
     
     metadata_df = pd.DataFrame(sample_metadata)
@@ -341,174 +340,6 @@ def extract_edger_results(contrast_name):
     
     print(f"     ✅ {contrast_name}: {len(results_df)} genes")
     return results_df
-
-
-def run_edger_interaction_sex(counts_clean, metadata_df, contrast_name):
-    """Run edgeR interaction analysis to test if OUD effect differs between males and females"""
-    print(f"     🔬 Running interaction analysis: {contrast_name}")
-    
-    try:
-        # Convert data to R with interaction design
-        r_counts = ro.conversion.py2rpy(counts_clean.T.values)
-        r_condition = ro.StrVector(metadata_df['condition'].astype(str).values)
-        r_sex = ro.StrVector(metadata_df['sex'].astype(str).values)
-        r_sample_names = ro.StrVector(counts_clean.index.astype(str))
-        
-        # Set up R environment
-        ro.globalenv['counts_matrix'] = r_counts
-        ro.globalenv['condition'] = r_condition
-        ro.globalenv['sex'] = r_sex
-        ro.globalenv['sample_names'] = r_sample_names
-        
-        # Run edgeR interaction analysis
-        ro.r('''
-        # Set up count matrix
-        rownames(counts_matrix) <- gene_names
-        colnames(counts_matrix) <- sample_names
-        
-        # Interaction design matrix: ~ condition + sex + condition:sex
-        design <- model.matrix(~ condition * sex)
-        print(paste("Interaction design matrix dimensions:", paste(dim(design), collapse="x")))
-        
-        # Create DGEList
-        dge <- DGEList(counts = counts_matrix)
-        
-        # Filter low-expressed genes
-        keep <- filterByExpr(dge, design, min.count = 10)
-        dge <- dge[keep, , keep.lib.sizes = FALSE]
-        print(paste("After filtering:", nrow(dge), "genes retained"))
-        
-        # Normalization and dispersion estimation
-        dge <- calcNormFactors(dge, method = "TMM")
-        dge <- estimateDisp(dge, design, robust = TRUE)
-        
-        # Fit GLM
-        fit <- glmQLFit(dge, design, robust = TRUE)
-        
-        # Test interaction term (condition:sex)
-        # This tests if OUD effect differs between males and females
-        qlf <- glmQLFTest(fit, coef = ncol(design))  # Last coefficient is interaction
-        current_result <- topTags(qlf, n = Inf, sort.by = "PValue")$table
-        
-        print(paste("Interaction analysis completed"))
-        ''')
-        
-        # Extract results
-        return extract_edger_results(contrast_name)
-        
-    except Exception as e:
-        print(f"     ❌ Failed interaction analysis for {contrast_name}: {e}")
-        return pd.DataFrame()
-
-
-def run_edger_interaction_region(counts_clean, metadata_df, contrast_name):
-    """Run edgeR interaction analysis to test if OUD effect differs between regions"""
-    print(f"     🔬 Running interaction analysis: {contrast_name}")
-    
-    try:
-        # Convert data to R with interaction design
-        r_counts = ro.conversion.py2rpy(counts_clean.T.values)
-        r_condition = ro.StrVector(metadata_df['condition'].astype(str).values)
-        r_region = ro.StrVector(metadata_df['region'].astype(str).values)
-        r_sample_names = ro.StrVector(counts_clean.index.astype(str))
-        
-        # Set up R environment
-        ro.globalenv['counts_matrix'] = r_counts
-        ro.globalenv['condition'] = r_condition
-        ro.globalenv['region'] = r_region
-        ro.globalenv['sample_names'] = r_sample_names
-        
-        # Run edgeR interaction analysis
-        ro.r('''
-        # Set up count matrix
-        rownames(counts_matrix) <- gene_names
-        colnames(counts_matrix) <- sample_names
-        
-        # Interaction design matrix: ~ condition + region + condition:region
-        design <- model.matrix(~ condition * region)
-        print(paste("Interaction design matrix dimensions:", paste(dim(design), collapse="x")))
-        
-        # Create DGEList
-        dge <- DGEList(counts = counts_matrix)
-        
-        # Filter low-expressed genes
-        keep <- filterByExpr(dge, design, min.count = 10)
-        dge <- dge[keep, , keep.lib.sizes = FALSE]
-        print(paste("After filtering:", nrow(dge), "genes retained"))
-        
-        # Normalization and dispersion estimation
-        dge <- calcNormFactors(dge, method = "TMM")
-        dge <- estimateDisp(dge, design, robust = TRUE)
-        
-        # Fit GLM
-        fit <- glmQLFit(dge, design, robust = TRUE)
-        
-        # Test interaction term (condition:region)
-        # This tests if OUD effect differs between regions
-        qlf <- glmQLFTest(fit, coef = ncol(design))  # Last coefficient is interaction
-        current_result <- topTags(qlf, n = Inf, sort.by = "PValue")$table
-        
-        print(paste("Interaction analysis completed"))
-        ''')
-        
-        # Extract results
-        return extract_edger_results(contrast_name)
-        
-    except Exception as e:
-        print(f"     ❌ Failed interaction analysis for {contrast_name}: {e}")
-        return pd.DataFrame()
-
-
-def save_edger_results(de_results_dict, summary_df, pseudobulk_df, metadata_df):
-    """Save edgeR differential expression results"""
-    print("\n💾 SAVING EDGER RESULTS")
-    print("=" * 50)
-    
-    try:
-        # Save individual contrast results
-        for contrast_name, results_df in de_results_dict.items():
-            if not results_df.empty:
-                # Add significance column
-                results_df['significant'] = (results_df['FDR'] < 0.05) & (abs(results_df['logFC']) > 0.5)
-                
-                # Save full results
-                output_file = f"{OUTPUT_DIR}/edgeR_{contrast_name}_results.csv"
-                results_df.to_csv(output_file, index=False)
-                print(f"   📁 {contrast_name}: {output_file}")
-                
-                # Save significant genes only
-                sig_genes = results_df[results_df['significant']]
-                if len(sig_genes) > 0:
-                    sig_output_file = f"{OUTPUT_DIR}/edgeR_{contrast_name}_significant.csv"
-                    sig_genes.to_csv(sig_output_file, index=False)
-                    print(f"   📁 {contrast_name} (significant): {sig_output_file}")
-        
-        # Save summary
-        summary_output_file = f"{OUTPUT_DIR}/edgeR_summary.csv"
-        summary_df.to_csv(summary_output_file, index=False)
-        print(f"   📁 Summary: {summary_output_file}")
-        
-        # Save combined results
-        if de_results_dict:
-            combined_df = pd.concat(de_results_dict.values(), ignore_index=True)
-            combined_output_file = f"{OUTPUT_DIR}/edgeR_all_contrasts.csv"
-            combined_df.to_csv(combined_output_file, index=False)
-            print(f"   📁 Combined: {combined_output_file}")
-        
-        # Save pseudobulk data and metadata for reference
-        pseudobulk_output_file = f"{OUTPUT_DIR}/pseudobulk_counts.csv"
-        pseudobulk_df.to_csv(pseudobulk_output_file)
-        print(f"   📁 Pseudobulk: {pseudobulk_output_file}")
-        
-        metadata_output_file = f"{OUTPUT_DIR}/pseudobulk_metadata.csv"
-        metadata_df.to_csv(metadata_output_file)
-        print(f"   📁 Metadata: {metadata_output_file}")
-        
-        print("   ✅ All results saved successfully!")
-        
-    except Exception as e:
-        print(f"   ❌ Error saving results: {e}")
-        raise
 
 def analyze_edger_results(de_results_dict):
     """Analyze edgeR results with proper FDR thresholds - matching Python analysis"""
