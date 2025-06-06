@@ -1,0 +1,15 @@
+"","analysis","n_significant","n_activated","n_repressed","mean_activity","median_pvalue"
+"1","OUD_Effect_Male_vs_Female_results_ulm",173,1,172,4.07553235342908,0.000662097880231342
+"2","OUD_Effect_Male_vs_Female_results_mlm",39,8,31,3.12217185258959,0.00444066596644467
+"3","OUD_Effect_Putamen_vs_Caudate_results_ulm",74,74,0,3.05206963182714,0.00937405100295107
+"4","OUD_Effect_Putamen_vs_Caudate_results_mlm",20,18,2,2.31556289237748,0.0304222491082645
+"5","OUD_vs_Control_Caudate_results_ulm",76,18,58,3.29865768838746,0.00301880380343675
+"6","OUD_vs_Control_Caudate_results_mlm",25,9,16,2.59676952582169,0.0225705206809468
+"7","OUD_vs_Control_Female_results_ulm",89,79,10,3.52257766400903,0.00613817261496614
+"8","OUD_vs_Control_Female_results_mlm",33,19,14,3.05457084671846,0.00693157093526078
+"9","OUD_vs_Control_Male_results_ulm",190,0,190,3.83229296760227,0.0022365283980249
+"10","OUD_vs_Control_Male_results_mlm",24,3,21,2.85748906577814,0.0108376708460742
+"11","OUD_vs_Control_Putamen_results_ulm",55,43,12,3.42281115133915,0.00375993565552985
+"12","OUD_vs_Control_Putamen_results_mlm",21,13,8,2.86082914674151,0.00582869093937944
+"13","Pooled_OUD_vs_Control_results_ulm",85,35,50,3.42416890076357,0.00299069982152354
+"14","Pooled_OUD_vs_Control_results_mlm",26,16,10,2.92238475979541,0.0032798351676297
