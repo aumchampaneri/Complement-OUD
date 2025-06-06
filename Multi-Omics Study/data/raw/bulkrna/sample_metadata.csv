@@ -1,0 +1,81 @@
+sample_id,condition,sex,age,region,race,pmi,ph,rin,storage_time_months,batch
+HBA1,OUD,Female,35,DLPFC,White,10.95,6.11,7.1,149,Batch_2
+HBA10,OUD,Female,59,DLPFC,White,15.066666,6.26,7,44.9,Batch_2
+HBA11,OUD,Female,35,DLPFC,White,11.783333,6.49,9.1,111.4,Batch_2
+HBA12,OUD,Male,42,DLPFC,White,18.483333,6.5,8.1,95.2,Batch_2
+HBA13,OUD,Female,43,DLPFC,White,19.483333,6.29,7.6,176.5,Batch_2
+HBA14,OUD,Male,41,DLPFC,White,16.283333,6.68,7.2,168,Batch_2
+HBA15,OUD,Female,45,DLPFC,White,11.216666,6.32,7.1,71,Batch_2
+HBA16,OUD,Male,44,DLPFC,White,19.9,6.63,7.5,107.1,Batch_2
+HBA17,OUD,Female,49,DLPFC,White,23.366666,6.42,8.1,183.5,Batch_2
+HBA18,OUD,Male,45,DLPFC,White,20.35,6.23,7.6,143.4,Batch_2
+HBA19,OUD,Female,52,DLPFC,White,10.333333,6.51,8.4,196.8,Batch_2
+HBA2,OUD,Male,39,DLPFC,White,20.8,6.42,7.3,44.3,Batch_2
+HBA20,OUD,Male,58,DLPFC,White,7.583333,6.33,8.9,32.6,Batch_2
+HBA21,Control,Female,39,DLPFC,Black or African-American,13.53,6.84,8.2,63.9,Batch_2
+HBA22,Control,Male,37,DLPFC,Black or African-American,17.97,6.88,7.5,23.1,Batch_2
+HBA23,Control,Female,54,DLPFC,Black or African-American,13.7,6.34,8.7,46.8,Batch_2
+HBA24,Control,Male,39,DLPFC,Black or African-American,21.52,6.58,8.7,127.2,Batch_2
+HBA25,Control,Male,54,DLPFC,White,20.97,6.54,9,182.7,Batch_2
+HBA26,Control,Female,55,DLPFC,White,13.42,6.17,7,41.7,Batch_2
+HBA27,Control,Male,46,DLPFC,White,11.7,6.85,8.6,97,Batch_2
+HBA28,Control,Female,55,DLPFC,White,19.55,6.88,7.9,33.7,Batch_2
+HBA29,Control,Male,54,DLPFC,White,8.4,6.71,8.5,57,Batch_2
+HBA3,OUD,Female,48,DLPFC,White,23.75,6.16,7.1,45.7,Batch_2
+HBA30,Control,Female,58,DLPFC,Black or African-American,10.43,6.68,8.3,27.3,Batch_2
+HBA31,Control,Female,23,DLPFC,White,8.53,6.95,7.8,197.2,Batch_2
+HBA32,Control,Male,42,DLPFC,White,14.6,6.7,8.3,30.1,Batch_2
+HBA33,Control,Female,43,DLPFC,Black or African-American,14.1,7,7,267.4,Batch_2
+HBA34,Control,Male,39,DLPFC,White,24.2,7.15,8.4,224.2,Batch_2
+HBA35,Control,Female,50,DLPFC,White,28.4,6.52,7.8,22.4,Batch_2
+HBA36,Control,Male,40,DLPFC,White,23.42,6.28,7.9,20,Batch_2
+HBA37,Control,Female,53,DLPFC,Black or African-American,13.1,6.14,7.1,165.8,Batch_2
+HBA38,Control,Male,46,DLPFC,White,21.58,6.75,7.8,45,Batch_2
+HBA39,Control,Female,59,DLPFC,White,5.88,5.88,7,61.6,Batch_2
+HBA4,OUD,Male,40,DLPFC,White,21.083333,6.51,7.6,167.5,Batch_2
+HBA40,Control,Male,60,DLPFC,White,9.6,6.79,9,270.2,Batch_2
+HBA5,OUD,Male,53,DLPFC,White,14.5,6.33,7.1,148.4,Batch_2
+HBA6,OUD,Female,54,DLPFC,White,12.533333,6.88,8.8,24.1,Batch_2
+HBA7,OUD,Male,46,DLPFC,White,12.55,6.55,8.5,79.5,Batch_2
+HBA8,OUD,Female,55,DLPFC,Black or African-American,22.7,6.33,7.7,45.9,Batch_2
+HBA9,OUD,Male,55,DLPFC,White,7.683333,6.5,7.8,23.2,Batch_2
+HN1,OUD,Female,35,NAC,White,10.95,6.11,7.1,149,Batch_1
+HN10,OUD,Female,59,NAC,White,15.066666,6.26,7,44.9,Batch_1
+HN11,OUD,Female,35,NAC,White,11.783333,6.49,9.1,111.4,Batch_1
+HN12,OUD,Male,42,NAC,White,18.483333,6.5,8.1,95.2,Batch_1
+HN13,OUD,Female,43,NAC,White,19.483333,6.29,7.6,176.5,Batch_1
+HN14,OUD,Male,41,NAC,White,16.283333,6.68,7.2,168,Batch_1
+HN15,OUD,Female,45,NAC,White,11.216666,6.32,7.1,71,Batch_1
+HN16,OUD,Male,44,NAC,White,19.9,6.63,7.5,107.1,Batch_1
+HN17,OUD,Female,49,NAC,White,23.366666,6.42,8.1,183.5,Batch_1
+HN18,OUD,Male,45,NAC,White,20.35,6.23,7.6,143.4,Batch_1
+HN19,OUD,Female,52,NAC,White,10.333333,6.51,8.4,196.8,Batch_1
+HN2,OUD,Male,39,NAC,White,20.8,6.42,7.3,44.3,Batch_1
+HN20,OUD,Male,58,NAC,White,7.583333,6.33,8.9,32.6,Batch_1
+HN21,Control,Female,39,NAC,Black or African-American,13.53,6.84,8.2,63.9,Batch_1
+HN22,Control,Male,37,NAC,Black or African-American,17.97,6.88,7.5,23.1,Batch_1
+HN23,Control,Female,54,NAC,Black or African-American,13.7,6.34,8.7,46.8,Batch_1
+HN24,Control,Male,39,NAC,Black or African-American,21.52,6.58,8.7,127.2,Batch_1
+HN25,Control,Male,54,NAC,White,20.97,6.54,9,182.7,Batch_1
+HN26,Control,Female,55,NAC,White,13.42,6.17,7,41.7,Batch_1
+HN27,Control,Male,46,NAC,White,11.7,6.85,8.6,97,Batch_1
+HN28,Control,Female,55,NAC,White,19.55,6.88,7.9,33.7,Batch_1
+HN29,Control,Male,54,NAC,White,8.4,6.71,8.5,57,Batch_1
+HN3,OUD,Female,48,NAC,White,23.75,6.16,7.1,45.7,Batch_1
+HN30,Control,Female,58,NAC,Black or African-American,10.43,6.68,8.3,27.3,Batch_1
+HN31,Control,Female,23,NAC,White,8.53,6.95,7.8,197.2,Batch_1
+HN32,Control,Male,42,NAC,White,14.6,6.7,8.3,30.1,Batch_1
+HN33,Control,Female,43,NAC,Black or African-American,14.1,7,7,267.4,Batch_1
+HN34,Control,Male,39,NAC,White,24.2,7.15,8.4,224.2,Batch_1
+HN35,Control,Female,50,NAC,White,28.4,6.52,7.8,22.4,Batch_1
+HN36,Control,Male,40,NAC,White,23.42,6.28,7.9,20,Batch_1
+HN37,Control,Female,53,NAC,Black or African-American,13.1,6.14,7.1,165.8,Batch_1
+HN38,Control,Male,46,NAC,White,21.58,6.75,7.8,45,Batch_1
+HN39,Control,Female,59,NAC,White,5.88,5.88,7,61.6,Batch_1
+HN4,OUD,Male,40,NAC,White,21.083333,6.51,7.6,167.5,Batch_1
+HN40,Control,Male,60,NAC,White,9.6,6.79,9,270.2,Batch_1
+HN5,OUD,Male,53,NAC,White,14.5,6.33,7.1,148.4,Batch_1
+HN6,OUD,Female,54,NAC,White,12.533333,6.88,8.8,24.1,Batch_1
+HN7,OUD,Male,46,NAC,White,12.55,6.55,8.5,79.5,Batch_1
+HN8,OUD,Female,55,NAC,Black or African-American,22.7,6.33,7.7,45.9,Batch_1
+HN9,OUD,Male,55,NAC,White,7.683333,6.5,7.8,23.2,Batch_1
