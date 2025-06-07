@@ -1,4 +1,4 @@
 Contrast1,Contrast2,Pathways_Contrast1,Pathways_Contrast2,Overlapping_Pathways,Jaccard_Index
-OUD_Effect_Male_vs_Female,OUD_vs_Control_Female,1245,2897,830,0.2506038647342995
-OUD_Effect_Male_vs_Female,OUD_vs_Control_Male,1245,42,0,0
-OUD_vs_Control_Female,OUD_vs_Control_Male,2897,42,2,6.809669731018045e-4
+OUD_Effect_Male_vs_Female,OUD_vs_Control_Female,1471,3096,948,0.2619508151423045
+OUD_Effect_Male_vs_Female,OUD_vs_Control_Male,1471,55,0,0
+OUD_vs_Control_Female,OUD_vs_Control_Male,3096,55,2,6.351222610352493e-4

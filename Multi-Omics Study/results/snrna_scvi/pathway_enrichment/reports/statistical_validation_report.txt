@@ -1,5 +1,5 @@
 # Statistical Validation Report
-Generated: 2025-06-06 14:27:28
+Generated: 2025-06-07 18:24:34
 
 ## Gene Universe Quality
 - Total input genes: 28064
@@ -8,14 +8,14 @@ Generated: 2025-06-06 14:27:28
 - Failed conversions: 8559
 
 ## Multiple Testing Correction
-- Total pathways tested: 41085
-- Original significant pathways: 4184
-- Globally significant pathways: 4046
+- Total pathways tested: 48710
+- Original significant pathways: 4622
+- Globally significant pathways: 4497
 - Global FDR threshold: 0.05
 
 ## Quality Control Parameters
-- Minimum gene set size: 10
-- Maximum gene set size: 500
+- Minimum gene set size: 5
+- Maximum gene set size: 1000
 - Minimum conversion rate: 0.7
 - Random sets generated: 1000
 
