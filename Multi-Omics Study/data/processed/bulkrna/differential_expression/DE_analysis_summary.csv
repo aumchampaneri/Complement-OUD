@@ -1,0 +1,6 @@
+"Contrast","Description","Total_Genes","Significant_Genes","Upregulated","Downregulated","Percent_Significant","Max_LogFC_Up","Min_LogFC_Down","Min_Padj"
+"Pooled_OUD_vs_Control","Pooled OUD vs Control",27653,769,505,264,2.78,4.45,-4.14,"4.64e-13"
+"Male_OUD_vs_Control","Male OUD vs Control",23900,160,137,23,0.67,6.08,-3.57,"4.31e-08"
+"Female_OUD_vs_Control","Female OUD vs Control",27634,504,314,190,1.82,4.11,-3.83,"2.44e-12"
+"DLPFC_OUD_vs_Control","DLPFC OUD vs Control",24960,437,292,145,1.75,5.35,-2.79,"5.37e-07"
+"NAC_OUD_vs_Control","NAC OUD vs Control",27111,885,432,453,3.26,4.05,-3.81,"3.24e-09"
