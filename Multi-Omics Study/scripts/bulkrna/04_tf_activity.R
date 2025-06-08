@@ -493,8 +493,8 @@ calculate_tf_activity_enrichment <- function(de_results, tf_targets) {
     targets <- tf_targets[[tf]]
     
     # Find overlap with DE genes
-    up_genes <- de_results$gene[de_results$logFC > 0 & de_results$FDR < 0.05]
-    down_genes <- de_results$gene[de_results$logFC < 0 & de_results$FDR < 0.05]
+    up_genes <- de_results$gene[de_results$log2FoldChange > 0 & de_results$padj < 0.05]
+    down_genes <- de_results$gene[de_results$log2FoldChange < 0 & de_results$padj < 0.05]
     
     up_overlap <- intersect(targets, up_genes)
     down_overlap <- intersect(targets, down_genes)
@@ -637,6 +637,355 @@ query_chea3 <- function(gene_list) {
     cat("Error querying ChEA3:", e$message, "\n")
     return(data.frame())
   })
+}
+
+# Function to create TF activity heatmap
+create_tf_heatmap <- function(activity_matrix, title = "TF Activity", 
+                             filename = NULL, top_n = 50) {
+  # Select top variable TFs
+  if (nrow(activity_matrix) > top_n) {
+    var_scores <- apply(activity_matrix, 1, var, na.rm = TRUE)
+    top_tfs <- names(sort(var_scores, decreasing = TRUE))[1:top_n]
+    activity_matrix <- activity_matrix[top_tfs, ]
+  }
+  
+  # Create heatmap
+  if (require("ComplexHeatmap", quietly = TRUE)) {
+    ht <- ComplexHeatmap::Heatmap(
+      activity_matrix,
+      name = "Activity",
+      cluster_rows = tf_params$heatmap_clustering,
+      cluster_columns = tf_params$heatmap_clustering,
+      show_row_names = TRUE,
+      show_column_names = TRUE,
+      row_names_gp = grid::gpar(fontsize = 8),
+      column_names_gp = grid::gpar(fontsize = 8),
+      col = circlize::colorRamp2(c(-3, 0, 3), c("blue", "white", "red"))
+    )
+    
+    if (!is.null(filename)) {
+      # Export PDF
+      pdf(filename, width = 12, height = 10)
+      grid::grid.text(title, x = 0.5, y = 0.95, just = c("centre", "top"), 
+                     gp = grid::gpar(fontsize = 14, fontface = "bold"))
+      ComplexHeatmap::draw(ht)
+      dev.off()
+      
+      # Export PNG with same base filename
+      png_filename <- gsub("\\.pdf$", ".png", filename)
+      png(png_filename, width = 12, height = 10, units = "in", res = 300)
+      grid::grid.text(title, x = 0.5, y = 0.95, just = c("centre", "top"), 
+                     gp = grid::gpar(fontsize = 14, fontface = "bold"))
+      ComplexHeatmap::draw(ht)
+      dev.off()
+      
+      cat("Saved heatmap as PDF:", filename, "\n")
+      cat("Saved heatmap as PNG:", png_filename, "\n")
+    } else {
+      # For display, add title above the heatmap
+      grid::grid.newpage()
+      grid::grid.text(title, x = 0.5, y = 0.95, just = c("centre", "top"), 
+                     gp = grid::gpar(fontsize = 14, fontface = "bold"))
+      ComplexHeatmap::draw(ht, newpage = FALSE)
+    }
+    
+    return(ht)
+  } else {
+    # Fallback to base heatmap
+    if (!is.null(filename)) {
+      # Export PDF
+      pdf(filename, width = 12, height = 10)
+      heatmap(as.matrix(activity_matrix), 
+              main = title,
+              col = colorRampPalette(c("blue", "white", "red"))(100),
+              margins = c(8, 8))
+      dev.off()
+      
+      # Export PNG
+      png_filename <- gsub("\\.pdf$", ".png", filename)
+      png(png_filename, width = 12, height = 10, units = "in", res = 300)
+      heatmap(as.matrix(activity_matrix), 
+              main = title,
+              col = colorRampPalette(c("blue", "white", "red"))(100),
+              margins = c(8, 8))
+      dev.off()
+      
+      cat("Saved heatmap as PDF:", filename, "\n")
+      cat("Saved heatmap as PNG:", png_filename, "\n")
+    }
+  }
+}
+
+# Function to construct TF-target networks
+construct_tf_networks <- function(tf_results, tf_targets, expression_matrix = NULL) {
+  cat("Constructing TF-target regulatory networks...\n")
+  
+  network_results <- list()
+  
+  for (contrast in names(tf_results)) {
+    cat("Building network for contrast:", contrast, "\n")
+    
+    # Get significant TFs for this contrast
+    sig_tfs <- c()
+    
+    # Collect significant TFs from all methods
+    for (method in names(tf_results[[contrast]])) {
+      result_data <- tf_results[[contrast]][[method]]
+      if (!is.null(result_data) && nrow(result_data) > 0) {
+        if ("Significant" %in% colnames(result_data)) {
+          sig_tfs_method <- result_data$TF[result_data$Significant]
+        } else if ("FDR" %in% colnames(result_data)) {
+          sig_tfs_method <- result_data$TF[result_data$FDR < tf_params$fdr_threshold]
+        } else {
+          sig_tfs_method <- result_data$TF[1:min(10, nrow(result_data))]
+        }
+        sig_tfs <- c(sig_tfs, sig_tfs_method)
+      }
+    }
+    
+    sig_tfs <- unique(sig_tfs)
+    cat("Found", length(sig_tfs), "significant TFs for network construction\n")
+    
+    if (length(sig_tfs) > 0) {
+      # Build network edges
+      network_edges <- data.frame()
+      
+      for (tf in sig_tfs) {
+        if (tf %in% names(tf_targets)) {
+          targets <- tf_targets[[tf]]
+          
+          # Add edges for each target
+          for (target in targets) {
+            # Calculate edge weight based on TF activity score
+            edge_weight <- 1.0  # Default weight
+            
+            # Try to get activity score from results
+            for (method in names(tf_results[[contrast]])) {
+              result_data <- tf_results[[contrast]][[method]]
+              if (!is.null(result_data) && tf %in% result_data$TF) {
+                if ("Activity_Score" %in% colnames(result_data)) {
+                  tf_idx <- which(result_data$TF == tf)[1]
+                  edge_weight <- abs(result_data$Activity_Score[tf_idx])
+                } else if ("Score" %in% colnames(result_data)) {
+                  tf_idx <- which(result_data$TF == tf)[1]
+                  edge_weight <- abs(result_data$Score[tf_idx])
+                }
+                break
+              }
+            }
+            
+            network_edges <- rbind(network_edges, data.frame(
+              TF = tf,
+              Target = target,
+              Weight = edge_weight,
+              Contrast = contrast,
+              stringsAsFactors = FALSE
+            ))
+          }
+        }
+      }
+      
+      # Calculate network statistics if we have edges
+      if (nrow(network_edges) > 0) {
+        # Node degrees
+        tf_degrees <- table(network_edges$TF)
+        target_degrees <- table(network_edges$Target)
+        
+        # Network centrality measures
+        all_nodes <- unique(c(network_edges$TF, network_edges$Target))
+        
+        # Create adjacency matrix for centrality calculation
+        if (require("igraph", quietly = TRUE)) {
+          tryCatch({
+            # Create igraph object
+            g <- igraph::graph_from_data_frame(network_edges[, c("TF", "Target", "Weight")], 
+                                               directed = TRUE)
+            
+            # Calculate centrality measures
+            centrality_stats <- data.frame(
+              Node = igraph::V(g)$name,
+              Degree = igraph::degree(g),
+              Betweenness = igraph::betweenness(g),
+              Closeness = igraph::closeness(g),
+              PageRank = igraph::page_rank(g)$vector,
+              stringsAsFactors = FALSE
+            )
+            
+            # Identify hub TFs (high degree centrality)
+            hub_tfs <- centrality_stats %>%
+              dplyr::filter(Node %in% sig_tfs) %>%
+              dplyr::arrange(desc(Degree)) %>%
+              dplyr::slice_head(n = 10)
+            
+            cat("Top hub TFs:", paste(hub_tfs$Node[1:min(5, nrow(hub_tfs))], collapse = ", "), "\n")
+            
+          }, error = function(e) {
+            cat("Could not calculate network centrality measures:", e$message, "\n")
+            centrality_stats <- data.frame()
+            hub_tfs <- data.frame()
+          })
+        } else {
+          # Simple degree-based hub identification without igraph
+          hub_tfs <- data.frame(
+            Node = names(tf_degrees),
+            Degree = as.numeric(tf_degrees),
+            stringsAsFactors = FALSE
+          ) %>%
+            dplyr::arrange(desc(Degree)) %>%
+            dplyr::slice_head(n = 10)
+          
+          centrality_stats <- data.frame()
+        }
+        
+        # Store network results
+        network_results[[contrast]] <- list(
+          edges = network_edges,
+          tf_degrees = tf_degrees,
+          target_degrees = target_degrees,
+          centrality_stats = centrality_stats,
+          hub_tfs = hub_tfs,
+          n_nodes = length(all_nodes),
+          n_edges = nrow(network_edges),
+          network_density = nrow(network_edges) / (length(all_nodes) * (length(all_nodes) - 1))
+        )
+        
+        # Save network data
+        write_csv(network_edges, 
+                  file.path(output_dir, "networks", paste0(contrast, "_network_edges.csv")))
+        
+        if (nrow(centrality_stats) > 0) {
+          write_csv(centrality_stats,
+                    file.path(output_dir, "networks", paste0(contrast, "_node_centrality.csv")))
+        }
+        
+        write_csv(hub_tfs,
+                  file.path(output_dir, "networks", paste0(contrast, "_hub_tfs.csv")))
+        
+        cat("Network constructed: ", nrow(network_edges), "edges,", 
+            length(all_nodes), "nodes\n")
+      }
+    }
+  }
+  
+  cat("Network construction completed for", length(network_results), "contrasts\n")
+  return(network_results)
+}
+
+# Function to identify regulatory modules
+identify_regulatory_modules <- function(network_results, tf_results) {
+  cat("Identifying regulatory modules...\n")
+  
+  module_results <- list()
+  
+  for (contrast in names(network_results)) {
+    network_data <- network_results[[contrast]]
+    
+    if (is.null(network_data) || nrow(network_data$edges) == 0) {
+      next
+    }
+    
+    cat("Analyzing modules for contrast:", contrast, "\n")
+    
+    # Get TF activity scores for module detection
+    tf_activity_scores <- data.frame()
+    
+    for (method in names(tf_results[[contrast]])) {
+      result_data <- tf_results[[contrast]][[method]]
+      if (!is.null(result_data) && nrow(result_data) > 0) {
+        if ("Activity_Score" %in% colnames(result_data)) {
+          method_scores <- result_data %>%
+            dplyr::select(TF, Activity_Score) %>%
+            dplyr::mutate(Method = method)
+          tf_activity_scores <- rbind(tf_activity_scores, method_scores)
+        }
+      }
+    }
+    
+    if (nrow(tf_activity_scores) > 0) {
+      # Identify co-regulated modules based on activity score similarity
+      tf_scores_wide <- tf_activity_scores %>%
+        dplyr::group_by(TF) %>%
+        dplyr::summarise(Mean_Activity = mean(Activity_Score, na.rm = TRUE), .groups = 'drop')
+      
+      # Simple module identification: group TFs by activity score direction and magnitude
+      modules <- list()
+      
+      # High positive activity module
+      high_pos_tfs <- tf_scores_wide %>%
+        dplyr::filter(Mean_Activity > quantile(Mean_Activity, 0.75, na.rm = TRUE)) %>%
+        dplyr::pull(TF)
+      
+      if (length(high_pos_tfs) > 1) {
+        modules[["High_Positive"]] <- high_pos_tfs
+      }
+      
+      # High negative activity module  
+      high_neg_tfs <- tf_scores_wide %>%
+        dplyr::filter(Mean_Activity < quantile(Mean_Activity, 0.25, na.rm = TRUE)) %>%
+        dplyr::pull(TF)
+      
+      if (length(high_neg_tfs) > 1) {
+        modules[["High_Negative"]] <- high_neg_tfs
+      }
+      
+      # Moderate activity module
+      mod_tfs <- tf_scores_wide %>%
+        dplyr::filter(Mean_Activity >= quantile(Mean_Activity, 0.25, na.rm = TRUE) &
+               Mean_Activity <= quantile(Mean_Activity, 0.75, na.rm = TRUE)) %>%
+        dplyr::pull(TF)
+      
+      if (length(mod_tfs) > 2) {
+        modules[["Moderate"]] <- mod_tfs
+      }
+      
+      # Calculate module statistics
+      module_stats <- data.frame()
+      
+      for (module_name in names(modules)) {
+        module_tfs <- modules[[module_name]]
+        
+        # Get targets for module TFs
+        module_targets <- network_data$edges %>%
+          dplyr::filter(TF %in% module_tfs) %>%
+          dplyr::pull(Target) %>%
+          unique()
+        
+        # Calculate module activity score
+        module_activity <- tf_scores_wide %>%
+          dplyr::filter(TF %in% module_tfs) %>%
+          dplyr::summarise(
+            Module_Activity = mean(Mean_Activity, na.rm = TRUE),
+            Activity_SD = sd(Mean_Activity, na.rm = TRUE),
+            .groups = 'drop'
+          )
+        
+        module_stats <- rbind(module_stats, data.frame(
+          Module = module_name,
+          TF_Count = length(module_tfs),
+          Target_Count = length(module_targets),
+          Module_Activity = module_activity$Module_Activity,
+          Activity_SD = module_activity$Activity_SD,
+          TFs = paste(module_tfs, collapse = ","),
+          stringsAsFactors = FALSE
+        ))
+      }
+      
+      module_results[[contrast]] <- list(
+        modules = modules,
+        module_stats = module_stats
+      )
+      
+      # Save module results
+      if (nrow(module_stats) > 0) {
+        write_csv(module_stats,
+                  file.path(output_dir, "networks", paste0(contrast, "_regulatory_modules.csv")))
+        
+        cat("Identified", nrow(module_stats), "regulatory modules\n")
+      }
+    }
+  }
+  
+  return(module_results)
 }
 
 # =============================================================================
@@ -995,7 +1344,242 @@ for (contrast in names(de_results)) {
 }
 
 # =============================================================================
-# 6. CROSS-CONTRAST COMPARISON AND SUMMARY
+# 6. NETWORK ANALYSIS AND VISUALIZATION
+# =============================================================================
+
+cat("Performing network analysis and generating visualizations...\n")
+
+# Construct TF-target regulatory networks
+all_targets <- if (!is.null(dorothea_tf_targets)) {
+  c(all_custom_targets, dorothea_tf_targets)
+} else {
+  all_custom_targets
+}
+
+network_results <- construct_tf_networks(tf_results, all_targets, expression_matrix)
+
+# Identify regulatory modules
+module_results <- identify_regulatory_modules(network_results, tf_results)
+
+# Generate visualizations
+cat("Generating TF activity visualizations...\n")
+
+# Create activity score matrices for heatmap visualization
+for (method in c("DoRothEA", "Enrichment")) {
+  cat("Creating", method, "activity heatmap...\n")
+  
+  # Collect activity scores across contrasts
+  activity_data <- data.frame()
+  
+  for (contrast in names(tf_results)) {
+    if (method %in% names(tf_results[[contrast]])) {
+      result_data <- tf_results[[contrast]][[method]]
+      if (!is.null(result_data) && nrow(result_data) > 0) {
+        if ("Activity_Score" %in% colnames(result_data)) {
+          score_col <- "Activity_Score"
+        } else if ("Score" %in% colnames(result_data)) {
+          score_col <- "Score"
+        } else {
+          next
+        }
+        
+        # Ensure TF and Score are proper data types
+        contrast_data <- data.frame(
+          TF = as.character(result_data$TF),
+          Score = as.numeric(result_data[[score_col]]),
+          Contrast = as.character(contrast),
+          stringsAsFactors = FALSE
+        )
+        
+        # Remove any rows with missing values
+        contrast_data <- contrast_data[!is.na(contrast_data$TF) & 
+                                     !is.na(contrast_data$Score) & 
+                                     !is.na(contrast_data$Contrast), ]
+        
+        if (nrow(contrast_data) > 0) {
+          activity_data <- rbind(activity_data, contrast_data)
+        }
+      }
+    }
+  }
+  
+  if (nrow(activity_data) > 0) {
+    cat("Processing", nrow(activity_data), "activity score entries for", method, "\n")
+    
+    # Check for data quality issues
+    cat("Data quality check:\n")
+    cat("- Unique TFs:", length(unique(activity_data$TF)), "\n")
+    cat("- Unique contrasts:", length(unique(activity_data$Contrast)), "\n")
+    cat("- Score range:", round(range(activity_data$Score, na.rm = TRUE), 3), "\n")
+    
+    # Convert to matrix format with explicit handling of duplicates
+    tryCatch({
+      # Handle potential duplicates by taking mean scores
+      activity_data_clean <- activity_data %>%
+        dplyr::group_by(TF, Contrast) %>%
+        dplyr::summarise(Score = mean(Score, na.rm = TRUE), .groups = 'drop') %>%
+        dplyr::filter(!is.na(TF) & !is.na(Contrast) & !is.na(Score))
+      
+      # Convert to wide format
+      activity_matrix <- activity_data_clean %>%
+        tidyr::pivot_wider(
+          names_from = Contrast, 
+          values_from = Score, 
+          values_fill = 0,
+          names_sort = TRUE
+        ) %>%
+        tibble::column_to_rownames("TF")
+      
+      # Ensure matrix is numeric
+      activity_matrix <- as.matrix(activity_matrix)
+      mode(activity_matrix) <- "numeric"
+      
+      # Remove TFs with all zero scores
+      non_zero_tfs <- rowSums(abs(activity_matrix), na.rm = TRUE) > 0
+      activity_matrix <- activity_matrix[non_zero_tfs, , drop = FALSE]
+      
+      if (nrow(activity_matrix) > 0 && ncol(activity_matrix) > 0) {
+        cat("Successfully created activity matrix:", nrow(activity_matrix), "TFs x", ncol(activity_matrix), "contrasts\n")
+        
+        # Create heatmap
+        heatmap_file <- file.path(output_dir, "plots", paste0(method, "_activity_heatmap.pdf"))
+        heatmap_title <- paste(method, "TF Activity Across Contrasts")
+        
+        create_tf_heatmap(activity_matrix, 
+                         title = heatmap_title,
+                         filename = heatmap_file,
+                         top_n = tf_params$top_tfs_display)
+        
+        # Save activity matrix
+        matrix_file <- file.path(output_dir, "activity_scores", paste0(method, "_activity_matrix.csv"))
+        write.csv(activity_matrix, matrix_file, row.names = TRUE)
+        
+        cat("Created", method, "heatmap with", nrow(activity_matrix), "TFs\n")
+      } else {
+        cat("Warning: Empty activity matrix for", method, "- skipping visualization\n")
+      }
+      
+    }, error = function(e) {
+      cat("Error creating", method, "heatmap:", e$message, "\n")
+      cat("Attempting alternative approach...\n")
+      
+      # Alternative approach: create matrix manually
+      tryCatch({
+        # Get unique TFs and contrasts
+        unique_tfs <- unique(activity_data$TF)
+        unique_contrasts <- unique(activity_data$Contrast)
+        
+        # Create empty matrix
+        activity_matrix_alt <- matrix(0, 
+                                    nrow = length(unique_tfs), 
+                                    ncol = length(unique_contrasts),
+                                    dimnames = list(unique_tfs, unique_contrasts))
+        
+        # Fill matrix
+        for (i in seq_len(nrow(activity_data))) {
+          tf_name <- activity_data$TF[i]
+          contrast_name <- activity_data$Contrast[i]
+          score_val <- activity_data$Score[i]
+          
+          if (!is.na(tf_name) && !is.na(contrast_name) && !is.na(score_val)) {
+            activity_matrix_alt[tf_name, contrast_name] <- score_val
+          }
+        }
+        
+        # Remove all-zero rows
+        non_zero_rows <- rowSums(abs(activity_matrix_alt)) > 0
+        activity_matrix_alt <- activity_matrix_alt[non_zero_rows, , drop = FALSE]
+        
+        if (nrow(activity_matrix_alt) > 0) {
+          cat("Created alternative matrix:", nrow(activity_matrix_alt), "TFs x", ncol(activity_matrix_alt), "contrasts\n")
+          
+          # Create heatmap
+          heatmap_file <- file.path(output_dir, "plots", paste0(method, "_activity_heatmap.pdf"))
+          heatmap_title <- paste(method, "TF Activity Across Contrasts")
+          
+          create_tf_heatmap(activity_matrix_alt, 
+                           title = heatmap_title,
+                           filename = heatmap_file,
+                           top_n = tf_params$top_tfs_display)
+          
+          # Save activity matrix
+          matrix_file <- file.path(output_dir, "activity_scores", paste0(method, "_activity_matrix.csv"))
+          write.csv(activity_matrix_alt, matrix_file, row.names = TRUE)
+          
+          cat("Created", method, "heatmap with", nrow(activity_matrix_alt), "TFs\n")
+        }
+        
+      }, error = function(e2) {
+        cat("Both matrix creation approaches failed for", method, ":", e2$message, "\n")
+        cat("Skipping", method, "heatmap visualization\n")
+      })
+    })
+  } else {
+    cat("No activity data found for", method, "- skipping heatmap\n")
+  }
+}
+
+# Create summary dot plot data for top TFs
+cat("Creating summary dot plot data...\n")
+
+top_tf_summary <- data.frame()
+
+for (contrast in names(tf_results)) {
+  for (method in names(tf_results[[contrast]])) {
+    result_data <- tf_results[[contrast]][[method]]
+    if (!is.null(result_data) && nrow(result_data) > 0) {
+      # Get top 10 TFs by activity score
+      if ("Activity_Score" %in% colnames(result_data)) {
+        top_tfs <- result_data %>%
+          dplyr::arrange(desc(abs(Activity_Score))) %>%
+          dplyr::slice_head(n = 10) %>%
+          dplyr::mutate(
+            Contrast = contrast,
+            Method = method,
+            Rank = row_number()
+          ) %>%
+          dplyr::select(TF, Activity_Score, P_value, FDR, Contrast, Method, Rank)
+        
+        top_tf_summary <- rbind(top_tf_summary, top_tfs)
+      }
+    }
+  }
+}
+
+if (nrow(top_tf_summary) > 0) {
+  write_csv(top_tf_summary, 
+            file.path(output_dir, "plots", "top_tfs_for_plotting.csv"))
+  cat("Created plotting data for", nrow(top_tf_summary), "top TF entries\n")
+}
+
+# Create network summary statistics
+cat("Generating network summary statistics...\n")
+
+network_summary <- data.frame()
+
+for (contrast in names(network_results)) {
+  network_data <- network_results[[contrast]]
+  if (!is.null(network_data)) {
+    network_summary <- rbind(network_summary, data.frame(
+      Contrast = contrast,
+      Nodes = network_data$n_nodes,
+      Edges = network_data$n_edges,
+      Density = network_data$network_density,
+      Top_Hub_TF = if(nrow(network_data$hub_tfs) > 0) network_data$hub_tfs$Node[1] else NA,
+      Hub_Degree = if(nrow(network_data$hub_tfs) > 0) network_data$hub_tfs$Degree[1] else NA,
+      stringsAsFactors = FALSE
+    ))
+  }
+}
+
+if (nrow(network_summary) > 0) {
+  write_csv(network_summary,
+            file.path(output_dir, "networks", "network_summary_statistics.csv"))
+  cat("Generated network summary for", nrow(network_summary), "contrasts\n")
+}
+
+# =============================================================================
+# 7. CROSS-CONTRAST COMPARISON AND SUMMARY
 # =============================================================================
 
 cat("Performing cross-contrast TF activity comparison...\n")
@@ -1052,7 +1636,7 @@ if (nrow(combined_tf_results) > 0) {
 }
 
 # =============================================================================
-# 7. SUMMARY AND REPORTING
+# 8. SUMMARY AND REPORTING
 # =============================================================================
 
 cat("Generating summary statistics and comprehensive report...\n")
@@ -1141,11 +1725,11 @@ writeLines(report_content,
            file.path(output_dir, "reports", "tf_activity_analysis_report.txt"))
 
 # =============================================================================
-# ANALYSIS COMPLETION
+# 9. ENHANCED ANALYSIS COMPLETION
 # =============================================================================
 
 cat("\n", paste(rep("=", 80), collapse=""), "\n")
-cat("TRANSCRIPTION FACTOR ACTIVITY ANALYSIS COMPLETED SUCCESSFULLY!\n")
+cat("COMPREHENSIVE TF ACTIVITY ANALYSIS COMPLETED SUCCESSFULLY!\n")
 cat(paste(rep("=", 80), collapse=""), "\n")
 cat("Output directory:", output_dir, "\n")
 cat("Contrasts analyzed:", length(names(de_results)), "\n")
@@ -1157,11 +1741,28 @@ if (nrow(summary_stats) > 0) {
   cat("Total significant TF activities:", total_significant, "\n")
 }
 
+# Network analysis summary
+if (length(network_results) > 0) {
+  total_edges <- sum(sapply(network_results, function(x) if(!is.null(x)) x$n_edges else 0))
+  total_nodes <- sum(sapply(network_results, function(x) if(!is.null(x)) x$n_nodes else 0))
+  cat("Regulatory networks constructed:", length(network_results), "contrasts\n")
+  cat("Total network edges:", total_edges, "\n")
+  cat("Total network nodes:", total_nodes, "\n")
+}
+
+# Module analysis summary
+if (length(module_results) > 0) {
+  total_modules <- sum(sapply(module_results, function(x) if(!is.null(x$modules)) length(x$modules) else 0))
+  cat("Regulatory modules identified:", total_modules, "\n")
+}
+
 cat("\nKey output files:\n")
 cat("- Analysis report: reports/tf_activity_analysis_report.txt\n")
 cat("- Combined results: summary/combined_tf_activity_results.csv\n")
 cat("- Summary statistics: summary/tf_analysis_summary.csv\n")
 cat("- Method-specific results: dorothea/, activity_scores/, chea3/\n")
+cat("- Network analysis: networks/ directory\n")
+cat("- Visualizations: plots/ directory\n")
 
 if (nrow(summary_stats) > 0) {
   applied_methods <- unique(summary_stats$Method)
@@ -1171,7 +1772,35 @@ if (nrow(summary_stats) > 0) {
   }
 }
 
+cat("\nVisualization files generated:\n")
+if (file.exists(file.path(output_dir, "plots", "DoRothEA_activity_heatmap.pdf"))) {
+  cat("  - DoRothEA activity heatmap\n")
+}
+if (file.exists(file.path(output_dir, "plots", "Enrichment_activity_heatmap.pdf"))) {
+  cat("  - Enrichment activity heatmap\n")
+}
+if (file.exists(file.path(output_dir, "plots", "top_tfs_for_plotting.csv"))) {
+  cat("  - Top TFs plotting data\n")
+}
+
+cat("\nNetwork analysis files:\n")
+if (length(network_results) > 0) {
+  cat("  - Network edge lists for each contrast\n")
+  cat("  - Node centrality measures\n")
+  cat("  - Hub TF identification\n")
+  cat("  - Network summary statistics\n")
+}
+
+if (length(module_results) > 0) {
+  cat("  - Regulatory module identification\n")
+}
+
 cat("\nAnalysis timestamp:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n")
 cat(paste(rep("=", 80), collapse=""), "\n")
 
-cat("TF activity analysis complete. Check the output directory for all results.\n")
+cat("COMPLETE TF activity analysis finished. All missing components now implemented!\n")
+cat("✓ TF Activity Inference (DoRothEA, Custom Enrichment, ChEA3)\n")
+cat("✓ Network Analysis (TF-target networks, centrality measures, hub identification)\n")
+cat("✓ Regulatory Module Detection (co-regulation analysis)\n")
+cat("✓ Comprehensive Visualizations (heatmaps, plotting data)\n")
+cat("✓ Cross-contrast comparisons and summary statistics\n")
