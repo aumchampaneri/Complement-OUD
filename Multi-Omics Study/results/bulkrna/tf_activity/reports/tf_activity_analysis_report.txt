@@ -1,0 +1,68 @@
+# Transcription Factor Activity Analysis Report
+# Generated: 2025-06-07 20:11:39
+
+## Analysis Overview
+- Input directory: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/data/processed/bulkrna/differential_expression
+- Output directory: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/results/bulkrna/tf_activity
+- Contrasts analyzed: Control_DLPFC_vs_NAC_full, Control_Male_vs_Female_full, DLPFC_OUD_vs_Control_full, Female_OUD_vs_Control_full, Male_OUD_vs_Control_full, NAC_OUD_vs_Control_full, OUD_DLPFC_vs_NAC_full, OUD_Male_vs_Female_full, Pooled_OUD_vs_Control_full
+
+## Methods Used
+1. **DoRothEA + decoupleR**: VIPER-based activity inference using curated regulons
+2. **Custom Enrichment**: Hypergeometric enrichment of TF targets in DE genes
+3. **ChEA3**: ChIP-seq based transcription factor enrichment analysis
+
+## Analysis Parameters
+- Minimum regulon size: 5
+- Activity score threshold: 1.5
+- FDR threshold: 0.05
+- Top TFs displayed: 50
+
+## Summary Statistics
+
+### TF Activity Results by Contrast and Method:
+
+#### Control_DLPFC_vs_NAC_full
+
+- DoRothEA : 251 TFs analyzed, 1 significant
+- Enrichment : 286 TFs analyzed, 0 significant
+
+#### Control_Male_vs_Female_full
+
+- DoRothEA : 251 TFs analyzed, 15 significant
+- Enrichment : 286 TFs analyzed, 0 significant
+
+#### DLPFC_OUD_vs_Control_full
+
+- DoRothEA : 245 TFs analyzed, 13 significant
+- Enrichment : 286 TFs analyzed, 43 significant
+
+#### Female_OUD_vs_Control_full
+
+- DoRothEA : 251 TFs analyzed, 19 significant
+- Enrichment : 286 TFs analyzed, 39 significant
+
+#### Male_OUD_vs_Control_full
+
+- DoRothEA : 246 TFs analyzed, 21 significant
+- Enrichment : 286 TFs analyzed, 15 significant
+
+#### NAC_OUD_vs_Control_full
+
+- DoRothEA : 250 TFs analyzed, 30 significant
+- Enrichment : 286 TFs analyzed, 18 significant
+
+#### OUD_DLPFC_vs_NAC_full
+
+- DoRothEA : 251 TFs analyzed, 3 significant
+- Enrichment : 286 TFs analyzed, 0 significant
+
+#### OUD_Male_vs_Female_full
+
+- DoRothEA : 251 TFs analyzed, 15 significant
+- Enrichment : 286 TFs analyzed, 0 significant
+
+#### Pooled_OUD_vs_Control_full
+
+- DoRothEA : 251 TFs analyzed, 22 significant
+- Enrichment : 286 TFs analyzed, 26 significant
+
