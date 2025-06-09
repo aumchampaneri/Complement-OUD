@@ -1,0 +1,11 @@
+Contrast: 02_OUD_vs_Control_Putamen
+Analysis Type: Full_Dataset
+Total Samples: 12
+Total Genes: 24066
+Significant Genes: 10
+Percent Significant: 0.04%
+
+Direction Summary:
+  Not_significant: 24056
+  Down_in_OUD: 6
+  Up_in_OUD: 4

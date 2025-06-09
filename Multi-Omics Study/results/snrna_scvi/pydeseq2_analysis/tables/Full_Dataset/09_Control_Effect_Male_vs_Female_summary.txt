@@ -1,0 +1,11 @@
+Contrast: 09_Control_Effect_Male_vs_Female
+Analysis Type: Full_Dataset
+Total Samples: 10
+Total Genes: 24719
+Significant Genes: 130
+Percent Significant: 0.53%
+
+Direction Summary:
+  Not_significant: 24589
+  Down_in_Male: 81
+  Up_in_Male: 49

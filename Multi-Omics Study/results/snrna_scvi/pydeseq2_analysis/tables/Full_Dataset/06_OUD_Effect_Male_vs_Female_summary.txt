@@ -1,0 +1,11 @@
+Contrast: 06_OUD_Effect_Male_vs_Female
+Analysis Type: Full_Dataset
+Total Samples: 12
+Total Genes: 24867
+Significant Genes: 3130
+Percent Significant: 12.59%
+
+Direction Summary:
+  Not_significant: 21737
+  Up_in_Male: 1771
+  Down_in_Male: 1359

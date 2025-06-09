@@ -1,0 +1,11 @@
+Contrast: 08_OUD_Effect_Male_vs_Female_Caudate
+Analysis Type: Full_Dataset
+Total Samples: 6
+Total Genes: 24450
+Significant Genes: 934
+Percent Significant: 3.82%
+
+Direction Summary:
+  Not_significant: 23516
+  Up_in_Male: 592
+  Down_in_Male: 342

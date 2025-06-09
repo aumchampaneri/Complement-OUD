@@ -1,0 +1,11 @@
+Contrast: 01_OUD_vs_Control_Pooled
+Analysis Type: Full_Dataset
+Total Samples: 22
+Total Genes: 25700
+Significant Genes: 706
+Percent Significant: 2.75%
+
+Direction Summary:
+  Not_significant: 24994
+  Down_in_OUD: 422
+  Up_in_OUD: 284

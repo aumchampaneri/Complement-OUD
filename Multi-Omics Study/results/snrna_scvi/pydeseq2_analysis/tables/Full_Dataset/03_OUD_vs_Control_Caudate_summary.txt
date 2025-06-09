@@ -1,0 +1,11 @@
+Contrast: 03_OUD_vs_Control_Caudate
+Analysis Type: Full_Dataset
+Total Samples: 10
+Total Genes: 25237
+Significant Genes: 70
+Percent Significant: 0.28%
+
+Direction Summary:
+  Not_significant: 25167
+  Down_in_OUD: 57
+  Up_in_OUD: 13

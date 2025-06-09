@@ -1,0 +1,11 @@
+Contrast: 07_OUD_Effect_Male_vs_Female_Putamen
+Analysis Type: Full_Dataset
+Total Samples: 6
+Total Genes: 22798
+Significant Genes: 596
+Percent Significant: 2.61%
+
+Direction Summary:
+  Not_significant: 22202
+  Up_in_Male: 336
+  Down_in_Male: 260

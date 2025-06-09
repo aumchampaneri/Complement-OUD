@@ -1,0 +1,11 @@
+Contrast: 05_OUD_vs_Control_Female
+Analysis Type: Full_Dataset
+Total Samples: 12
+Total Genes: 25138
+Significant Genes: 2743
+Percent Significant: 10.91%
+
+Direction Summary:
+  Not_significant: 22395
+  Down_in_OUD: 1606
+  Up_in_OUD: 1137

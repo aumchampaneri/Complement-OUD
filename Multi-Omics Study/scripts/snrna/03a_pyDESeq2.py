@@ -26,6 +26,8 @@ Pseudobulk Contrasts Generated (Separate Results by Contrast):
 import scanpy as sc
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
@@ -82,6 +84,39 @@ def load_annotated_data():
     adata = sc.read_h5ad(INPUT_H5AD)
     print(f"   Loaded data: {adata.n_obs} cells × {adata.n_vars} genes")
     
+    # Explore available columns
+    print(f"   Available columns: {list(adata.obs.columns)}")
+    
+    # Create condition column from Dx_OUD if it doesn't exist
+    if 'condition' not in adata.obs.columns:
+        if 'Dx_OUD' in adata.obs.columns:
+            print("   Creating condition column from Dx_OUD...")
+            adata.obs['condition'] = adata.obs['Dx_OUD'].map({
+                'OUD': 'OUD',
+                'None': 'Control',
+                np.nan: 'Control'
+            }).fillna('Control')
+            print(f"   Conditions: {dict(adata.obs['condition'].value_counts())}")
+        else:
+            print(f"   ❌ Missing both 'condition' and 'Dx_OUD' columns")
+            return None
+    
+    # Create sample_id if it doesn't exist
+    if 'sample_id' not in adata.obs.columns:
+        if 'donor_id' in adata.obs.columns:
+            print("   Creating sample_id from donor_id...")
+            adata.obs['sample_id'] = adata.obs['donor_id'].astype(str)
+        elif 'ID' in adata.obs.columns:
+            print("   Creating sample_id from ID column...")
+            adata.obs['sample_id'] = adata.obs['ID'].astype(str)
+        else:
+            print("   ⚠️  Creating sample IDs from condition and region")
+            adata.obs['sample_id'] = (
+                adata.obs['condition'].astype(str) + "_" +
+                adata.obs['Region'].astype(str) + "_" +
+                adata.obs['Sex'].astype(str)
+            )
+    
     # Check required columns
     required_cols = ['cell_type', 'condition', 'sample_id']
     for col in required_cols:
@@ -124,16 +159,24 @@ def create_pseudobulk_data(adata, subset_conditions=None):
     print(f"   Cells in analysis: {adata_subset.n_obs}")
     
     # Get raw counts (should be in X if from scVI processing)
+    print("   Getting count matrix...")
     if hasattr(adata_subset, 'raw') and adata_subset.raw is not None:
+        print("   Using raw.X matrix")
         counts_matrix = adata_subset.raw.X
         gene_names = adata_subset.raw.var_names
     else:
+        print("   Using X matrix")
         counts_matrix = adata_subset.X
         gene_names = adata_subset.var_names
     
+    print(f"   Matrix shape: {counts_matrix.shape}")
+    print(f"   Matrix type: {type(counts_matrix)}")
+    
     # Convert to dense if sparse
     if sparse.issparse(counts_matrix):
+        print("   Converting sparse matrix to dense...")
         counts_matrix = counts_matrix.toarray()
+        print("   Conversion complete")
     
     # Create sample-level aggregation
     sample_ids = adata_subset.obs['sample_id'].unique()
@@ -143,16 +186,33 @@ def create_pseudobulk_data(adata, subset_conditions=None):
     pseudobulk_counts = []
     sample_metadata = []
     
-    for sample_id in sample_ids:
+    print("   Aggregating counts by sample...")
+    for i, sample_id in enumerate(sample_ids):
+        if i % 5 == 0:  # Progress update every 5 samples
+            print(f"   Processing sample {i+1}/{len(sample_ids)}: {sample_id}")
+        
         sample_mask = adata_subset.obs['sample_id'] == sample_id
         sample_cells = adata_subset[sample_mask]
         
         if sample_cells.n_obs > 0:
-            # Sum counts across cells in this sample
+            # Sum counts across cells in this sample - use pre-converted dense matrix
             if hasattr(sample_cells, 'raw') and sample_cells.raw is not None:
-                sample_counts = np.array(sample_cells.raw.X.sum(axis=0)).flatten()
+                if sparse.issparse(sample_cells.raw.X):
+                    sample_counts = np.array(sample_cells.raw.X.sum(axis=0)).flatten()
+                else:
+                    sample_counts = sample_cells.raw.X.sum(axis=0)
             else:
-                sample_counts = np.array(sample_cells.X.sum(axis=0)).flatten()
+                if sparse.issparse(sample_cells.X):
+                    sample_counts = np.array(sample_cells.X.sum(axis=0)).flatten()
+                else:
+                    sample_counts = sample_cells.X.sum(axis=0)
+            
+            # Ensure it's a 1D array and convert to integers
+            if sample_counts.ndim > 1:
+                sample_counts = sample_counts.flatten()
+            
+            # Convert to integers for DESeq2
+            sample_counts = sample_counts.astype(int)
             
             pseudobulk_counts.append(sample_counts)
             
@@ -169,8 +229,13 @@ def create_pseudobulk_data(adata, subset_conditions=None):
     
     # Create count matrix and metadata DataFrame
     if len(pseudobulk_counts) > 0:
+        print("   Creating final count matrix...")
         count_matrix = np.column_stack(pseudobulk_counts)
         metadata_df = pd.DataFrame(sample_metadata)
+        
+        print(f"   Count matrix shape: {count_matrix.shape}")
+        print(f"   Gene names length: {len(gene_names)}")
+        print(f"   Sample IDs length: {len(metadata_df['sample_id'])}")
         
         # Create count DataFrame - FIXED: use .values to get array
         count_df = pd.DataFrame(
@@ -200,13 +265,23 @@ def run_single_contrast_analysis(count_df, metadata_df, contrast_name, contrast_
         print("   pyDESeq2 not available, skipping analysis")
         return None
     
-    # Check sample sizes
-    condition_counts = metadata_df['condition'].value_counts()
-    print(f"   Sample sizes: {dict(condition_counts)}")
-    
-    if len(condition_counts) < 2 or any(condition_counts < 2):
-        print("   Insufficient samples for DESeq2 analysis (need ≥2 per condition)")
-        return None
+    # Check sample sizes based on design
+    if design_formula and design_formula.strip() == "~ sex":
+        # For sex-only designs, check sex distribution
+        sex_counts = metadata_df['sex'].value_counts()
+        print(f"   Sample sizes: {dict(sex_counts)}")
+        
+        if len(sex_counts) < 2 or any(sex_counts < 2):
+            print("   Insufficient samples for DESeq2 analysis (need ≥2 per sex)")
+            return None
+    else:
+        # For condition designs, check condition distribution
+        condition_counts = metadata_df['condition'].value_counts()
+        print(f"   Sample sizes: {dict(condition_counts)}")
+        
+        if len(condition_counts) < 2 or any(condition_counts < 2):
+            print("   Insufficient samples for DESeq2 analysis (need ≥2 per condition)")
+            return None
     
     # Filter low-expressed genes
     print("   Filtering low-expressed genes...")
@@ -234,14 +309,24 @@ def run_single_contrast_analysis(count_df, metadata_df, contrast_name, contrast_
         
         # Use provided design formula or create default
         if design_formula is None:
-            design_factors = ['condition']
-            if 'sex' in metadata_ordered.columns and metadata_ordered['sex'].nunique() > 1:
-                if not metadata_ordered['sex'].isin(['Unknown']).all():
-                    design_factors.append('sex')
-            
-            if 'region' in metadata_ordered.columns and metadata_ordered['region'].nunique() > 1:
-                if not metadata_ordered['region'].isin(['Unknown']).all():
-                    design_factors.append('region')
+            # Check if this is a sex-only contrast (within condition)
+            if isinstance(contrast_spec, list) and len(contrast_spec) == 3 and contrast_spec[0] == 'sex':
+                # For sex contrasts within condition, only use sex as design factor
+                design_factors = ['sex']
+                # Verify we have both sexes
+                sex_counts = metadata_ordered['sex'].value_counts()
+                if len(sex_counts) < 2:
+                    raise ValueError(f"Need both sexes for sex contrast, found: {dict(sex_counts)}")
+            else:
+                # Standard condition contrast with covariates
+                design_factors = ['condition']
+                if 'sex' in metadata_ordered.columns and metadata_ordered['sex'].nunique() > 1:
+                    if not metadata_ordered['sex'].isin(['Unknown']).all():
+                        design_factors.append('sex')
+                
+                if 'region' in metadata_ordered.columns and metadata_ordered['region'].nunique() > 1:
+                    if not metadata_ordered['region'].isin(['Unknown']).all():
+                        design_factors.append('region')
         else:
             # Parse design formula to get factors
             design_factors = [f.strip() for f in design_formula.replace('~', '').split('+')]
@@ -256,7 +341,7 @@ def run_single_contrast_analysis(count_df, metadata_df, contrast_name, contrast_
         dds = DeseqDataSet(
             counts=count_matrix_t,
             metadata=metadata_ordered,
-            design_factors=design_factors,
+            design=design_formula_str,
             refit_cooks=True
         )
         
@@ -333,20 +418,35 @@ def filter_metadata_for_contrast(metadata_df, sex_filter=None, region_filter=Non
     """Filter metadata based on specified criteria"""
     filtered_df = metadata_df.copy()
     
-    if sex_filter:
-        filtered_df = filtered_df[filtered_df['sex'] == sex_filter]
+    print(f"     Before filtering: {len(filtered_df)} samples")
+    print(f"     Available sex values: {filtered_df['sex'].unique()}")
+    print(f"     Available region values: {filtered_df['region'].unique()}")
+    print(f"     Available condition values: {filtered_df['condition'].unique()}")
+    
+    if condition_filter:
+        filtered_df = filtered_df[filtered_df['condition'].isin(condition_filter)]
+        print(f"     After condition filter {condition_filter}: {len(filtered_df)} samples")
     
     if region_filter:
         filtered_df = filtered_df[filtered_df['region'] == region_filter]
-        
-    if condition_filter:
-        filtered_df = filtered_df[filtered_df['condition'].isin(condition_filter)]
+        print(f"     After region filter {region_filter}: {len(filtered_df)} samples")
+    
+    if sex_filter:
+        # Map 'M' to 'Male' and 'F' to 'Female' if needed
+        sex_mapping = {'M': 'Male', 'F': 'Female'}
+        if sex_filter in ['Male', 'Female'] and sex_filter not in filtered_df['sex'].values:
+            reverse_mapping = {'Male': 'M', 'Female': 'F'}
+            actual_sex_filter = reverse_mapping.get(sex_filter, sex_filter)
+        else:
+            actual_sex_filter = sex_filter
+        filtered_df = filtered_df[filtered_df['sex'] == actual_sex_filter]
+        print(f"     After sex filter {sex_filter} (using {actual_sex_filter}): {len(filtered_df)} samples")
     
     return filtered_df
 
-def run_all_contrasts_for_dataset(adata):
-    """Run all 11 contrasts for the full dataset (all cell types combined)"""
-    print(f"\n🎯 ANALYZING ALL CONTRASTS FOR FULL DATASET")
+def run_condition_contrasts_for_dataset(adata):
+    """Run condition-based contrasts (01-05) for the full dataset"""
+    print(f"\n🎯 ANALYZING CONDITION CONTRASTS FOR FULL DATASET")
     print("=" * 80)
     
     all_contrast_results = {}
@@ -358,7 +458,7 @@ def run_all_contrasts_for_dataset(adata):
         print(f"   Skipping analysis - insufficient data")
         return None
     
-    # Define all contrasts - FIXED: use lists instead of tuples for contrasts
+    # Define condition contrasts (01-05)
     contrasts = [
         {
             'name': '01_OUD_vs_Control_Pooled',
@@ -389,42 +489,6 @@ def run_all_contrasts_for_dataset(adata):
             'description': 'OUD vs. Control <- Female',
             'metadata_filter': {'sex_filter': 'Female'},
             'contrast': ['condition', 'OUD', 'Control']
-        },
-        {
-            'name': '06_OUD_Effect_Male_vs_Female',
-            'description': 'OUD Effect <- Male vs. Female',
-            'metadata_filter': {'condition_filter': ['OUD']},
-            'contrast': ['sex', 'Male', 'Female']
-        },
-        {
-            'name': '07_OUD_Effect_Male_vs_Female_Putamen',
-            'description': 'OUD Effect <- Male vs. Female (Putamen)',
-            'metadata_filter': {'condition_filter': ['OUD'], 'region_filter': 'Putamen'},
-            'contrast': ['sex', 'Male', 'Female']
-        },
-        {
-            'name': '08_OUD_Effect_Male_vs_Female_Caudate',
-            'description': 'OUD Effect <- Male vs. Female (Caudate)',
-            'metadata_filter': {'condition_filter': ['OUD'], 'region_filter': 'Caudate'},
-            'contrast': ['sex', 'Male', 'Female']
-        },
-        {
-            'name': '09_Control_Effect_Male_vs_Female',
-            'description': 'Control Effect <- Male vs. Female',
-            'metadata_filter': {'condition_filter': ['Control']},
-            'contrast': ['sex', 'Male', 'Female']
-        },
-        {
-            'name': '10_Control_Effect_Male_vs_Female_Putamen',
-            'description': 'Control Effect <- Male vs. Female (Putamen)',
-            'metadata_filter': {'condition_filter': ['Control'], 'region_filter': 'Putamen'},
-            'contrast': ['sex', 'Male', 'Female']
-        },
-        {
-            'name': '11_Control_Effect_Male_vs_Female_Caudate',
-            'description': 'Control Effect <- Male vs. Female (Caudate)',
-            'metadata_filter': {'condition_filter': ['Control'], 'region_filter': 'Caudate'},
-            'contrast': ['sex', 'Male', 'Female']
         }
     ]
     
@@ -437,9 +501,14 @@ def run_all_contrasts_for_dataset(adata):
         # Filter metadata and counts for this contrast
         filtered_metadata = filter_metadata_for_contrast(metadata_df, **contrast_info['metadata_filter'])
         
-        # Check if we have enough samples
-        if len(filtered_metadata) < 4:  # Need at least 2 samples per group
-            print(f"   Insufficient samples after filtering: {len(filtered_metadata)}")
+        # Check condition groups
+        condition_counts = filtered_metadata['condition'].value_counts()
+        print(f"     Condition distribution: {dict(condition_counts)}")
+        if len(condition_counts) < 2:
+            print(f"   Insufficient condition groups: {dict(condition_counts)}")
+            continue
+        if any(condition_counts < 2):
+            print(f"   Insufficient samples per condition: {dict(condition_counts)}")
             continue
             
         # Filter count matrix to match filtered metadata
@@ -452,6 +521,100 @@ def run_all_contrasts_for_dataset(adata):
             filtered_metadata,
             contrast_info['name'],
             contrast_info['contrast']
+        )
+        
+        if result is not None:
+            all_contrast_results[contrast_info['name']] = result
+            
+            # Save individual contrast results
+            save_contrast_results(result, "Full_Dataset", contrast_info['name'])
+    
+    return all_contrast_results
+
+def run_sex_contrasts_for_dataset(adata):
+    """Run sex-based contrasts (06-11) for the full dataset"""
+    print(f"\n🎯 ANALYZING SEX CONTRASTS FOR FULL DATASET")
+    print("=" * 80)
+    
+    all_contrast_results = {}
+    
+    # Create base pseudobulk data from all cell types
+    count_df, metadata_df = create_pseudobulk_data(adata)
+    
+    if count_df is None:
+        print(f"   Skipping analysis - insufficient data")
+        return None
+    
+    # Define sex contrasts (06-11)
+    contrasts = [
+        {
+            'name': '06_OUD_Effect_Male_vs_Female',
+            'description': 'OUD Effect <- Male vs. Female',
+            'metadata_filter': {'condition_filter': ['OUD']},
+            'contrast': ['sex', 'M', 'F']
+        },
+        {
+            'name': '07_OUD_Effect_Male_vs_Female_Putamen',
+            'description': 'OUD Effect <- Male vs. Female (Putamen)',
+            'metadata_filter': {'condition_filter': ['OUD'], 'region_filter': 'Putamen'},
+            'contrast': ['sex', 'M', 'F']
+        },
+        {
+            'name': '08_OUD_Effect_Male_vs_Female_Caudate',
+            'description': 'OUD Effect <- Male vs. Female (Caudate)',
+            'metadata_filter': {'condition_filter': ['OUD'], 'region_filter': 'Caudate'},
+            'contrast': ['sex', 'M', 'F']
+        },
+        {
+            'name': '09_Control_Effect_Male_vs_Female',
+            'description': 'Control Effect <- Male vs. Female',
+            'metadata_filter': {'condition_filter': ['Control']},
+            'contrast': ['sex', 'M', 'F']
+        },
+        {
+            'name': '10_Control_Effect_Male_vs_Female_Putamen',
+            'description': 'Control Effect <- Male vs. Female (Putamen)',
+            'metadata_filter': {'condition_filter': ['Control'], 'region_filter': 'Putamen'},
+            'contrast': ['sex', 'M', 'F']
+        },
+        {
+            'name': '11_Control_Effect_Male_vs_Female_Caudate',
+            'description': 'Control Effect <- Male vs. Female (Caudate)',
+            'metadata_filter': {'condition_filter': ['Control'], 'region_filter': 'Caudate'},
+            'contrast': ['sex', 'M', 'F']
+        }
+    ]
+    
+    # Run each contrast
+    for contrast_info in contrasts:
+        print(f"\n{'='*60}")
+        print(f"CONTRAST {contrast_info['name']}: {contrast_info['description']}")
+        print(f"{'='*60}")
+        
+        # Filter metadata and counts for this contrast
+        filtered_metadata = filter_metadata_for_contrast(metadata_df, **contrast_info['metadata_filter'])
+        
+        # For sex contrasts, check if we have both M and F with sufficient samples
+        sex_counts = filtered_metadata['sex'].value_counts()
+        print(f"     Sex distribution: {dict(sex_counts)}")
+        if len(sex_counts) < 2:
+            print(f"   Insufficient sex groups (need both M and F): {dict(sex_counts)}")
+            continue
+        if any(sex_counts < 2):
+            print(f"   Insufficient samples per sex (need ≥2 each): {dict(sex_counts)}")
+            continue
+            
+        # Filter count matrix to match filtered metadata
+        sample_ids = filtered_metadata['sample_id'].tolist()
+        filtered_counts = count_df[sample_ids]
+        
+        # Run the analysis with sex-specific design
+        result = run_single_contrast_analysis(
+            filtered_counts,
+            filtered_metadata,
+            contrast_info['name'],
+            contrast_info['contrast'],
+            design_formula="~ sex"  # Use sex-only design for sex contrasts
         )
         
         if result is not None:
@@ -622,13 +785,26 @@ def export_all_results(all_contrast_results):
 
 def run_full_dataset_analysis(adata):
     """Run complete analysis for the full dataset with all contrasts"""
-    return run_all_contrasts_for_dataset(adata)
+    # Run condition contrasts (01-05)
+    condition_results = run_condition_contrasts_for_dataset(adata)
+    
+    # Run sex contrasts (06-11)
+    sex_results = run_sex_contrasts_for_dataset(adata)
+    
+    # Combine results
+    all_results = {}
+    if condition_results:
+        all_results.update(condition_results)
+    if sex_results:
+        all_results.update(sex_results)
+    
+    return all_results
 
 def main():
     """Main execution function"""
     print("🚀 STARTING COMPREHENSIVE pyDESeq2 ANALYSIS PIPELINE")
     print("====================================================")
-    print("Will run all 11 contrasts for each viable cell type")
+    print("Will run all 11 contrasts on the full dataset (all cell types combined)")
     
     if not PYDESEQ2_AVAILABLE:
         print("\n❌ pyDESeq2 not available!")

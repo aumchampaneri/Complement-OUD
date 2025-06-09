@@ -1,0 +1,11 @@
+Contrast: 10_Control_Effect_Male_vs_Female_Putamen
+Analysis Type: Full_Dataset
+Total Samples: 6
+Total Genes: 22310
+Significant Genes: 29
+Percent Significant: 0.13%
+
+Direction Summary:
+  Not_significant: 22281
+  Up_in_Male: 19
+  Down_in_Male: 10
