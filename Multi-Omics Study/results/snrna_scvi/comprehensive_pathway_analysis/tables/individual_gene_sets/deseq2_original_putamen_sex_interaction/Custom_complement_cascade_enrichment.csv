@@ -1,0 +1,2 @@
+Pathway,Overlap_Count,Pathway_Size,Query_Size,P_Value,Odds_Ratio,Fold_Enrichment,Overlap_Genes
+complement_regulation,3,14,596,0.007498806655932064,8.916359334874778,7.190795781399808,S100A9;CD59;SERPING1

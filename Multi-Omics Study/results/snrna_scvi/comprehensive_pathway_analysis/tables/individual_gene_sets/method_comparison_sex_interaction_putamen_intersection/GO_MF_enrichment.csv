@@ -1,0 +1,2 @@
+ID,Description,GeneRatio,BgRatio,RichFactor,FoldEnrichment,zScore,pvalue,p.adjust,qvalue,geneID,Count
+GO:0099528,G protein-coupled neurotransmitter receptor activity,2/28,11/18639,0.18181818181818182,121.03246753246754,15.445635324963279,0.00011869344873860412,0.021483514221687344,0.015367678099840324,GABRB1/CHRM5,2

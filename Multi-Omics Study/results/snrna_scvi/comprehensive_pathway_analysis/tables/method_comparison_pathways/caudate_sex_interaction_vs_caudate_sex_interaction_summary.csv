@@ -1,0 +1,8 @@
+Database,LEMUR_Pathways,DESeq2_Pathways,Intersection,LEMUR_Specific,DESeq2_Specific,Jaccard_Index
+Reactome_Reactome,3,10,0,3,10,0.0
+KEGG_KEGG,12,58,3,9,55,0.04477611940298507
+Custom_neurotransmitter_systems,0,1,0,0,1,0.0
+Custom_addiction_pathways,0,1,0,0,1,0.0
+GO_GO_BP,151,565,37,114,528,0.054491899852724596
+GO_GO_MF,18,20,5,13,15,0.15151515151515152
+GO_GO_CC,50,22,5,45,17,0.07462686567164178

@@ -1,0 +1,5 @@
+Database,LEMUR_Pathways,DESeq2_Pathways,Intersection,LEMUR_Specific,DESeq2_Specific,Jaccard_Index
+Reactome_Reactome,82,10,0,82,10,0.0
+Custom_neurotransmitter_systems,1,1,0,1,1,0.0
+GO_GO_BP,72,28,0,72,28,0.0
+GO_GO_MF,14,15,0,14,15,0.0

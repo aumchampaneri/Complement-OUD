@@ -1,0 +1,3 @@
+Pathway,Overlap_Count,Pathway_Size,Query_Size,P_Value,Odds_Ratio,Fold_Enrichment,Overlap_Genes
+stress_response,3,21,596,0.023487977406493107,5.447310017301385,4.793863854266538,JUN;FOS;FKBP5
+synaptic_plasticity,3,28,596,0.04968441549272805,3.9211554627104284,3.595397890699904,JUN;FOS;JUNB

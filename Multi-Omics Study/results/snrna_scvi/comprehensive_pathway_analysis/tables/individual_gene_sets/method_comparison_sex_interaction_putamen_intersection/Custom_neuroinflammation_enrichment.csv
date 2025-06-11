@@ -1,0 +1,3 @@
+Pathway,Overlap_Count,Pathway_Size,Query_Size,P_Value,Odds_Ratio,Fold_Enrichment,Overlap_Genes
+microglia_activation,1,21,38,0.03917016335727412,26.92653516304011,25.06265664160401,TLR4
+nf_kappa_b_pathway,1,17,38,0.03182621285852209,33.63979608224872,30.959752321981423,NFKBIA

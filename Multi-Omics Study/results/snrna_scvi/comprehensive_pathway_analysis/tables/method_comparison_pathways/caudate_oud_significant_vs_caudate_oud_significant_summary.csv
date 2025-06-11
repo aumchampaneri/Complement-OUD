@@ -1,0 +1,5 @@
+Database,LEMUR_Pathways,DESeq2_Pathways,Intersection,LEMUR_Specific,DESeq2_Specific,Jaccard_Index
+Custom_neuroinflammation,0,0,0,0,0,0.0
+Custom_neurotransmitter_systems,0,0,0,0,0,0.0
+GO_GO_MF,9,10,0,9,10,0.0
+GO_GO_CC,74,2,2,72,0,0.02702702702702703

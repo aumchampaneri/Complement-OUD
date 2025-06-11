@@ -1,0 +1,90 @@
+{
+  "caudate_method": "deseq2_original_caudate_sex_interaction",
+  "putamen_method": "deseq2_original_putamen_sex_interaction",
+  "regional_differences": {
+    "Custom_complement_cascade": {
+      "caudate_specific_pathways": [],
+      "putamen_specific_pathways": [],
+      "shared_pathways": [
+        "complement_regulation"
+      ],
+      "caudate_pathway_count": 1,
+      "putamen_pathway_count": 1,
+      "regional_specificity_score": 0.0,
+      "pathway_scores": {
+        "complement_regulation": {
+          "caudate_enrichment": 4.588559192413582,
+          "putamen_enrichment": 7.190795781399808,
+          "regional_difference": 2.6022365889862256,
+          "dominant_region": "Putamen"
+        }
+      }
+    },
+    "Custom_neuroinflammation": {
+      "caudate_specific_pathways": [
+        "inflammasome_activation"
+      ],
+      "putamen_specific_pathways": [],
+      "shared_pathways": [
+        "astrocyte_reactivity",
+        "cytokine_signaling",
+        "microglia_activation"
+      ],
+      "caudate_pathway_count": 4,
+      "putamen_pathway_count": 3,
+      "regional_specificity_score": 0.25,
+      "pathway_scores": {
+        "astrocyte_reactivity": {
+          "caudate_enrichment": 5.353319057815845,
+          "putamen_enrichment": 6.7114093959731544,
+          "regional_difference": 1.358090338157309,
+          "dominant_region": "Putamen"
+        },
+        "inflammasome_activation": {
+          "caudate_enrichment": 3.778813452575891,
+          "putamen_enrichment": 0,
+          "regional_difference": 3.778813452575891,
+          "dominant_region": "Caudate"
+        },
+        "cytokine_signaling": {
+          "caudate_enrichment": 3.9654215243080344,
+          "putamen_enrichment": 6.214267959234403,
+          "regional_difference": 2.248846434926368,
+          "dominant_region": "Putamen"
+        },
+        "microglia_activation": {
+          "caudate_enrichment": 4.078719282145406,
+          "putamen_enrichment": 9.587727708533077,
+          "regional_difference": 5.509008426387671,
+          "dominant_region": "Putamen"
+        }
+      }
+    },
+    "Custom_addiction_pathways": {
+      "caudate_specific_pathways": [],
+      "putamen_specific_pathways": [
+        "stress_response"
+      ],
+      "shared_pathways": [
+        "synaptic_plasticity"
+      ],
+      "caudate_pathway_count": 1,
+      "putamen_pathway_count": 2,
+      "regional_specificity_score": 0.5,
+      "pathway_scores": {
+        "synaptic_plasticity": {
+          "caudate_enrichment": 3.0590394616090544,
+          "putamen_enrichment": 3.595397890699904,
+          "regional_difference": 0.5363584290908494,
+          "dominant_region": "Putamen"
+        },
+        "stress_response": {
+          "caudate_enrichment": 0,
+          "putamen_enrichment": 4.793863854266538,
+          "regional_difference": 4.793863854266538,
+          "dominant_region": "Putamen"
+        }
+      }
+    }
+  }
+}

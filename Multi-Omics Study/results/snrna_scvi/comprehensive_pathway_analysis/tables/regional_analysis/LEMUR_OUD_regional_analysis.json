@@ -1,0 +1,15 @@
+{
+  "caudate_method": "lemur_original_caudate_oud_significant",
+  "putamen_method": "lemur_original_putamen_oud_significant",
+  "regional_differences": {
+    "Custom_neuroinflammation": {
+      "caudate_specific_pathways": [],
+      "putamen_specific_pathways": [],
+      "shared_pathways": [],
+      "caudate_pathway_count": 0,
+      "putamen_pathway_count": 0,
+      "regional_specificity_score": 0,
+      "pathway_scores": {}
+    }
+  }
+}
