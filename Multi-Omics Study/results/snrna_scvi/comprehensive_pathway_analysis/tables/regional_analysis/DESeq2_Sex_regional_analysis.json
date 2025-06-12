@@ -26,20 +26,14 @@
       ],
       "putamen_specific_pathways": [],
       "shared_pathways": [
-        "astrocyte_reactivity",
+        "microglia_activation",
         "cytokine_signaling",
-        "microglia_activation"
+        "astrocyte_reactivity"
       ],
       "caudate_pathway_count": 4,
       "putamen_pathway_count": 3,
       "regional_specificity_score": 0.25,
       "pathway_scores": {
-        "astrocyte_reactivity": {
-          "caudate_enrichment": 5.353319057815845,
-          "putamen_enrichment": 6.7114093959731544,
-          "regional_difference": 1.358090338157309,
-          "dominant_region": "Putamen"
-        },
         "inflammasome_activation": {
           "caudate_enrichment": 3.778813452575891,
           "putamen_enrichment": 0,
@@ -50,6 +44,12 @@
           "caudate_enrichment": 3.9654215243080344,
           "putamen_enrichment": 6.214267959234403,
           "regional_difference": 2.248846434926368,
+          "dominant_region": "Putamen"
+        },
+        "astrocyte_reactivity": {
+          "caudate_enrichment": 5.353319057815845,
+          "putamen_enrichment": 6.7114093959731544,
+          "regional_difference": 1.358090338157309,
           "dominant_region": "Putamen"
         },
         "microglia_activation": {
@@ -72,16 +72,16 @@
       "putamen_pathway_count": 2,
       "regional_specificity_score": 0.5,
       "pathway_scores": {
-        "synaptic_plasticity": {
-          "caudate_enrichment": 3.0590394616090544,
-          "putamen_enrichment": 3.595397890699904,
-          "regional_difference": 0.5363584290908494,
-          "dominant_region": "Putamen"
-        },
         "stress_response": {
           "caudate_enrichment": 0,
           "putamen_enrichment": 4.793863854266538,
           "regional_difference": 4.793863854266538,
+          "dominant_region": "Putamen"
+        },
+        "synaptic_plasticity": {
+          "caudate_enrichment": 3.0590394616090544,
+          "putamen_enrichment": 3.595397890699904,
+          "regional_difference": 0.5363584290908494,
           "dominant_region": "Putamen"
         }
       }

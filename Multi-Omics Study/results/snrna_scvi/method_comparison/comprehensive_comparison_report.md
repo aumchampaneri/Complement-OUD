@@ -46,16 +46,16 @@ This analysis compared differential expression results between LEMUR (latent spa
 #### Highly Robust Genes (Found by Both Methods)
 These genes represent the most confident differential expression findings:
 
-- **SGCD**: Significant in both LEMUR and DESeq2
-- **FAP**: Significant in both LEMUR and DESeq2
-- **CDH19**: Significant in both LEMUR and DESeq2
-- **SLC4A4**: Significant in both LEMUR and DESeq2
-- **CXCL12**: Significant in both LEMUR and DESeq2
 - **ZBTB16**: Significant in both LEMUR and DESeq2
-- **GABRB1**: Significant in both LEMUR and DESeq2
-- **BAALC**: Significant in both LEMUR and DESeq2
-- **FKBP5**: Significant in both LEMUR and DESeq2
 - **CTNNA2**: Significant in both LEMUR and DESeq2
+- **BAALC**: Significant in both LEMUR and DESeq2
+- **GABRB1**: Significant in both LEMUR and DESeq2
+- **SGCD**: Significant in both LEMUR and DESeq2
+- **CXCL12**: Significant in both LEMUR and DESeq2
+- **FKBP5**: Significant in both LEMUR and DESeq2
+- **FAP**: Significant in both LEMUR and DESeq2
+- **SLC4A4**: Significant in both LEMUR and DESeq2
+- **CDH19**: Significant in both LEMUR and DESeq2
 
 
 ## Recommendations
@@ -83,5 +83,5 @@ These genes represent the most confident differential expression findings:
 - Visualization plots for each contrast
 
 ---
-Generated: 2025-06-10 18:04:39
+Generated: 2025-06-11 22:24:14
         
