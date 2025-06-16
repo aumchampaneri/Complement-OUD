@@ -1,0 +1,78 @@
+
+Human Microglia Atlas (HuMicA) scANVI Analysis Report
+Generated: 2025-06-15 21:52:18
+Reference: "The Human Microglia Atlas (HuMicA) unravels changes in disease-associated
+microglia subsets across neurodegenerative conditions" - Nature Communications
+
+=== ANALYSIS OVERVIEW ===
+Primary Goal: Batch correction and disease-associated microglia analysis
+Dataset: Human Microglia Atlas (HuMicA) - multi-condition neurodegenerative diseases
+Platform: M1 Max (64GB RAM)
+
+=== DATASET INFORMATION ===
+- Input file: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/data/raw/HuMicA/HuMicA_for_scVI.h5ad
+- Final dimensions: 90716 cells × 61388 genes
+- Batch key: Sample_ID (241 different samples)
+- Labels key: seurat_clusters (9 microglia subtypes)
+Disease Groups:
+- No Neuropathology: 33021 cells
+- Epilepsy: 24638 cells
+- AD: 20036 cells
+- LBD: 8877 cells
+- COVID-19: 1795 cells
+- MS: 1212 cells
+- ASD: 1137 cells
+
+=== MODEL CONFIGURATION ===
+- Latent dimensions: 30 (optimized for neurodegenerative disease complexity)
+- Architecture: 2 layers, 256 hidden units
+- Training epochs: 200
+- Batch size: 512 (M1 Max optimized)
+- Learning rate: 0.0005
+
+=== HuMicA GENE SIGNATURE ANALYSIS ===
+- Disease-Associated Microglia (DAM) genes: 20/20
+- Homeostatic microglia genes: 10/12
+- Neuroinflammatory pathway genes: 21/21
+- Key DAM genes detected: TREM2, TYROBP, AXL, FERMT2, SPI1, CTSD, CSF1, ITGAX...
+
+=== RESULTS ===
+- scANVI latent representation: X_scANVI ((90716, 30))
+- Batch-corrected expression: X_scANVI_normalized
+- New Leiden clusters: 11
+- Device used: MPS (M1 Max)
+
+=== OUTPUT FILES ===
+- Processed data: adata_scanvi_processed.h5ad
+- Trained model: scanvi_model/
+- Latent embeddings: scanvi_latent_embeddings.csv
+- Metadata with predictions: scanvi_metadata.csv
+- HuMicA-specific visualizations:
+  * microglia_umap_overview.png (Multi-panel overview)
+  * microglia_cell_types_umap.png (Detailed cell type analysis with annotations)
+  * microglia_subtypes_detailed_umap.png (Focused cell type UMAP with meaningful names)
+  * microglia_clusters_reference_umap.png (Cluster numbers reference with type mapping)
+  * batch_integration_assessment.png (Before/after batch correction)
+  * dam_signature_genes.png (Disease-Associated Microglia expression)
+  * homeostatic_vs_dam.png (Homeostatic vs DAM comparison)
+  * neuroinflammatory_genes.png (Neuroinflammation pathway genes)
+  * training_history.png (Model training convergence)
+
+=== CELL TYPE ANNOTATIONS ===
+- Homeostatic Microglia: Resting state, surveillance function
+- Activated Microglia I & II: Early and advanced activation states
+- Disease-Associated Microglia (DAM): Pathology-associated phenotype
+- Interferon-Response Microglia: Anti-viral/immune response
+- Proliferating Microglia: Cell cycle active, tissue repair
+- Lipid-Associated Microglia: Lipid metabolism, myelin debris
+- Phagocytic Microglia: Active debris clearance
+- Stressed/Dysfunctional Microglia: Senescent or damaged cells
+
+=== NEXT STEPS FOR HuMicA ANALYSIS ===
+1. Use X_scANVI_normalized for disease-associated microglia differential expression
+2. Compare DAM signature scores across neurodegenerative conditions
+3. Analyze homeostatic to DAM transition patterns by cell type
+4. Investigate disease-specific microglia activation profiles
+5. Perform pathway enrichment analysis for each annotated cell type
+6. Validate cell type annotations against original HuMicA publication results
+7. Cross-reference with your Complement-OUD study for addiction-related microglia states

@@ -1,0 +1,71 @@
+
+HuMicA Complement System Analysis Report
+======================================
+Generated: 2025-06-16 10:43:40
+
+=== ANALYSIS OVERVIEW ===
+Focus: Complement system in neuroinflammation
+Dataset: Human Microglia Atlas (HuMicA) processed data
+Analysis Type: Pathway scoring and cell type characterization
+
+=== COMPLEMENT PATHWAYS ANALYZED ===
+1. Classical Pathway (C1q-mediated)
+   - Key genes: C1QA, C1QB, C1QC, C1R, C1S, C4A, C4B, C2
+   - Function: Antibody-mediated activation, synaptic pruning
+
+2. Alternative Pathway (Spontaneous activation)
+   - Key genes: CFB, CFD, CFP, CFI, CFH, C3, C5
+   - Function: Pathogen recognition, amplification loop
+
+3. Lectin Pathway (Carbohydrate recognition)
+   - Key genes: MBL2, MASP1, MASP2, FCN1, FCN2
+   - Function: Innate immune recognition
+
+4. Terminal Pathway (Membrane attack complex)
+   - Key genes: C5, C6, C7, C8A, C8B, C8G, C9
+   - Function: Cell lysis, membrane disruption
+
+5. Complement Regulators
+   - Key genes: CD55, CD46, CD59, CR1, CR2, ITGAM, ITGAX
+   - Function: Prevent excessive complement activation
+
+6. Anaphylatoxin Receptors
+   - Key genes: C3AR1, C5AR1, C5AR2
+   - Function: Inflammatory signaling, chemotaxis
+
+=== KEY FINDINGS ===
+• Cell type-specific complement expression patterns identified
+• Disease-specific complement pathway dysregulation characterized
+• C1Q complex expression mapping in microglia subtypes
+• Complement regulator expression profiles analyzed
+
+=== OUTPUT FILES ===
+Visualizations:
+• complement_pathway_umaps.png - Pathway activity across cell types
+• complement_celltype_heatmap.png - Cell type expression matrix
+• complement_disease_heatmap.png - Disease group comparisons
+• key_complement_genes_umap.png - Individual gene expression
+• c1q_complex_analysis.png - C1Q complex detailed analysis
+• complement_overall_detailed_umap.png - Overall activity map
+
+Data Files:
+• complement_statistical_analysis.csv - Statistical comparisons
+• complement_analysis_summary.txt - This report
+
+=== RESEARCH IMPLICATIONS ===
+1. Complement-mediated neuroinflammation patterns by cell type
+2. Disease-specific complement activation signatures
+3. Therapeutic target identification for complement modulation
+4. Connection points for OUD-complement research integration
+
+=== NEXT STEPS ===
+1. Cross-reference with Option B disease comparison analysis
+2. Integrate with OUD complement data
+3. Identify druggable complement targets
+4. Validate key findings experimentally
+
+=== COMPLEMENT-OUD CONNECTIONS ===
+• C5AR1: Potential addiction-neuroinflammation link
+• C1Q complex: Synaptic pruning in addiction circuitry
+• Complement regulators: Neuroprotective targets
+• Disease comparisons: Shared vs unique complement signatures

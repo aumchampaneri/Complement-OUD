@@ -1,0 +1,52 @@
+{
+  "cv_accuracy_mean": 0.5195224676708583,
+  "cv_accuracy_std": 0.002227453091967769,
+  "cv_scores": [
+    0.5193452380952381,
+    0.5186022157305848,
+    0.5181612743206746,
+    0.5238383949732679,
+    0.5176652152345257
+  ],
+  "feature_importance": [
+    {
+      "Pathway": "Classical Pathway",
+      "Importance": 0.20685376078735734
+    },
+    {
+      "Pathway": "Overall",
+      "Importance": 0.16436181293546057
+    },
+    {
+      "Pathway": "Anaphylatoxins Receptors",
+      "Importance": 0.159598555892217
+    },
+    {
+      "Pathway": "Regulators",
+      "Importance": 0.13780001263454092
+    },
+    {
+      "Pathway": "Alternative Pathway",
+      "Importance": 0.13690610862151698
+    },
+    {
+      "Pathway": "Terminal Pathway",
+      "Importance": 0.12695994146298561
+    },
+    {
+      "Pathway": "Lectin Pathway",
+      "Importance": 0.06751980766592164
+    }
+  ],
+  "diseases_analyzed": [
+    "No Neuropathology",
+    "Epilepsy",
+    "AD",
+    "LBD",
+    "COVID-19",
+    "MS",
+    "ASD"
+  ],
+  "n_samples": 90716,
+  "n_features": 7
+}
