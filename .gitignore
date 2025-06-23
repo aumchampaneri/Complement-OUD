@@ -207,6 +207,7 @@ cython_debug/
 *.RData
 *.bw
 *.pt
+*.eps
 
 # Jupyter notebooks and journals
 /Jupyter Journal/
