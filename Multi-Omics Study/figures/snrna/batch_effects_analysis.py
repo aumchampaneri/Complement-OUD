@@ -169,180 +169,160 @@ def create_sample_qc_dataframe(adata):
     return sample_df
 
 def create_nuclei_count_boxplots(sample_df, output_dir):
-    """Create Nature-style box plots showing nuclei counts by brain area and treatment, with gender shapes"""
-    print("🎨 Creating publication-ready nuclei count box plots...")
+    """Create Nature-style grouped box plot showing nuclei counts by brain area and treatment, with gender shapes"""
+    print("🎨 Creating publication-ready grouped nuclei count box plot...")
 
-    # Create figure with proper Nature dimensions
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7.2, 3.6))  # Nature 2-column width
+    # Create figure with proper Nature dimensions for single grouped plot
+    fig, ax = plt.subplots(1, 1, figsize=(5.0, 4.0))  # Nature single column width, slightly taller
 
     # Define gender markers and colors (colorblind-friendly)
     gender_markers = {'Male': 'o', 'Female': 's', 'M': 'o', 'F': 's'}  # circle and square
     gender_colors = {'Male': COLORS['blue'], 'Female': COLORS['red'],
                     'M': COLORS['blue'], 'F': COLORS['red']}
 
-    # Plot 1: Nuclei count by brain area
-    ax1.set_title('Brain region', fontweight='bold', fontsize=9, pad=8)
-
-    # Prepare data
+    # Create grouped box plot using seaborn for better control
+    # Prepare data for grouped plotting
     brain_areas = sorted(sample_df['brain_area'].unique())
-    area_data = [sample_df[sample_df['brain_area'] == area]['n_nuclei'].values for area in brain_areas]
-
-    # Create refined boxplot
-    bp1 = ax1.boxplot(area_data, labels=brain_areas, patch_artist=True,
-                     notch=False, showfliers=False, widths=0.6,
-                     boxprops=dict(linewidth=0.8),
-                     medianprops=dict(linewidth=1.2, color='black'),
-                     whiskerprops=dict(linewidth=0.8),
-                     capprops=dict(linewidth=0.8))
-
-    # Color boxes with subtle colors
-    box_colors = [COLORS['light_blue'], COLORS['light_green']]
-    for patch, color in zip(bp1['boxes'], box_colors[:len(brain_areas)]):
-        patch.set_facecolor(color)
-        patch.set_alpha(0.8)
-        patch.set_edgecolor(COLORS['dark_gray'])
-
-    # Add individual points with gender shapes
-    for i, area in enumerate(brain_areas):
-        area_samples = sample_df[sample_df['brain_area'] == area]
-
-        for _, row in area_samples.iterrows():
-            gender = row['gender']
-            marker = gender_markers.get(gender, 'o')
-            color = gender_colors.get(gender, COLORS['dark_gray'])
-
-            # Add slight horizontal jitter
-            x = i + 1 + np.random.normal(0, 0.03)
-            y = row['n_nuclei']
-            ax1.scatter(x, y, marker=marker, s=20, color=color, alpha=0.9,
-                       edgecolors='white', linewidth=0.5, zorder=5)
-
-    # Statistical test with cleaner display
-    if len(area_data) == 2:
-        stat, p_val = stats.mannwhitneyu(area_data[0], area_data[1], alternative='two-sided')
-        if p_val < 0.001:
-            p_text = "P < 0.001"
-        elif p_val < 0.01:
-            p_text = f"P = {p_val:.3f}"
-        else:
-            p_text = f"P = {p_val:.2f}"
-    else:
-        stat, p_val = stats.kruskal(*area_data)
-        p_text = f"P = {p_val:.3f}" if p_val >= 0.001 else "P < 0.001"
-
-    # Add statistical annotation
-    ax1.text(0.98, 0.95, p_text, transform=ax1.transAxes,
-            va='top', ha='right', fontsize=7,
-            bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
-                     edgecolor=COLORS['light_gray'], linewidth=0.5))
-
-    ax1.set_ylabel('Nuclei per sample', fontweight='bold', fontsize=8)
-    ax1.set_xlabel('')  # Remove x-label, title is descriptive enough
-
-    # Plot 2: Nuclei count by treatment condition
-    ax2.set_title('Treatment condition', fontweight='bold', fontsize=9, pad=8)
-
-    # Prepare data
     treatments = sorted(sample_df['treatment'].unique())
-    treatment_data = [sample_df[sample_df['treatment'] == treat]['n_nuclei'].values for treat in treatments]
 
-    # Create refined boxplot
-    bp2 = ax2.boxplot(treatment_data, labels=treatments, patch_artist=True,
-                     notch=False, showfliers=False, widths=0.6,
-                     boxprops=dict(linewidth=0.8),
-                     medianprops=dict(linewidth=1.2, color='black'),
-                     whiskerprops=dict(linewidth=0.8),
-                     capprops=dict(linewidth=0.8))
+    # Set up positions for grouped boxes
+    positions = []
+    labels = []
+    group_data = []
+    box_colors = []
+
+    # Define colors for each treatment within regions
+    treat_colors = {'None': COLORS['light_blue'], 'OUD': COLORS['light_orange']}
+    treat_edge_colors = {'None': COLORS['dark_blue'], 'OUD': COLORS['dark_orange']}
+
+    pos = 1
+    for i, area in enumerate(brain_areas):
+        for j, treat in enumerate(treatments):
+            subset = sample_df[(sample_df['brain_area'] == area) & (sample_df['treatment'] == treat)]
+            if len(subset) > 0:
+                positions.append(pos)
+                labels.append(f"{area}\n{treat}")
+                group_data.append(subset['n_nuclei'].values)
+                box_colors.append(treat_colors[treat])
+                pos += 1
+        pos += 0.5  # Add space between brain regions
+
+    # Create grouped boxplot
+    bp = ax.boxplot(group_data, positions=positions, patch_artist=True,
+                   notch=False, showfliers=False, widths=0.4,
+                   boxprops=dict(linewidth=0.8),
+                   medianprops=dict(linewidth=1.2, color='black'),
+                   whiskerprops=dict(linewidth=0.8),
+                   capprops=dict(linewidth=0.8))
 
     # Color boxes
-    treat_colors = [COLORS['light_orange'], COLORS['light_purple']]
-    for patch, color in zip(bp2['boxes'], treat_colors[:len(treatments)]):
+    for patch, color in zip(bp['boxes'], box_colors):
         patch.set_facecolor(color)
         patch.set_alpha(0.8)
         patch.set_edgecolor(COLORS['dark_gray'])
 
-    # Add individual points with gender shapes
-    for i, treat in enumerate(treatments):
-        treat_samples = sample_df[sample_df['treatment'] == treat]
+    # Add individual points with gender shapes and treatment-specific jitter
+    for i, (area, treat) in enumerate([(a, t) for a in brain_areas for t in treatments]):
+        subset = sample_df[(sample_df['brain_area'] == area) & (sample_df['treatment'] == treat)]
+        if len(subset) > 0:
+            pos_idx = [idx for idx, label in enumerate(labels) if f"{area}\n{treat}" == label][0]
 
-        for _, row in treat_samples.iterrows():
-            gender = row['gender']
-            marker = gender_markers.get(gender, 'o')
-            color = gender_colors.get(gender, COLORS['dark_gray'])
+            for _, row in subset.iterrows():
+                gender = row['gender']
+                marker = gender_markers.get(gender, 'o')
+                color = gender_colors.get(gender, COLORS['dark_gray'])
 
-            x = i + 1 + np.random.normal(0, 0.03)
-            y = row['n_nuclei']
-            ax2.scatter(x, y, marker=marker, s=20, color=color, alpha=0.9,
-                       edgecolors='white', linewidth=0.5, zorder=5)
+                # Add slight horizontal jitter
+                x = positions[pos_idx] + np.random.normal(0, 0.02)
+                y = row['n_nuclei']
+                ax.scatter(x, y, marker=marker, s=25, color=color, alpha=0.9,
+                          edgecolors='white', linewidth=0.8, zorder=5)
 
-    # Statistical test
-    if len(treatment_data) == 2:
-        stat, p_val = stats.mannwhitneyu(treatment_data[0], treatment_data[1], alternative='two-sided')
-        if p_val < 0.001:
-            p_text = "P < 0.001"
-        elif p_val < 0.01:
-            p_text = f"P = {p_val:.3f}"
-        else:
-            p_text = f"P = {p_val:.2f}"
-    else:
-        stat, p_val = stats.kruskal(*treatment_data)
-        p_text = f"P = {p_val:.3f}" if p_val >= 0.001 else "P < 0.001"
+    # Set labels and styling
+    ax.set_xticks(positions)
+    ax.set_xticklabels(labels, fontsize=7)
+    ax.set_ylabel('Nuclei per sample', fontweight='bold', fontsize=8)
+    ax.set_title('Nuclei count by brain region and treatment', fontweight='bold', fontsize=9, pad=10)
 
-    ax2.text(0.98, 0.95, p_text, transform=ax2.transAxes,
-            va='top', ha='right', fontsize=7,
-            bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
-                     edgecolor=COLORS['light_gray'], linewidth=0.5))
+    # Create treatment legend (boxes)
+    treat_legend_elements = []
+    for treat in treatments:
+        treat_legend_elements.append(plt.Rectangle((0, 0), 1, 1,
+                                                 facecolor=treat_colors[treat],
+                                                 edgecolor=COLORS['dark_gray'],
+                                                 linewidth=0.8, alpha=0.8,
+                                                 label=treat))
 
-    ax2.set_ylabel('Nuclei per sample', fontweight='bold', fontsize=8)
-    ax2.set_xlabel('')
-
-    # Create gender legend with proper styling
-    legend_elements = []
+    # Create gender legend (markers)
+    gender_legend_elements = []
     unique_genders = sorted(sample_df['gender'].unique())
     for gender in unique_genders:
         marker = gender_markers.get(gender, 'o')
         color = gender_colors.get(gender, COLORS['dark_gray'])
-        legend_elements.append(plt.Line2D([0], [0], marker=marker, color='w',
-                                        markerfacecolor=color, markersize=6,
-                                        markeredgecolor='white', markeredgewidth=0.5,
-                                        label=gender))
+        gender_legend_elements.append(plt.Line2D([0], [0], marker=marker, color='w',
+                                               markerfacecolor=color, markersize=6,
+                                               markeredgecolor='white', markeredgewidth=0.8,
+                                               label=gender))
 
-    # Position legend appropriately
-    ax2.legend(handles=legend_elements, title='Sex', loc='upper right',
-              frameon=True, fancybox=False, shadow=False)
+    # Position legends
+    legend1 = ax.legend(handles=treat_legend_elements, title='Treatment',
+                       loc='upper left', frameon=True, fancybox=False, shadow=False)
+    ax.add_artist(legend1)
+    ax.legend(handles=gender_legend_elements, title='Sex', loc='upper right',
+             frameon=True, fancybox=False, shadow=False)
 
-    # Style both axes according to Nature standards
-    for ax in [ax1, ax2]:
-        # Remove top and right spines
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
+    # Statistical testing - perform 2-way ANOVA-style tests
+    from scipy.stats import f_oneway
 
-        # Style remaining spines
-        ax.spines['left'].set_color(COLORS['black'])
-        ax.spines['bottom'].set_color(COLORS['black'])
-        ax.spines['left'].set_linewidth(0.8)
-        ax.spines['bottom'].set_linewidth(0.8)
+    # Test main effect of brain region
+    caudate_data = sample_df[sample_df['brain_area'] == 'Caudate']['n_nuclei']
+    putamen_data = sample_df[sample_df['brain_area'] == 'Putamen']['n_nuclei']
+    region_stat, region_p = stats.mannwhitneyu(caudate_data, putamen_data, alternative='two-sided')
 
-        # Style ticks
-        ax.tick_params(axis='both', which='major', labelsize=7,
-                      colors=COLORS['black'], width=0.8, length=3)
-        ax.tick_params(axis='both', which='minor', width=0.6, length=2)
+    # Test main effect of treatment
+    none_data = sample_df[sample_df['treatment'] == 'None']['n_nuclei']
+    oud_data = sample_df[sample_df['treatment'] == 'OUD']['n_nuclei']
+    treat_stat, treat_p = stats.mannwhitneyu(none_data, oud_data, alternative='two-sided')
 
-        # Add subtle grid
-        ax.grid(True, alpha=0.2, linewidth=0.5, color=COLORS['light_gray'])
-        ax.set_axisbelow(True)
+    # Add statistical annotations
+    stats_text = []
+    if region_p < 0.001:
+        stats_text.append("Region: P < 0.001")
+    else:
+        stats_text.append(f"Region: P = {region_p:.3f}")
 
-    # Adjust layout for Nature standards
-    plt.tight_layout(pad=0.5, w_pad=1.5)
+    if treat_p < 0.001:
+        stats_text.append("Treatment: P < 0.001")
+    else:
+        stats_text.append(f"Treatment: P = {treat_p:.3f}")
 
-    # Add figure labels (a, b) as per Nature style
-    fig.text(0.02, 0.95, 'a', fontsize=10, fontweight='bold',
-             transform=fig.transFigure)
-    fig.text(0.52, 0.95, 'b', fontsize=10, fontweight='bold',
-             transform=fig.transFigure)
+    ax.text(0.02, 0.98, '\n'.join(stats_text), transform=ax.transAxes,
+           va='top', ha='left', fontsize=7,
+           bbox=dict(boxstyle='round,pad=0.4', facecolor='white',
+                    edgecolor=COLORS['light_gray'], linewidth=0.5, alpha=0.95))
+
+    # Style axes according to Nature standards
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_color(COLORS['black'])
+    ax.spines['bottom'].set_color(COLORS['black'])
+    ax.spines['left'].set_linewidth(0.8)
+    ax.spines['bottom'].set_linewidth(0.8)
+
+    # Style ticks
+    ax.tick_params(axis='both', which='major', labelsize=7,
+                  colors=COLORS['black'], width=0.8, length=3)
+    ax.tick_params(axis='both', which='minor', width=0.6, length=2)
+
+    # Add subtle grid
+    ax.grid(True, alpha=0.2, linewidth=0.5, color=COLORS['light_gray'])
+    ax.set_axisbelow(True)
+
+    # Adjust layout
+    plt.tight_layout(pad=0.5)
 
     # Save figure with Nature specifications
-    nuclei_fig_path = f"{output_dir}/Figure_Nuclei_Count_Analysis"
+    nuclei_fig_path = f"{output_dir}/Figure_Nuclei_Count_Combined_Analysis"
     plt.savefig(f"{nuclei_fig_path}.png", dpi=300, bbox_inches='tight',
                 facecolor='white', edgecolor='none', pad_inches=0.1)
     plt.savefig(f"{nuclei_fig_path}.pdf", bbox_inches='tight',
@@ -350,7 +330,7 @@ def create_nuclei_count_boxplots(sample_df, output_dir):
     plt.savefig(f"{nuclei_fig_path}.eps", bbox_inches='tight',
                 facecolor='white', edgecolor='none', pad_inches=0.1)  # EPS for vector graphics
 
-    print(f"💾 Publication-ready nuclei count plots saved to: {nuclei_fig_path}.[png/pdf/eps]")
+    print(f"💾 Publication-ready combined nuclei count plot saved to: {nuclei_fig_path}.[png/pdf/eps]")
     plt.close()
 
     return nuclei_fig_path
@@ -473,7 +453,7 @@ def main():
     print("🎯 PUBLICATION-READY NUCLEI QC ANALYSIS")
     print("="*60)
     print("Creating Nature journal-style QC plots")
-    print("• Box plots: nuclei count analysis with statistical testing")
+    print("• Combined box plot: nuclei count by region and treatment with statistical testing")
     print("• UMAP: gene expression diversity visualization")
     print("="*60)
 
@@ -497,16 +477,16 @@ def main():
 
     # Create nuclei count box plots
     print("\n" + "="*60)
-    print("📊 CREATING PUBLICATION-READY BOX PLOTS")
+    print("📊 CREATING PUBLICATION-READY COMBINED BOX PLOT")
     print("="*60)
 
     nuclei_fig_path = None
     try:
         nuclei_fig_path = create_nuclei_count_boxplots(sample_df, output_dir)
-        print(f"✅ Box plot analysis completed successfully!")
+        print(f"✅ Combined box plot analysis completed successfully!")
 
     except Exception as e:
-        print(f"❌ Error in nuclei count analysis: {e}")
+        print(f"❌ Error in combined nuclei count analysis: {e}")
         import traceback
         traceback.print_exc()
 
@@ -533,7 +513,7 @@ def main():
     if nuclei_fig_path or umap_fig_path:
         print("📁 OUTPUT FILES (Nature journal ready):")
         if nuclei_fig_path:
-            print(f"  Box plots:")
+            print(f"  Combined box plot:")
             print(f"    • {nuclei_fig_path}.png (raster, 300 DPI)")
             print(f"    • {nuclei_fig_path}.pdf (vector)")
             print(f"    • {nuclei_fig_path}.eps (vector, Nature preferred)")
