@@ -1,0 +1,54 @@
+LEMUR LATENT SPACE ANALYSIS REPORT
+==================================================
+
+Analysis Date: 2025-06-23 23:19:45
+Dataset: GSE225158 - OUD vs Control
+
+EMBEDDING SUMMARY
+--------------------
+Number of cells: 98,848
+Number of components: 15
+Embedding key: X_lemur_harmony
+
+VARIANCE EXPLAINED ANALYSIS
+------------------------------
+Top 5 components explain: 0.906 of total variance
+Component 1 variance: 0.494
+Component 2 variance: 0.169
+Component 3 variance: 0.139
+
+COVARIATE CORRELATION ANALYSIS
+-----------------------------------
+Total correlations computed: 285
+Significant correlations: 241
+Significance threshold: p < 0.05
+
+COORDINATE SYSTEMS ANALYZED
+------------------------------
+Total systems: 3
+Systems used: scVI UMAP, LEMUR UMAP, LEMUR Components
+✅ scVI UMAP available (from preprocessing)
+✅ LEMUR UMAP computed (from LEMUR embeddings)
+✅ LEMUR components used (direct embedding space)
+
+TOP ABSOLUTE CORRELATIONS
+----------------------------
+Component_1 - celltype3_Oligos: r=-0.832 (p=0.000e+00)
+Component_2 - celltype3_Astrocytes: r=-0.482 (p=0.000e+00)
+Component_4 - celltype3_Astrocytes: r=-0.482 (p=0.000e+00)
+Component_4 - celltype3_Oligos_Pre: r=0.433 (p=0.000e+00)
+Component_3 - celltype3_Microglia: r=-0.433 (p=0.000e+00)
+Component_3 - celltype3_Astrocytes: r=0.398 (p=0.000e+00)
+Component_3 - celltype3_Oligos_Pre: r=0.389 (p=0.000e+00)
+Component_2 - celltype3_D2-Matrix: r=0.357 (p=0.000e+00)
+Component_1 - celltype3_D2-Matrix: r=0.354 (p=0.000e+00)
+Component_2 - celltype3_Oligos_Pre: r=-0.350 (p=0.000e+00)
+
+==================================================
+Analysis completed successfully.
+Plots saved to: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/results/snrna_scvi/lemur_latent_space/plots/latent_structure
+
+Visualization files include:
+- Individual overlay plots for each coordinate system
+- System comparison plots showing differences
+- Combined overlay plots for comprehensive view

@@ -1,9 +1,9 @@
 # 🌊 LEMUR Comprehensive Analysis Report
 
-**Generated**: 2025-06-11 17:57:10  
-**Dataset**: GSE225158 - Human Striatal Single-Cell RNA-seq  
-**Analysis**: OUD vs Control with Sex Effects  
-**Framework**: LEMUR with Harmony Batch Correction  
+**Generated**: 2025-06-23 23:55:17
+**Dataset**: GSE225158 - Human Striatal Single-Cell RNA-seq
+**Analysis**: OUD vs Control with Sex Effects
+**Framework**: LEMUR with Harmony Batch Correction
 
 ## 📊 Dataset Overview
 
@@ -19,56 +19,56 @@
 
 #### Oud Vs Control
 
-- **Significant Genes**: 43
-- **Coefficient Threshold**: 0.000826 (adaptive)
+- **Significant Genes**: 46
+- **Coefficient Threshold**: 0.000987 (adaptive)
 - **FDR Threshold**: 0.05
 
 **Top 10 Significant Genes**:
 
 | Gene | Coefficient | P-value | FDR |
 |------|-------------|---------|-----|
-| AC012494.1 | -0.0372 | 0.00e+00 | 0.00e+00 |
-| PARD3B | 0.0271 | 0.00e+00 | 0.00e+00 |
-| MTRNR2L12 | -0.0288 | 0.00e+00 | 0.00e+00 |
-| DPP10 | 0.0378 | 0.00e+00 | 0.00e+00 |
-| ST6GALNAC3 | 0.0168 | 2.22e-16 | 1.33e-13 |
-| LINC00882 | -0.0165 | 8.88e-16 | 4.44e-13 |
-| MACF1 | -0.0146 | 1.28e-12 | 5.49e-10 |
-| SMYD3 | 0.0140 | 8.98e-12 | 3.37e-09 |
-| PLCL1 | 0.0133 | 8.39e-11 | 2.80e-08 |
-| RGS7 | -0.0129 | 3.02e-10 | 9.05e-08 |
+| CAMKMT | -0.0285 | 0.00e+00 | 0.00e+00 |
+| ANKRD44 | -0.0230 | 0.00e+00 | 0.00e+00 |
+| LINC00882 | 0.0265 | 0.00e+00 | 0.00e+00 |
+| ESRRG | -0.0273 | 0.00e+00 | 0.00e+00 |
+| DPYSL5 | -0.0220 | 0.00e+00 | 0.00e+00 |
+| AC079352.1 | 0.0438 | 0.00e+00 | 0.00e+00 |
+| CTNNA2 | 0.0205 | 0.00e+00 | 0.00e+00 |
+| GLUL | -0.0195 | 1.11e-15 | 4.16e-13 |
+| PDE1A | 0.0194 | 1.78e-15 | 5.92e-13 |
+| PLCL1 | -0.0189 | 8.22e-15 | 2.46e-12 |
 
 #### Male Vs Female
 
-- **Significant Genes**: 46
-- **Coefficient Threshold**: 0.000956 (adaptive)
+- **Significant Genes**: 35
+- **Coefficient Threshold**: 0.001149 (adaptive)
 - **FDR Threshold**: 0.05
 
 **Top 10 Significant Genes**:
 
 | Gene | Coefficient | P-value | FDR |
 |------|-------------|---------|-----|
-| AC006059.1 | 0.0224 | 0.00e+00 | 0.00e+00 |
-| MTRNR2L12 | 0.0199 | 0.00e+00 | 0.00e+00 |
-| AC012494.1 | 0.0340 | 0.00e+00 | 0.00e+00 |
-| PLD5 | -0.0212 | 0.00e+00 | 0.00e+00 |
-| PDE4B | -0.0191 | 0.00e+00 | 0.00e+00 |
-| DPP10 | 0.0290 | 0.00e+00 | 0.00e+00 |
-| ST6GALNAC3 | -0.0324 | 0.00e+00 | 0.00e+00 |
-| LINC00882 | 0.0182 | 4.44e-16 | 1.67e-13 |
-| ANKRD44 | 0.0179 | 1.33e-15 | 4.44e-13 |
-| AC073050.1 | -0.0161 | 5.74e-13 | 1.72e-10 |
+| AC079352.1 | -0.0466 | 0.00e+00 | 0.00e+00 |
+| LMCD1-AS1 | 0.0800 | 0.00e+00 | 0.00e+00 |
+| GLUL | 0.0328 | 0.00e+00 | 0.00e+00 |
+| PDE1A | 0.0612 | 0.00e+00 | 0.00e+00 |
+| FOXP1 | -0.0489 | 0.00e+00 | 0.00e+00 |
+| AC012494.1 | -0.0366 | 0.00e+00 | 0.00e+00 |
+| LRRC7 | 0.0475 | 0.00e+00 | 0.00e+00 |
+| MTRNR2L12 | -0.0271 | 1.05e-13 | 3.96e-11 |
+| TMEFF2 | 0.0254 | 3.13e-12 | 1.04e-09 |
+| SMYD3 | -0.0233 | 1.46e-10 | 4.37e-08 |
 
 ### Sex-Stratified Analysis
 
 
 #### F Subset
-- **Significant Genes**: 55
-- **Coefficient Threshold**: 0.001429
+- **Significant Genes**: 62
+- **Coefficient Threshold**: 0.001603
 
 #### M Subset
-- **Significant Genes**: 39
-- **Coefficient Threshold**: 0.001420
+- **Significant Genes**: 44
+- **Coefficient Threshold**: 0.001239
 
 ## 🔬 Technical Details
 
@@ -79,8 +79,8 @@
 - **Significance Criteria**: FDR < 0.05 AND |coefficient| > adaptive threshold
 
 ### Adaptive Thresholds
-The analysis uses data-adaptive significance thresholds based on the 75th percentile 
-of effect sizes, rather than arbitrary fixed cutoffs. This approach is more appropriate for 
+The analysis uses data-adaptive significance thresholds based on the 75th percentile
+of effect sizes, rather than arbitrary fixed cutoffs. This approach is more appropriate for
 single-cell data where effect sizes tend to be smaller.
 
 ### Memory Usage
@@ -94,7 +94,7 @@ single-cell data where effect sizes tend to be smaller.
 - `*_results.csv`: Full differential expression results
 - `*_significant.csv`: Significant genes only
 
-### Plots  
+### Plots
 - `lemur_umap_overview.png`: UMAP visualization of cell embeddings
 - `volcano_*.png`: Volcano plots for each contrast
 - `top_genes_heatmap.png`: Heatmap of top differentially expressed genes
@@ -118,5 +118,5 @@ single-cell data where effect sizes tend to be smaller.
 4. **Functional Analysis**: Literature review and experimental validation
 
 ---
-*Analysis completed using LEMUR v2.0 - Comprehensive Pipeline*  
+*Analysis completed using LEMUR v2.0 - Comprehensive Pipeline*
 *For questions or support, refer to the analysis documentation*
