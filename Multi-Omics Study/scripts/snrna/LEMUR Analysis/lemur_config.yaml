@@ -19,7 +19,7 @@ paths:
   input_h5ad: "data/raw/snrna/GSE225158_BU_OUD_Striatum_refined_all_SeuratObj_N22.h5ad"
 
   # Output directory
-  output_dir: "results/snrna/lemur_analysis"
+  output_dir: "/Users/aumchampaneri/Complement-OUD/Multi-Omics Study/scripts/snrna/LEMUR Analysis/outputs"
 
   # Optional: Custom gene sets for enrichment
   gene_sets: null
@@ -38,7 +38,7 @@ metadata:
   # Optional additional covariates
   covariates:
     - "Sex"
-    - "Age"  # if available
+    - "Age" # if available
 
 # Quality Control Parameters
 quality_control:
@@ -49,11 +49,11 @@ quality_control:
     min_counts: 500
     max_counts: 50000
     max_mito_percent: 20
-    max_ribo_percent: 50  # optional
+    max_ribo_percent: 50 # optional
 
   # Gene filtering
   gene_filters:
-    min_cells: 10  # genes expressed in at least N cells
+    min_cells: 10 # genes expressed in at least N cells
 
   # Mitochondrial gene patterns
   mito_patterns:
@@ -68,12 +68,12 @@ quality_control:
 # Normalization and Feature Selection
 normalization:
   # Method for size factor calculation
-  size_factor_method: "scran"  # or "deconvolution"
+  size_factor_method: "scran" # or "deconvolution"
 
   # Highly variable genes
   hvg:
     n_genes: 3000
-    method: "modelGeneVar"  # or "modelGeneVarByPoisson"
+    method: "modelGeneVar" # or "modelGeneVarByPoisson"
 
   # Log transformation
   log_transform: true
@@ -114,7 +114,7 @@ lemur:
     optimizer: "L-BFGS-B"
 
     # Embedding initialization
-    init_method: "pca"  # or "random"
+    init_method: "pca" # or "random"
 
 # Batch Correction
 batch_correction:
@@ -123,12 +123,12 @@ batch_correction:
 
   # Harmony parameters
   harmony:
-    theta: 2  # diversity clustering penalty
-    lambda: 1  # ridge regression penalty
-    sigma: 0.1  # width of soft kmeans clusters
-    nclust: null  # number of clusters (auto if null)
-    tau: 0  # protection against overclustering
-    block_size: 0.05  # proportion of cells to update per iteration
+    theta: 2 # diversity clustering penalty
+    lambda: 1 # ridge regression penalty
+    sigma: 0.1 # width of soft kmeans clusters
+    nclust: null # number of clusters (auto if null)
+    tau: 0 # protection against overclustering
+    block_size: 0.05 # proportion of cells to update per iteration
     max_iter_harmony: 10
     max_iter_cluster: 20
     epsilon_cluster: 1e-5
@@ -164,7 +164,7 @@ neighborhoods:
   min_neighborhood_size: 10
 
   # Embedding to use for neighborhoods
-  embedding_source: "harmony"  # "harmony" or "lemur"
+  embedding_source: "harmony" # "harmony" or "lemur"
 
 # Visualization Parameters
 visualization:
@@ -173,11 +173,11 @@ visualization:
     width: 10
     height: 8
     dpi: 300
-    format: "png"  # or "pdf", "svg"
+    format: "png" # or "pdf", "svg"
 
   # Color palettes
   colors:
-    condition: "Set1"  # or specify custom colors
+    condition: "Set1" # or specify custom colors
     batch: "Set3"
     continuous: "viridis"
 
@@ -206,8 +206,8 @@ visualization:
 output:
   # File formats
   save_formats:
-    tables: ["csv", "xlsx"]  # csv, xlsx, tsv
-    plots: ["png", "pdf"]    # png, pdf, svg
+    tables: ["csv", "xlsx"] # csv, xlsx, tsv
+    plots: ["png", "pdf"] # png, pdf, svg
 
   # What to save
   save_objects:
@@ -220,14 +220,14 @@ output:
   # Compression
   compression:
     use_compression: true
-    method: "gzip"  # gzip, bzip2
+    method: "gzip" # gzip, bzip2
 
 # Performance Settings
 performance:
   # Parallel processing
   parallel:
     enable: true
-    n_cores: 4  # or "auto" to detect
+    n_cores: 4 # or "auto" to detect
 
   # Memory management
   memory:
@@ -264,8 +264,8 @@ custom:
     neuroinflammation: ["TNF", "IL1B", "IL6", "NFKB1"]
 
   # Additional filtering (optional)
-  exclude_cell_types: []  # cell types to exclude
-  include_cell_types: []  # if specified, only include these
+  exclude_cell_types: [] # cell types to exclude
+  include_cell_types: [] # if specified, only include these
 
   # Custom QC thresholds per condition (optional)
   condition_specific_qc: false
@@ -286,5 +286,5 @@ advanced:
   continue_on_error: false
 
   # Logging
-  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_level: "INFO" # DEBUG, INFO, WARNING, ERROR
   log_file: "lemur_analysis.log"

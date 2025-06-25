@@ -87,7 +87,7 @@ source("run_LEMUR_GSE225158.R")
 ## 📂 Output Structure
 
 ```
-results/snrna/lemur_analysis/
+scripts/snrna/LEMUR Analysis/outputs/
 ├── tables/
 │   ├── lemur_de_results.csv          # Complete DE results
 │   ├── top_de_genes.csv              # Top significant genes
@@ -149,17 +149,19 @@ PARAMS <- list(
 ## 🔍 Expected Results
 
 ### Typical Output Summary
+### Expected Output Summary
 - **Input**: ~50,000-100,000 cells, ~20,000-30,000 genes
 - **After QC**: ~40,000-80,000 cells, ~15,000-20,000 genes
 - **HVGs**: 3,000 most variable genes
 - **DE genes**: 500-2,000 significant genes (FDR < 0.05)
 - **Runtime**: 30-60 minutes (depending on data size)
+- **Output Location**: `outputs/` directory within LEMUR Analysis folder
 
 ### Key Result Files
-1. **`lemur_de_results.csv`** - Complete differential expression results
-2. **`top_de_genes.csv`** - Top 100 significant genes
-3. **`umap_overview.png`** - Quality control and batch visualization
-4. **`volcano_plot.png`** - DE significance overview
+1. **`outputs/tables/lemur_de_results.csv`** - Complete differential expression results
+2. **`outputs/tables/top_de_genes.csv`** - Top 100 significant genes
+3. **`outputs/plots/umap_overview.png`** - Quality control and batch visualization
+4. **`outputs/plots/volcano_plot.png`** - DE significance overview
 
 ## 🐛 Troubleshooting
 

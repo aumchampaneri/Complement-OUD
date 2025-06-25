@@ -71,7 +71,7 @@ Rscript run_LEMUR_GSE225158.R
 - **Required Metadata**: `donor_id` (batch), `condition` (OUD/Control)
 
 ## 📂 Output Location
-Results will be saved to: `../../results/snrna/lemur_analysis/`
+Results will be saved to: `outputs/` (within this LEMUR Analysis directory)
 
 ## 🔧 Customization
 - Modify parameters in `lemur_config.yaml`

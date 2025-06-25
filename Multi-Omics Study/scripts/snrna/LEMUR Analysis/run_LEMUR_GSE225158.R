@@ -56,7 +56,7 @@ invisible(lapply(required_packages, install_if_missing))
 # File paths
 BASE_DIR <- "/Users/aumchampaneri/Complement-OUD/Multi-Omics Study"
 INPUT_H5AD <- file.path(BASE_DIR, "data/raw/snrna/GSE225158_BU_OUD_Striatum_refined_all_SeuratObj_N22.h5ad")
-OUTPUT_DIR <- file.path(BASE_DIR, "results/snrna/lemur_analysis")
+OUTPUT_DIR <- "/Users/aumchampaneri/Complement-OUD/Multi-Omics Study/scripts/snrna/LEMUR Analysis/outputs"
 
 # Create output directories
 dir.create(OUTPUT_DIR, recursive = TRUE, showWarnings = FALSE)
@@ -113,6 +113,66 @@ cat("📈 Dimensions:", nrow(sce), "genes ×", ncol(sce), "cells\n")
 # Print available metadata columns
 cat("🏷️  Available metadata columns:\n")
 print(colnames(colData(sce)))
+
+# Access the metadata slot of your SingleCellExperiment object
+meta_data <- colData(sce)
+
+# Rename columns
+colnames(meta_data)[colnames(meta_data) == "ID"] <- "donor_id"
+colnames(meta_data)[colnames(meta_data) == "Dx_OUD"] <- "condition"
+
+# Replace the metadata with the updated one
+colData(sce) <- meta_data
+
+# Check available assays and print them
+avail_assays <- names(assays(sce))
+print(avail_assays)
+
+# Assuming there is only one assay type
+if (length(avail_assays) == 1) {
+  assay_name <- avail_assays[1]
+  # Assign the available assay to 'counts'
+  assays(sce)[["counts"]] <- assays(sce)[[assay_name]]
+}
+
+#####
+# Access the colData from the SingleCellExperiment object
+meta_data <- colData(sce)
+print(head(meta_data))
+
+# Ensure proper data types for QC metrics
+print("Converting QC metrics to numeric format...")
+meta_data <- as.data.frame(colData(sce))
+
+# Convert essential QC metrics to numeric if they exist
+if ("nCount_RNA" %in% colnames(meta_data)) {
+    colData(sce)$nCount_RNA <- as.numeric(as.character(meta_data$nCount_RNA))
+}
+if ("nFeature_RNA" %in% colnames(meta_data)) {
+    colData(sce)$nFeature_RNA <- as.numeric(as.character(meta_data$nFeature_RNA))
+}
+if ("percent.mt" %in% colnames(meta_data)) {
+    colData(sce)$percent.mt <- as.numeric(as.character(meta_data$percent.mt))
+}
+
+# Verify the changes
+print("Checking metadata structure:")
+print(str(colData(sce)))
+
+# Print summary statistics to verify the changes
+print("Summary of condition levels:")
+print(table(colData(sce)$condition))
+
+print("Summary of donor_id levels:")
+print(table(colData(sce)$donor_id))
+
+# Continue with your QC metrics computation
+print("Computing QC metrics...")
+
+# Add this to check the condition values
+print("Unique condition values:")
+print(unique(colData(sce)$condition))
+
 
 # Check for required columns
 required_cols <- c("donor_id", "condition")

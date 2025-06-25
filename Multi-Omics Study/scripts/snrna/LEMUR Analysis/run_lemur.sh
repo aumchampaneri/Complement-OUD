@@ -61,7 +61,7 @@ check_prerequisites() {
     log "Found R version: $R_VERSION"
 
     # Check if input file exists
-    INPUT_FILE="$PROJECT_DIR/data/raw/snrna/GSE225158_BU_OUD_Striatum_refined_all_SeuratObj_N22.h5ad"
+    INPUT_FILE="$PROJECT_DIR/Multi-Omics Study/data/raw/snrna/GSE225158_BU_OUD_Striatum_refined_all_SeuratObj_N22.h5ad"
     if [[ ! -f "$INPUT_FILE" ]]; then
         error "Input H5AD file not found: $INPUT_FILE"
         exit 1
@@ -131,7 +131,7 @@ run_analysis() {
 generate_summary() {
     log "Generating analysis summary..."
 
-    OUTPUT_DIR="$PROJECT_DIR/Multi-Omics Study/results/snrna/lemur_analysis"
+    OUTPUT_DIR="$PROJECT_DIR/Multi-Omics Study/scripts/snrna/LEMUR Analysis/outputs"
 
     if [[ -d "$OUTPUT_DIR" ]]; then
         echo -e "${GREEN}"
