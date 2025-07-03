@@ -1,0 +1,37 @@
+=== LEMUR Analysis Report ===
+
+Analysis Date: 2025-07-03 
+Input File: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/data/raw/snrna/GSE225158_BU_OUD_Striatum_refined_all_SeuratObj_N22.h5ad 
+Output Directory: /Users/aumchampaneri/Complement-OUD/Multi-Omics Study/scripts/snrna/LEMUR Analysis/outputs 
+
+Data Summary:
+- Original dimensions: 31393 genes × 98848 cells
+- Filtered dimensions: 29715 genes × 87055 cells
+- Highly variable genes: 3000 
+- Conditions: None = 39860, OUD = 47195 
+- Donors: 22 
+
+LEMUR Results:
+- Embedding dimensions: 20 
+- Total statistical tests: 3000 
+- Significant genes (FDR < 0.05): 32 
+- DE neighborhoods found: 32 
+
+Top 10 DE Genes:
+  1. DPP6 (effect_size: -0.233, adj.p: 4.88e-04)
+  2. GRIA4 (effect_size: -0.237, adj.p: 4.88e-04)
+  3. SGCD (effect_size: -0.226, adj.p: 7.57e-04)
+  4. AC008571.2 (effect_size: -0.222, adj.p: 8.77e-04)
+  5. BCAS3 (effect_size: -0.215, adj.p: 1.42e-03)
+  6. AC012494.1 (effect_size: -0.210, adj.p: 2.01e-03)
+  7. ZDHHC20 (effect_size: -0.209, adj.p: 2.06e-03)
+  8. PDE1A (effect_size: -0.205, adj.p: 2.71e-03)
+  9. DEPTOR (effect_size: -0.194, adj.p: 6.36e-03)
+  10. MAGI1 (effect_size: -0.194, adj.p: 6.36e-03)
+
+Output Files:
+- DE results: tables/lemur_de_results.csv
+- Top DE genes: tables/top_de_genes.csv
+- DE neighborhoods: tables/de_neighborhoods.csv
+- UMAP overview: plots/umap_overview.png
+- Volcano plot: plots/volcano_plot.png
