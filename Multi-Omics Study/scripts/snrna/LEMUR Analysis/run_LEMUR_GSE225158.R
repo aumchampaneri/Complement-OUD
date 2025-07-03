@@ -73,7 +73,7 @@ PARAMS <- list(
   max_counts = 50000,
 
   # Feature selection
-  n_hvg = 3000,
+  n_hvg = 4000,
 
   # LEMUR parameters
   n_embedding = 20,
@@ -383,14 +383,50 @@ library(FNN)
 k_neighbors <- 50 # Number of neighbors for each cell
 nn_indices <- get.knn(embedding_matrix, k = k_neighbors)$nn.index
 
-# Identify differential neighborhoods based on DE genes
+# Create differential neighborhoods based on DE gene expression patterns
+# Use clustering approach to find meaningful neighborhoods
+de_neighborhoods <- list()
+if (nrow(sig_results) > 0) {
+  # Get expression of DE genes
+  de_expr <- assay(de_res, "DE")[rownames(sig_results), ]
+
+  # Find cells with high differential expression
+  cell_scores <- colMeans(abs(de_expr))
+  threshold <- quantile(cell_scores, 0.95) # Top 5% of cells
+  high_de_cells <- which(cell_scores > threshold)
+
+  # Create fewer, more meaningful neighborhoods using clustering
+  if (length(high_de_cells) > 10) {
+    # Cluster high DE cells based on their embedding coordinates
+    high_de_coords <- embedding_matrix[high_de_cells, ]
+    n_clusters <- min(10, max(3, length(high_de_cells) %/% 100)) # 3-10 clusters
+
+    # Perform k-means clustering
+    set.seed(42)
+    clusters <- kmeans(high_de_coords, centers = n_clusters, nstart = 20)
+
+    # Create neighborhoods based on clusters
+    for (i in 1:n_clusters) {
+      cluster_cells <- high_de_cells[clusters$cluster == i]
+      if (length(cluster_cells) > 5) { # Only keep clusters with >5 cells
+        # Expand each cluster to include neighbors
+        all_neighbors <- unique(c(cluster_cells, as.vector(nn_indices[cluster_cells, ])))
+        de_neighborhoods[[length(de_neighborhoods) + 1]] <- all_neighbors
+      }
+    }
+  }
+}
+
+# Structure neighborhoods object properly
 neighborhoods <- list()
 neighborhoods$embedding <- embedding_matrix
 neighborhoods$knn_indices <- nn_indices
 neighborhoods$de_genes <- rownames(sig_results)
+neighborhoods$de_neighborhoods <- de_neighborhoods
 
 cat("✅ Neighborhood analysis complete\n")
 cat("📊 Number of DE genes for neighborhood analysis:", length(neighborhoods$de_genes), "\n")
+cat("📊 Number of DE neighborhoods found:", length(neighborhoods$de_neighborhoods), "\n")
 
 # =============================================================================
 # RESULTS COMPILATION AND OUTPUT
@@ -538,33 +574,45 @@ ggsave(file.path(OUTPUT_DIR, "plots", "volcano_plot.png"),
 )
 
 # 6. DE neighborhoods on UMAP (if any found)
-if (length(neighborhoods$de_neighborhoods) > 0) {
+if (length(neighborhoods$de_neighborhoods) > 0 && length(neighborhoods$de_neighborhoods) <= 20) {
   # Create neighborhood annotation
-  plot_data$de_neighborhood <- "None"
+  plot_data$de_neighborhood <- "Background"
   for (i in seq_along(neighborhoods$de_neighborhoods)) {
     cells_in_neighborhood <- neighborhoods$de_neighborhoods[[i]]
-    if (length(cells_in_neighborhood) > 0) {
-      plot_data$de_neighborhood[cells_in_neighborhood] <- paste("Neighborhood", i)
+    if (length(cells_in_neighborhood) > 0 && length(cells_in_neighborhood) <= nrow(plot_data)) {
+      valid_cells <- cells_in_neighborhood[cells_in_neighborhood <= nrow(plot_data)]
+      if (length(valid_cells) > 0) {
+        plot_data$de_neighborhood[valid_cells] <- paste("Neighborhood", i)
+      }
     }
   }
 
+  # Use better colors for visualization
+  if (length(unique(plot_data$de_neighborhood)) <= 10) {
+    color_scale <- scale_color_brewer(palette = "Set3", name = "DE Neighborhood")
+  } else {
+    color_scale <- scale_color_viridis_d(name = "DE Neighborhood", option = "plasma")
+  }
+
   p_neighborhoods <- ggplot(plot_data, aes(x = UMAP1, y = UMAP2, color = de_neighborhood)) +
-    geom_point(size = 0.5, alpha = 0.7) +
-    scale_color_viridis_d(name = "DE Neighborhood") +
+    geom_point(size = 0.3, alpha = 0.6) +
+    color_scale +
     theme_minimal() +
     labs(
       title = "UMAP - DE Neighborhoods",
       subtitle = paste("Found", length(neighborhoods$de_neighborhoods), "differential neighborhoods"),
       x = "UMAP 1", y = "UMAP 2"
     ) +
-    theme(legend.position = "bottom")
+    theme(legend.position = "right", legend.text = element_text(size = 8)) +
+    guides(color = guide_legend(override.aes = list(size = 2, alpha = 1)))
 
   ggsave(file.path(OUTPUT_DIR, "plots", "de_neighborhoods_umap.png"),
     plot = p_neighborhoods,
-    width = PARAMS$figure_width,
-    height = PARAMS$figure_height,
+    width = 12, height = 8,
     dpi = PARAMS$figure_dpi
   )
+} else if (length(neighborhoods$de_neighborhoods) > 20) {
+  cat("⚠️  Warning: Too many neighborhoods (", length(neighborhoods$de_neighborhoods), ") for visualization. Skipping neighborhood plot.\n")
 }
 
 cat("✅ Visualizations saved to plots/\n")
@@ -596,7 +644,7 @@ report <- list(
     total_tests = nrow(de_res),
     significant_genes = sum(results_table$significant),
     fdr_threshold = PARAMS$fdr_threshold,
-    de_neighborhoods = length(neighborhoods$de_genes)
+    de_neighborhoods = length(neighborhoods$de_neighborhoods)
   ),
   top_de_genes = head(results_table[results_table$significant, c("gene", "effect_size", "adj_pval")], 20)
 )
@@ -622,7 +670,7 @@ cat("LEMUR Results:\n")
 cat("- Embedding dimensions:", PARAMS$n_embedding, "\n")
 cat("- Total statistical tests:", nrow(de_res), "\n")
 cat("- Significant genes (FDR < 0.05):", sum(results_table$significant), "\n")
-cat("- DE neighborhoods found:", length(neighborhoods$de_genes), "\n\n")
+cat("- DE neighborhoods found:", length(neighborhoods$de_neighborhoods), "\n\n")
 
 cat("Top 10 DE Genes:\n")
 top_10 <- head(results_table[results_table$significant, ], 10)
