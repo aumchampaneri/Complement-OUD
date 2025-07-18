@@ -1,0 +1,2 @@
+"ID","Description","GeneRatio","BgRatio","RichFactor","FoldEnrichment","zScore","pvalue","p.adjust","qvalue","geneID","Count"
+"GO:0018345","protein palmitoylation","3/41","26/18805",0.115384615384615,52.922138836773,12.3838976672166,2.41539684023777e-05,0.0238641207815492,0.0205944362167641,"2752/79683/253832",3
