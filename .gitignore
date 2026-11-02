@@ -218,3 +218,6 @@ Super Folder - Mus musculus/GSE207128/Outputs/Processed Data/processed_seurat.rd
 Super Folder - Mus musculus/GSE207128/Outputs/Processed Data/processed_seurat.h5ad
 Super Folder - Mus musculus/GSE207128/Outputs/Processed Data/processed_seurat.h5seurat
 /Zz_LEMUR Reference/
+
+# Pixi local environment
+.pixi/
