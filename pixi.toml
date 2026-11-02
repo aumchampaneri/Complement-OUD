@@ -1,0 +1,8 @@
+[workspace]
+name = "complement-oud"
+version = "0.1.0"
+channels = ["conda-forge", "bioconda"]
+platforms = ["osx-arm64"]
+
+[dependencies]
+python = ">=3.10,<3.13"
