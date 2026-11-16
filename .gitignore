@@ -1,223 +1,27 @@
-# ==============================================================================
-# Python
-# ==============================================================================
-
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
-
-# ==============================================================================
-# Python Package Managers
-# ==============================================================================
-
-# pipenv
-#Pipfile.lock
-
-# UV
-#uv.lock
-
-# poetry
-#poetry.lock
-
-# pdm
-#pdm.lock
-.pdm.toml
-.pdm-python
-.pdm-build/
-
-# PEP 582
-__pypackages__/
-
-# PyPI configuration
-.pypirc
-
-# ==============================================================================
-# Python Frameworks & Tools
-# ==============================================================================
-
-# Django
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask
-instance/
-.webassets-cache
-
-# Scrapy
-.scrapy
-
-# Celery
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath
-*.sage.py
-
-# ==============================================================================
-# Python Environments
-# ==============================================================================
-
-# Virtual environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# pyenv
-# .python-version
-
-# ==============================================================================
-# Documentation
-# ==============================================================================
-
-# Sphinx
-docs/_build/
-
-# PyBuilder
-.pybuilder/
-target/
-
-# mkdocs
-/site
-
-# ==============================================================================
-# Jupyter & IPython
-# ==============================================================================
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# ==============================================================================
-# IDE & Editor Settings
-# ==============================================================================
-
-# PyCharm / IntelliJ
-.idea/
-
-# Spyder
-.spyderproject
-.spyproject
-
-# Rope
-.ropeproject
-
-# ==============================================================================
-# Type Checkers & Linters
-# ==============================================================================
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre
-.pyre/
-
-# pytype
-.pytype/
-
-# Ruff
-.ruff_cache/
-
-# ==============================================================================
-# Debug & Profiling
-# ==============================================================================
-
-# Cython debug symbols
-cython_debug/
-
-# Translations
-*.mo
-*.pot
-
-# ==============================================================================
-# Operating System
-# ==============================================================================
-
-# macOS
-.DS_Store
-
-# ==============================================================================
-# Project-Specific Data Files
-# ==============================================================================
-
-# ignore all data files
-*.rds
-*.h5seurat
-*.h5ad
-*.gz
-*.pdf
-*.xlsx
-*.RData
-*.bw
-*.pt
-*.eps
-
-# Jupyter notebooks and journals
-/Jupyter Journal/
-
-# Processed data files
-Super Folder - Mus musculus/GSE207128/Outputs/Processed Data/combined_seurat.rds
-Super Folder - Mus musculus/GSE207128/Outputs/Processed Data/processed_seurat.rds
-Super Folder - Mus musculus/GSE207128/Outputs/Processed Data/processed_seurat.h5ad
-Super Folder - Mus musculus/GSE207128/Outputs/Processed Data/processed_seurat.h5seurat
-/Zz_LEMUR Reference/
+# Data and generated outputs
+/data/
+/outputs/
+/results/
+/figures/
+/scratch/
+/tmp/
 
 # Pixi local environment
-.pixi/
+/.pixi/
+
+# Python and interactive analysis
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+.env
+.env.*
+.DS_Store
+
+# R temporary files
+.Rhistory
+.RData
+.Rproj.user/

@@ -1,17 +1,17 @@
 # Complement-OUD
 
-Cross-species analysis of complement-associated transcriptional changes in human opioid use disorder (OUD) and mouse opioid-exposure models.
+A human-first investigation of complement-associated transcriptional changes in opioid use disorder (OUD), using public brain transcriptomic data.
 
-## Approach
+We will first acquire, validate, and explore eligible **human** datasets. Mouse analyses are a possible downstream extension, guided by the strength and relevance of the human findings.
 
-Analyze human and mouse datasets separately, then compare orthologous genes and complement pathways across species. RNA expression is not treated as direct evidence of complement activation.
+Complement-related RNA expression is not direct evidence of biochemical complement activation.
 
 ## Reproducibility
 
-The project uses [Pixi](https://pixi.sh/) for environment management. Dependencies and analysis tasks will be added as workflows are implemented.
+[Pixi](https://pixi.sh/) manages the computational environment. Dependencies and tasks will be added only as they become necessary.
 
 ```bash
 pixi install
 ```
 
-Development is taking place on `architecture/refactor-v1`. The existing analyses will be audited and migrated incrementally.
+Work in progress: `architecture/refactor-v1`. Historical analyses remain available on `main`.
