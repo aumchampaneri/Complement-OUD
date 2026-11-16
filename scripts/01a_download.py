@@ -32,11 +32,13 @@ DATASETS = {
         "assay": "bulk RNA-seq",
         "description": "Human DLPFC and nucleus accumbens; OUD/control",
         "file_pattern": r"raw.count|raw_count|counts.*\.csv",
+        "known_supplementary": ["GSE174409_raw_counts_02102020.csv.gz"],
     },
     "GSE225158": {
         "assay": "snRNA-seq",
         "description": "Human caudate and putamen; OUD/control",
         "file_pattern": r"\.h5ad(?:\.gz)?$",
+        "known_supplementary": ["GSE225158_BU_OUD_Striatum_refined_all_SeuratObj_N22.h5ad.gz"],
     },
     "GSE194368": {
         "assay": "bulk RNA-seq",
@@ -48,6 +50,7 @@ DATASETS = {
         "assay": "snRNA-seq",
         "description": "Human ventral midbrain; opioid overdose/control (pooled libraries)",
         "file_pattern": r"^GSE240457_RAW\.tar$",
+        "known_supplementary": ["GSE240457_RAW.tar"],
     },
 }
 
@@ -193,25 +196,32 @@ def main(argv=None):
         info = DATASETS[accession]
         paths = geo_paths(accession)
         LOGGER.info("%s: %s", accession, info["description"])
-        try:
-            available = discover_supplementary(paths["supplementary"])
-        except (HTTPError, URLError, OSError) as exc:
-            LOGGER.warning("Cannot list %s supplementary files: %s", accession, exc)
-            available = {}
+        # Explicit known filenames work even when the GEO directory index
+        # returns HTTP 403. Do not confuse a blocked listing with missing data.
+        selected = {name: paths["supplementary"] + name
+                    for name in info.get("known_supplementary", [])}
 
-        selected = {name: url for name, url in available.items()
-                    if args.all_supplementary or re.search(info["file_pattern"], name, re.I)}
-        for name in available:
+        # Listing remains useful for finding unanticipated supplementary
+        # files, especially for accessions without a verified filename.
+        available = {}
+        if not selected or args.all_supplementary:
+            try:
+                available = discover_supplementary(paths["supplementary"])
+            except (HTTPError, URLError, OSError) as exc:
+                LOGGER.warning("GEO directory listing unavailable for %s: %s",
+                               accession, exc)
+        for name, url in available.items():
+            if args.all_supplementary or re.search(info["file_pattern"], name, re.I):
+                selected[name] = url
             LOGGER.info("  %s %s", "SELECT" if name in selected else "skip  ", name)
 
-        # GSE194368 may have no submitter count file at series level.
-        # NCBI-generated bulk counts are a documented alternative.
         if not selected and info.get("ncbi_fallback"):
             name, url = ncbi_counts_url(accession)
             selected[name] = url
-            LOGGER.info("  candidate NCBI counts: %s", name)
+            LOGGER.info("  NCBI-computed counts candidate: %s", name)
         elif not selected:
-            LOGGER.warning("No matching expression files for %s", accession)
+            LOGGER.warning("No known count file for %s; review GEO record manually",
+                           accession)
             failures += 1
 
         targets = list(selected.items())
@@ -219,8 +229,8 @@ def main(argv=None):
             targets.extend((Path(urlparse(url).path).name, url)
                            for key, url in paths.items() if key != "supplementary")
         if args.list:
-            for name, _url in targets:
-                LOGGER.info("  planned: %s", name)
+            for name, url in targets:
+                LOGGER.info("  planned: %s -> %s", name, url)
             continue
         for name, url in targets:
             target = DATA_DIR / accession / name
