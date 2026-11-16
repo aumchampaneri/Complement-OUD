@@ -22,7 +22,7 @@ import re
 import shutil
 import sys
 from urllib.error import HTTPError, URLError
-from urllib.parse import unquote, urljoin, urlparse
+from urllib.parse import unquote, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 # %% DATASET REGISTRY
@@ -37,6 +37,17 @@ DATASETS = {
         "assay": "snRNA-seq",
         "description": "Human caudate and putamen; OUD/control",
         "file_pattern": r"\.h5ad(?:\.gz)?$",
+    },
+    "GSE194368": {
+        "assay": "bulk RNA-seq",
+        "description": "Human central amygdala; OUD/control",
+        "file_pattern": r"(?i)(?:raw|gene).*(?:count).*\\.(?:csv|tsv|txt)(?:\\.gz)?$",
+        "ncbi_fallback": True,
+    },
+    "GSE240457": {
+        "assay": "snRNA-seq",
+        "description": "Human ventral midbrain; opioid overdose/control (pooled libraries)",
+        "file_pattern": r"^GSE240457_RAW\\.tar$",
     },
 }
 
@@ -97,6 +108,14 @@ def discover_supplementary(url):
     return dict(sorted(files.items()))
 
 
+def ncbi_counts_url(accession):
+    """NCBI-computed bulk RNA-seq counts (different from submitter counts)."""
+    filename = f"{accession}_raw_counts_GRCh38.p13_NCBI.tsv.gz"
+    query = urlencode({"type": "rnaseq_counts", "acc": accession,
+                       "format": "file", "file": filename})
+    return filename, f"https://www.ncbi.nlm.nih.gov/geo/download/?{query}"
+
+
 def sha256_file(path):
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -118,6 +137,12 @@ def download_file(url, destination, *, overwrite=False):
     LOGGER.info("Downloading: %s", destination.name)
     try:
         with urlopen(request_url(url), timeout=120) as response, temporary.open("wb") as output:
+            prefix = response.read(512)
+            if destination.suffix == ".gz" and not prefix.startswith(bytes.fromhex("1f8b")):
+                raise IOError(f"Invalid gzip response from {url}")
+            if destination.suffix == ".tar" and prefix[257:262] != b"ustar":
+                raise IOError(f"Invalid TAR response from {url}")
+            output.write(prefix)
             shutil.copyfileobj(response, output, length=CHUNK_SIZE)
         if temporary.stat().st_size == 0:
             raise IOError(f"Empty download: {url}")
@@ -171,22 +196,31 @@ def main(argv=None):
         try:
             available = discover_supplementary(paths["supplementary"])
         except (HTTPError, URLError, OSError) as exc:
-            LOGGER.error("Cannot list %s files: %s", accession, exc)
-            failures += 1
-            continue
+            LOGGER.warning("Cannot list %s supplementary files: %s", accession, exc)
+            available = {}
 
         selected = {name: url for name, url in available.items()
                     if args.all_supplementary or re.search(info["file_pattern"], name, re.I)}
-        if not selected:
-            LOGGER.warning("No supplementary files matched %s: inspect --list", accession)
-            failures += 1
         for name in available:
             LOGGER.info("  %s %s", "SELECT" if name in selected else "skip  ", name)
+
+        # GSE194368 may have no submitter count file at series level.
+        # NCBI-generated bulk counts are a documented alternative.
+        if not selected and info.get("ncbi_fallback"):
+            name, url = ncbi_counts_url(accession)
+            selected[name] = url
+            LOGGER.info("  candidate NCBI counts: %s", name)
+        elif not selected:
+            LOGGER.warning("No matching expression files for %s", accession)
+            failures += 1
+
         targets = list(selected.items())
         if not args.no_metadata:
             targets.extend((Path(urlparse(url).path).name, url)
                            for key, url in paths.items() if key != "supplementary")
         if args.list:
+            for name, _url in targets:
+                LOGGER.info("  planned: %s", name)
             continue
         for name, url in targets:
             target = DATA_DIR / accession / name
