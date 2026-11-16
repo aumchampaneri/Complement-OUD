@@ -348,8 +348,8 @@ def main():
                         default=list(ACCESSIONS))
     parser.add_argument("--all-h5", action="store_true",
                         help="Inspect all H5 libraries in GSE240457 TAR")
-    parser.add_argument("--max-h5", type=int, default=3,
-                        help="Number of TAR libraries to inspect by default")
+    parser.add_argument("--max-h5", type=int, default=100000,
+                        help="Maximum TAR libraries to inspect (default: all)")
     parser.add_argument("--sample-values", type=int, default=10000,
                         help="Expression values sampled per HDF5 matrix")
     args = parser.parse_args()
