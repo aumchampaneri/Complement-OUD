@@ -41,13 +41,13 @@ DATASETS = {
     "GSE194368": {
         "assay": "bulk RNA-seq",
         "description": "Human central amygdala; OUD/control",
-        "file_pattern": r"(?i)(?:raw|gene).*(?:count).*\\.(?:csv|tsv|txt)(?:\\.gz)?$",
+        "file_pattern": r"(?i)(?:raw|gene).*(?:count).*\.(?:csv|tsv|txt)(?:\.gz)?$",
         "ncbi_fallback": True,
     },
     "GSE240457": {
         "assay": "snRNA-seq",
         "description": "Human ventral midbrain; opioid overdose/control (pooled libraries)",
-        "file_pattern": r"^GSE240457_RAW\\.tar$",
+        "file_pattern": r"^GSE240457_RAW\.tar$",
     },
 }
 
