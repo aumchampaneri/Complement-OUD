@@ -8,6 +8,16 @@ No additional QC filtering, count re-normalization, or DE is performed.
 # %% Imports and configuration
 from __future__ import annotations
 
+# Shared standard-library I/O; support direct scripts and test imports.
+try:
+    from scripts._qc_common import sha256, write_csv, read_csv
+except ModuleNotFoundError as exc:
+    if exc.name != "scripts":
+        raise
+    from _qc_common import sha256, write_csv, read_csv
+load_csv = read_csv
+
+
 import argparse
 from collections import Counter, defaultdict
 import csv
@@ -63,24 +73,7 @@ def obs_vector(obs, key, size):
     raise ValueError(f"{key}: unsupported AnnData obs representation")
 
 
-def sha256(path):
-    digest = hashlib.sha256()
-    with path.open("rb") as inp:
-        for chunk in iter(lambda: inp.read(CHUNK_BYTES), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
-
-def write_csv(path, rows, fields):
-    with path.open("w", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=fields, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def load_csv(path):
-    with path.open(newline="", encoding="utf-8") as file:
-        return list(csv.DictReader(file))
 
 
 def fmt_bool_flag(value):
