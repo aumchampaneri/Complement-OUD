@@ -59,3 +59,7 @@ verified public barcode-to-donor/diagnosis crosswalk. Preserve these uncertainti
 treat donors—not nuclei—as biological replicates, and do not use transformed
 H5AD `.X` for count-based pseudobulk. Complement RNA levels do not directly
 measure complement activation.
+
+## Phase 2: QC planning (before filtering)
+
+The [human QC design and decision register](docs/02_human_qc_plan.md) documents dataset origins, assay layers and biological replication units, pre-filter diagnostics, candidate exclusions, and downstream consequences of major decisions. **No Phase 2 filtering or DE has been implemented or approved yet.** Review the acceptance gates before implementation.
