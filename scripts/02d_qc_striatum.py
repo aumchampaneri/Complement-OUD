@@ -15,7 +15,6 @@ except ModuleNotFoundError as exc:
     if exc.name != "scripts":
         raise
     from _qc_common import sha256, write_csv, read_csv
-load_csv = read_csv
 
 
 import argparse
@@ -265,7 +264,7 @@ def main():
                         help="Optional already-decompressed H5AD (avoids 8.8 GB extraction)")
     args = parser.parse_args()
     inspection = json.loads(INSPECTION.read_text(encoding="utf-8"))
-    geo = load_csv(GEO_TABLE)
+    geo = read_csv(GEO_TABLE)
     if args.h5ad is not None:
         if not args.h5ad.is_file():
             parser.error(f"Missing uncompressed H5AD: {args.h5ad}")
