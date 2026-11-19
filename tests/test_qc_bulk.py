@@ -66,6 +66,8 @@ class BulkQcTests(unittest.TestCase):
         self.assertEqual(rows[0]["detected_features"], 2)
         self.assertAlmostEqual(rows[0]["top10_count_fraction"], 1.0)
         self.assertEqual(rows[0]["technical_exclusion"], "NONE_APPLIED")
+        self.assertEqual(len(metadata["top_feature_rows"]), 18)
+        self.assertEqual(metadata["top_feature_rows"][0]["feature_id"], "G0")
         self.assertFalse(metadata["flags_are_exclusions"])
         self.assertEqual(rows[1]["diagnosis"], "OUD")
 
