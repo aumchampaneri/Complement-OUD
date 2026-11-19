@@ -15,6 +15,7 @@ import gzip
 import hashlib
 import json
 import math
+import re
 from pathlib import Path
 import shutil
 import tempfile
@@ -96,6 +97,31 @@ def fmt_bool_flag(value):
     return "UNKNOWN"
 
 
+def canonical_donor_id(value):
+    """Normalize an integer-coded donor ID, never a measurement.
+
+    H5AD stores some 'Case' values as 1034.0 while GEO has '1034'.
+    Keep nonnumeric IDs literal; refuse fractional/nonfinite numeric IDs.
+    This routine is ONLY for identity comparisons and group keys; it does
+    not alter the H5AD, its metadata, or any count representation.
+    """
+    value = text_value(value)
+    if isinstance(value, (int, np.integer)) and not isinstance(value, (bool, np.bool_)):
+        return str(value)
+    if isinstance(value, (float, np.floating)):
+        if not math.isfinite(value) or not value.is_integer():
+            raise ValueError(f"Non-integer donor ID: {value!r}")
+        return str(int(value))
+    token = str(value).strip()
+    if re.fullmatch(r"[0-9]+\\.0+", token):
+        return token.split(".", 1)[0]
+    if re.fullmatch(r"[0-9]+\\.[0-9]+", token):
+        raise ValueError(f"Non-integer donor ID: {token!r}")
+    if not token or token.lower() in ("none", "nan", "inf"):
+        raise ValueError(f"Missing/invalid donor ID: {token!r}")
+    return token
+
+
 def assert_identifiers(fields, geo):
     """Never infer one donor per library; verify donor–region IDs against GEO."""
     known = {r["sample_id"]: r for r in geo}
@@ -105,7 +131,7 @@ def assert_identifiers(fields, geo):
     sample_to_donor = {}
     for sample, donor, region, condition in zip(
             fields["ID"], fields["Case"], fields["Region"], fields["Dx_OUD"]):
-        sid, did = str(sample), str(donor)
+        sid, did = str(sample), canonical_donor_id(donor)
         if sid not in known:
             raise ValueError(f"Object contains unknown donor–region sample: {sid}")
         expected = known[sid]
@@ -114,8 +140,8 @@ def assert_identifiers(fields, geo):
         if expected_condition and expected_condition != actual_condition:
             raise ValueError(f"{sid}: object/GEO diagnosis mismatch: "
                              f"{condition!r} vs {expected['condition']!r}")
-        expected_donor = str(expected["subject_id"])
-        if did != expected_donor and did != sid.split("-", 1)[-1]:
+        expected_donor = canonical_donor_id(expected["subject_id"])
+        if did != expected_donor and did != canonical_donor_id(sid.split("-", 1)[-1]):
             raise ValueError(f"{sid}: donor ID {did} differs from GEO {expected_donor}")
         previous = sample_to_donor.setdefault(sid, did)
         if previous != did:
@@ -154,7 +180,7 @@ def analyze_obs(fields, geo):
     design = assert_identifiers(fields, geo)
     categories = defaultdict(list)
     for i in range(length):
-        key = (str(fields["Case"][i]), str(fields["ID"][i]),
+        key = (canonical_donor_id(fields["Case"][i]), str(fields["ID"][i]),
                str(fields["Region"][i]), str(fields["Dx_OUD"][i]),
                str(fields["celltype1"][i]))
         categories[key].append(i)
