@@ -11,6 +11,15 @@ Outputs are written under ignored outputs/qc/human/.
 # %% Configuration
 from __future__ import annotations
 
+# Shared standard-library I/O; support both direct scripts and test imports.
+try:
+    from scripts._qc_common import write_csv, sha256
+except ModuleNotFoundError as exc:
+    if exc.name != "scripts":
+        raise
+    from _qc_common import write_csv, sha256
+
+
 from pathlib import Path
 import csv
 import gzip
@@ -36,19 +45,6 @@ def read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def write_csv(path: Path, rows: list[dict], fields: list[str]) -> None:
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        while block := handle.read(4 * 1024 * 1024):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def median_mad(values: list[float]) -> tuple[float, float]:
