@@ -115,8 +115,8 @@ def audit_cohort(path, samples, dataset, *, top_n=TOP_GENES, annotation=None):
         raise ValueError("Empty feature matrix")
     top.sort(key=lambda r: (-r[0], r[1]))
     # Selected solely on unsupervised logCPM variance; this is not a DE filter.
-    x = np.stack([item[2] for item in top], axis=1)
-    x -= x.mean(axis=0, keepdims=True)
+    log_profiles = np.stack([item[2] for item in top], axis=1)
+    x = log_profiles - log_profiles.mean(axis=0, keepdims=True)
     u, singular, _ = np.linalg.svd(x, full_matrices=False)
     scores = u * singular
     explained = (singular ** 2 / (singular ** 2).sum()).tolist() if (singular ** 2).sum() else [0.0] * len(singular)
@@ -124,10 +124,12 @@ def audit_cohort(path, samples, dataset, *, top_n=TOP_GENES, annotation=None):
         pivot = int(np.argmax(np.abs(scores[:, axis])))
         if scores[pivot, axis] < 0:
             scores[:, axis] *= -1
-    # Correlation of gene-centered logCPM profiles, across selected features.
-    norms = np.linalg.norm(x, axis=1)
+    # Pearson correlation across selected genes: center EACH sample across genes.
+    centered_profiles = log_profiles - log_profiles.mean(axis=1, keepdims=True)
+    norms = np.linalg.norm(centered_profiles, axis=1)
     denominator = np.outer(norms, norms)
-    corr = np.divide(x @ x.T, denominator, out=np.full_like(denominator, np.nan), where=denominator > 0)
+    corr = np.divide(centered_profiles @ centered_profiles.T, denominator,
+                     out=np.full_like(denominator, np.nan), where=denominator > 0)
     pca = []
     for i, sample in enumerate(samples):
         result = {key: sample.get(key, "") for key in
