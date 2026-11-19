@@ -176,3 +176,28 @@ decompression to about **8.8 GB** in the source-data folder. This stage checks
 for at least **13 GB free** and removes its temporary copy automatically.
 For an already decompressed local file, use `--h5ad PATH` instead. Do not
 commit raw data, temporary copies, or generated QC outputs.
+
+## Phase 2e: GSE240457 pooled midbrain 10x technical QC
+
+The `02e` stage processes 27 Cell Ranger `filtered_feature_bc_matrix.h5`
+libraries inside `GSE240457_RAW.tar`, validating each against the existing
+inspection and `01b` library inventory. Libraries are **multiplexed donor
+pools**, not independent donors. The script summarizes filtered barcode-level
+Gene Expression UMI counts, detected features, and provisional `MT-`-named
+gene fractions. No barcode or library is removed, no pooled library is
+assigned a diagnosis, and donor-level DE remains blocked.
+
+```bash
+pixi run python -m unittest discover -s tests -p 'test_qc_midbrain.py' -v
+pixi run python scripts/02e_qc_midbrain.py
+```
+
+Outputs in ignored `outputs/qc/human/`: `midbrain_library_qc.csv` and
+`midbrain_qc_readiness.json`. The JSON records the input archive checksum,
+all 27 per-library distributions, and explicit donor-mapping limitations.
+`--max-libraries 2` supports a diagnostic partial run and clearly labels it
+incomplete. Temporary extraction is limited to one 10x library at a time;
+the source TAR and H5 files are never modified.
+
+After reviewing both `02d` and `02e` outputs, conduct the planned
+Phase 2-wide QC decision and code-consolidation review before Phase 3.
