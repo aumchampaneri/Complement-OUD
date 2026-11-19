@@ -21,8 +21,6 @@ except ModuleNotFoundError as exc:
 
 import argparse
 from collections import Counter
-import csv
-import hashlib
 import json
 from pathlib import Path
 import shutil
