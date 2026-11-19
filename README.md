@@ -53,7 +53,7 @@ before downstream QC or differential expression.
 
 **Key design constraints:** GSE174409 and GSE225158 likely share 12 donors
 (therefore are not independent biological replication); the GSE225158 processed
-object has 22 of 24 donor–region libraries; GSE194368's NCBI matrix has 41 of
+object has 22 of 24 donor–region libraries (two caudate libraries, C-612 and C-13291, were excluded by the authors after documented wetting failures and low-quality metrics; see [GSM7040228](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM7040228) and [GSM7040229](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM7040229)); GSE194368's NCBI matrix has 41 of
 42 GEO samples; GSE240457's 27 H5 files are pooled libraries without a
 verified public barcode-to-donor/diagnosis crosswalk. Preserve these uncertainties,
 treat donors—not nuclei—as biological replicates, and do not use transformed
