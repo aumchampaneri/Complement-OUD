@@ -82,3 +82,34 @@ source data**. It writes `outputs/qc/human/bulk_sample_qc.csv` and
 H5AD and midbrain 10x libraries are reserved for later assay-specific
 read-only QC. Treat all robust-z flags as prompts for review, never automatic
 exclusions.
+
+## Phase 2b: unsupervised bulk diagnostics
+
+This step uses **NumPy** for per-cohort PCA of the 2,000 highest-variance
+log1p-CPM gene profiles, plus sample-wise Pearson correlations. The gene
+selection is for visualization, **not an inferential gene filter**. It reads
+and verifies the same unmodified source count files via the checksums from
+Phase 2a. No samples are removed.
+
+```bash
+pixi install
+pixi run python -m unittest discover -s tests -p 'test_qc_bulk*.py' -v
+pixi run python scripts/02b_qc_bulk_multivariate.py
+```
+
+Outputs: `outputs/qc/human/bulk_pca_scores.csv`,
+`bulk_sample_correlations.csv`, `bulk_pca_feature_selection.csv` and
+`bulk_multivariate_readiness.json`.
+
+**Mitochondrial fractions are intentionally unavailable by default.** A vetted
+annotation table with `dataset,feature_id,gene_symbol,chromosome` can be
+supplied with `--annotation-csv`, but any resulting fractions are provisional
+until complete mitochondrial feature mapping is audited. Do not treat a partial
+mapping as a quantitative QC metric.
+
+**Repository hygiene:** Raw downloads, intermediate reports and generated QC
+files remain in ignored `data/` and `outputs/`; the tracked repository
+retains small code, unit tests and methods records. Do not delete raw source
+files or acquisition/checksum manifests. The temporary inspector is kept until
+its required evidence-extraction functions are replaced by tested permanent
+code; cleanup must not make historical validation irreproducible.
