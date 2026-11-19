@@ -341,6 +341,243 @@ def inspect_tar(archive, max_h5, sample_values):
     return result
 
 
+
+# %% CROSS-STUDY PROVENANCE RECONCILIATION
+# > Operates on existing JSON reports; it does not load count matrices.
+# > All matching across studies is PROVISIONAL and requires a source crosswalk.
+def candidate_matches(bulk_samples, nucleus_samples):
+    """Rank informative clinical matches; never assert donor equivalence."""
+    from itertools import product
+
+    def norm(s):
+        return " ".join(str(s or "").strip().casefold().split())
+
+    # Age/sex/diagnosis are necessary but insufficient to identify a donor.
+    # Exact medication/toxicology and tissue-quality concordance add evidence.
+    fields = (("age", "age", 1), ("sex", "sex", 1),
+              ("diagnosis", "dx_oud", 2),
+              ("bloodtexicology", "blood.toxicology", 5),
+              ("tissuestoragetime_month", "tissue.storage.time.mo", 2))
+    matches = []
+    for old, new in product(bulk_samples, nucleus_samples):
+        agreements, conflicts, score = [], [], 0
+        for old_key, new_key, weight in fields:
+            x, y = norm(old.get(old_key)), norm(new.get(new_key))
+            if old_key == "diagnosis":
+                x = "control" if x in ("cont", "none", "unaffected") else x
+                y = "control" if y in ("none", "cont", "unaffected") else y
+            if not x or not y:
+                continue
+            if x == y:
+                agreements.append(old_key)
+                score += weight
+            else:
+                conflicts.append(old_key)
+        for old_key, new_key, weight, tolerance in (
+            ("pmi", "pmi", 3, 0.12),
+            ("rpf_rin", "rin", 2, 0.11),
+            ("avgph", "ph", 2, 0.11),
+        ):
+            try:
+                x, y = float(old[old_key]), float(new[new_key])
+            except (KeyError, ValueError, TypeError):
+                continue
+            if abs(x-y) <= tolerance:
+                agreements.append(old_key)
+                score += weight
+            else:
+                conflicts.append(old_key)
+        # A source-verified crosswalk is required regardless of numerical score.
+        if (score >= 9 and "diagnosis" in agreements
+                and "age" in agreements and "sex" in agreements
+                and not conflicts):
+            matches.append({
+                "bulk_title": old.get("title", ""),
+                "bulk_geo": old.get("geo_accession", ""),
+                "bulk_region": old.get("source_name_ch1", ""),
+                "nucleus_subject": new.get("subject", ""),
+                "nucleus_title": new.get("title", ""),
+                "nucleus_geo": new.get("geo_accession", ""),
+                "nucleus_region": new.get("tissue", ""),
+                "score": score,
+                "agreements": ";".join(agreements),
+                "status": "CANDIDATE_NOT_VERIFIED",
+            })
+    # Keep one row per bulk sample and nucleus subject, not two regions
+    # of the same nucleus subject.
+    output = {}
+    for item in sorted(matches, key=lambda x: -x["score"]):
+        k = (item["bulk_title"], item["nucleus_subject"])
+        if k not in output:
+            output[k] = item
+    return list(output.values())
+
+
+def reconcile_existing_reports():
+    """Compare GEO metadata and acquired matrices without rereading large data."""
+    reports = {}
+    for accession in ACCESSIONS:
+        path = REPORT_DIR / f"{accession}_inspection.json"
+        if path.exists():
+            try:
+                reports[accession] = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                LOG.warning("Cannot read %s: %s", path, exc)
+
+    summary = {"available_reports": sorted(reports),
+               "missing_reports": sorted(set(ACCESSIONS) - set(reports)),
+               "checks": {}, "limitations": []}
+    for accession, report in reports.items():
+        geo = report.get("geo", {}).get("samples", [])
+        expression = report.get("expression", {})
+        check = {"n_geo_samples": len(geo)}
+        if accession in ("GSE174409", "GSE194368"):
+            matrix = (expression[0] if isinstance(expression, list) and expression else {})
+            names = set(matrix.get("sample_names", []))
+            sample_title_to_id = {s.get("title"): s.get("geo_accession") for s in geo}
+            all_ids = {s.get("geo_accession") for s in geo}
+            all_titles = set(sample_title_to_id)
+            compare_ids = len(names & all_ids) >= len(names & all_titles)
+            expected = all_ids if compare_ids else all_titles
+            check.update({"matrix_sample_count": len(names),
+                          "matching_key": "geo_accession" if compare_ids else "title",
+                          "missing_from_matrix": sorted(expected - names),
+                          "matrix_columns_without_geo_match": sorted(names - expected),
+                          "matrix_sample_names_unique": len(names) == len(matrix.get("sample_names", [])),
+                          "gene_examples": matrix.get("gene_examples", [])[:5]})
+            missing = [s for s in geo if s.get("geo_accession" if compare_ids else "title") in expected - names]
+            check["missing_sample_details"] = [
+                {k: row.get(k, "") for k in ("title", "geo_accession", "disease_state", "diagnosis", "source_name_ch1")}
+                for row in missing]
+        elif accession == "GSE225158":
+            ids = expression.get("metadata_distributions", {}).get("ID", {}).get("top_categories", [])
+            observed = {i[0] for i in ids}
+            expected = {s.get("title") for s in geo}
+            check.update({"n_observed_donor_region_ids": len(observed),
+                          "n_unique_geo_subjects": len({s.get("subject") for s in geo}),
+                          "missing_donor_region_ids": sorted(expected - observed),
+                          "unregistered_donor_region_ids": sorted(observed - expected),
+                          "raw_x": expression.get("raw/X", {}),
+                          "raw_gene_examples": expression.get("raw_gene_examples", []),
+                          "count_provenance_verified": False})
+        elif accession == "GSE240457":
+            libs = expression.get("libraries", [])
+            check.update({"n_geo_libraries": len(geo),
+                          "n_h5_libraries": expression.get("n_libraries"),
+                          "n_libraries_inspected": len(libs),
+                          "n_filtered_barcodes": sum(int(i.get("barcode_count", 0)) for i in libs),
+                          "donor_demultiplexing_available": False,
+                          "note": "Library IDs and filtered barcodes are not individual donor assignments"})
+            path = REPORT_DIR / "GSE240457_library_inventory.csv"
+            fields = ["geo_accession", "library", "filename", "barcodes", "genes",
+                      "donor_mapping_status"]
+            with path.open("w", newline="", encoding="utf-8") as fh:
+                writer = csv.DictWriter(fh, fieldnames=fields)
+                writer.writeheader()
+                for lib in libs:
+                    filename = lib.get("filename", "")
+                    geo_id = filename.split("_", 1)[0]
+                    writer.writerow({"geo_accession": geo_id,
+                                     "library": filename.split("_", 2)[1] if "_" in filename else "",
+                                     "filename": filename, "barcodes": lib.get("barcode_count"),
+                                     "genes": (lib.get("matrix_shape") or [None])[0],
+                                     "donor_mapping_status": "UNRESOLVED"})
+        summary["checks"][accession] = check
+
+    if "GSE174409" in reports and "GSE225158" in reports:
+        bulk = reports["GSE174409"]["geo"]["samples"]
+        nuclei = reports["GSE225158"]["geo"]["samples"]
+        matches = candidate_matches(bulk, nuclei)
+        dest = REPORT_DIR / "cross_study_donor_candidates.csv"
+        fields = ["bulk_title", "bulk_geo", "bulk_region", "nucleus_subject",
+                  "nucleus_title", "nucleus_geo", "nucleus_region",
+                  "score", "agreements", "status"]
+        with dest.open("w", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(matches)
+        summary["candidate_cross_study_matches"] = len(matches)
+        summary["candidate_cross_study_donors"] = len({r["nucleus_subject"] for r in matches})
+        summary["cross_study_status"] = "PROVISIONAL; NO AUTHORITATIVE CROSSWALK"
+
+    summary["limitations"] = [
+        "All cross-study donor matches are provisional, not identity proof.",
+        "H5AD raw count provenance requires full matrix and RNA QC checks.",
+        "GSE240457 donor-level testing requires verified barcode-to-donor annotations.",
+        "GSE194368 NCBI counts may omit samples relative to submitter metadata.",
+    ]
+    path = REPORT_DIR / "human_reconciliation.json"
+    path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    LOG.info("Saved %s", path.relative_to(PROJECT_DIR))
+    for accession, check in summary["checks"].items():
+        LOG.info("%s reconciliation: %s", accession, {
+            k: v for k, v in check.items()
+            if k.startswith("missing_") or k.startswith("n_")
+        })
+    return summary
+
+
+# %% OPTIONAL DEEP H5AD COUNT-AND-ANNOTATION VERIFICATION
+def verify_h5ad_raw(archive):
+    """Full sparse-data integrity check; sample individual nuclei for QC agreement."""
+    import numpy as np
+
+    result = {"file": archive.name, "note": "Full sparse data scan; per-cell QC tested on distributed rows"}
+    folder = archive.parent
+    if shutil.disk_usage(folder).free < 14_000_000_000:
+        return dict(result, error="Less than 14 GB free")
+    with tempfile.TemporaryDirectory(prefix="human-verify-", dir=folder) as tmp:
+        target = Path(tmp) / "counts.h5ad"
+        with gzip.open(archive, "rb") as incoming, target.open("wb") as outgoing:
+            shutil.copyfileobj(incoming, outgoing, length=8 * 1024 * 1024)
+        with h5py.File(target, "r") as h5:
+            node = h5["raw/X"]
+            if not isinstance(node, h5py.Group) or "data" not in node:
+                return dict(result, error="raw/X is not a recognized sparse matrix")
+            data = node["data"]
+            stats = {"nonfinite": 0, "negative": 0, "fractional": 0}
+            for offset in range(0, len(data), 1_000_000):
+                vals = np.asarray(data[offset:offset+1_000_000])
+                stats["nonfinite"] += int((~np.isfinite(vals)).sum())
+                stats["negative"] += int((vals < 0).sum())
+                stats["fractional"] += int((np.isfinite(vals) & (vals != np.floor(vals))).sum())
+            result["raw_data_entries_checked"] = len(data)
+            result["raw_data_violations"] = stats
+            result["all_raw_values_integer_nonnegative_finite"] = not any(stats.values())
+            result["raw_var_columns"] = list(h5["raw/var"].keys())
+            for field in ("_index", "features"):
+                if field in h5["raw/var"]:
+                    ds = h5["raw/var"][field]
+                    result[f"raw_{field}_examples"] = preview(ds[:min(15, len(ds))])
+                    result[f"raw_{field}_length"] = len(ds)
+            indptr = node["indptr"]
+            n_cells = len(indptr)-1
+            indices = np.unique(np.linspace(0, n_cells - 1, min(1000, n_cells), dtype=np.int64))
+            checks = {}
+            for field, mode in (("nCount_RNA", "sum"), ("nFeature_RNA", "genes")):
+                if field not in h5["obs"]:
+                    continue
+                obs = h5_vector(h5["obs"][field])
+                errors = []
+                for i in indices:
+                    a, b = int(indptr[i]), int(indptr[i+1])
+                    value = float(np.asarray(data[a:b]).sum()) if mode == "sum" else int(b-a)
+                    try:
+                        errors.append(abs(value-float(obs[int(i)])))
+                    except (ValueError, IndexError):
+                        pass
+                checks[field] = {"n_tested": len(errors),
+                                 "n_disagree": sum(v > 0.01 for v in errors),
+                                 "maximum_absolute_error": max(errors, default=None)}
+            result["qc_field_comparison"] = checks
+            result["provenance_note"] = ("Count-like representation and QC concordance do not "
+                                         "independently prove original preprocessed-count provenance.")
+    dest = REPORT_DIR / "GSE225158_raw_verification.json"
+    dest.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    LOG.info("Saved %s", dest.relative_to(PROJECT_DIR))
+    return result
+
+
 # %% ENTRY POINT
 def main():
     parser = argparse.ArgumentParser(description="Read-only human transcriptomics audit")
@@ -352,9 +589,16 @@ def main():
                         help="Maximum TAR libraries to inspect (default: all)")
     parser.add_argument("--sample-values", type=int, default=10000,
                         help="Expression values sampled per HDF5 matrix")
+    parser.add_argument("--reconcile-only", action="store_true",
+                        help="Use previously generated JSON reports; skip all matrix reads")
+    parser.add_argument("--verify-h5ad-raw", action="store_true",
+                        help="Deep scan GSE225158 raw/X and test QC field agreement (extra 8.8 GB extraction)")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    if args.reconcile_only:
+        reconcile_existing_reports()
+        return 0
 
     failures = 0
     for accession in args.datasets:
@@ -389,6 +633,14 @@ def main():
         save_json(accession, report)
         expression = report.get("expression", {})
         LOG.info("Status %s: %s", accession, "ERROR" if "error" in report else "report saved")
+    reconcile_existing_reports()
+    if args.verify_h5ad_raw:
+        archive_dir = DATA_DIR / "GSE225158"
+        archives = sorted(archive_dir.glob("*.h5ad.gz"))
+        if archives:
+            verify_h5ad_raw(archives[0])
+        else:
+            LOG.warning("Cannot verify GSE225158 raw counts: archive not found")
     print("Reports:", REPORT_DIR.relative_to(PROJECT_DIR))
     print("Original downloaded files were not modified.")
     return 1 if failures else 0
