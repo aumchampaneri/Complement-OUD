@@ -113,3 +113,41 @@ retains small code, unit tests and methods records. Do not delete raw source
 files or acquisition/checksum manifests. The temporary inspector is kept until
 its required evidence-extraction functions are replaced by tested permanent
 code; cleanup must not make historical validation irreproducible.
+
+## Phase 2c: bulk annotation and mitochondrial sensitivity
+
+The [source-verification plan](docs/02a_source_provenance_audit.md) requires
+real gene annotation references rather than guessing symbols from Ensembl or
+numeric Entrez identifiers. The `02c` stage audits matching feature IDs,
+identifies mitochondrial genes by reference chromosome, computes provisional
+mitochondrial count fractions, and performs a **PCA-only** sensitivity excluding
+mitochondrial genes. It does **not** change source counts or downstream DE
+feature eligibility.
+
+Download reference files to ignored `data/reference/` (do not commit them).
+GENCODE v47 is a **modern lookup reference**; it is not established as the
+original GSE174409 quantification annotation, and discrepancies must be
+documented before downstream gene mapping. NCBI's `gene_info` is a changing
+lookup snapshot, not the original GSE194368 count pipeline reference.
+
+```bash
+mkdir -p data/reference
+curl -fL --retry 3 \
+  https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_47/gencode.v47.annotation.gtf.gz \
+  -o data/reference/gencode.v47.annotation.gtf.gz
+curl -fL --retry 3 \
+  https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz \
+  -o data/reference/Homo_sapiens.gene_info.gz
+pixi run python -m unittest discover -s tests -p 'test_qc_bulk*.py' -v
+pixi run python scripts/02c_qc_bulk_annotation.py \
+  --gencode-gtf data/reference/gencode.v47.annotation.gtf.gz \
+  --ncbi-gene-info data/reference/Homo_sapiens.gene_info.gz
+```
+
+Review `outputs/qc/human/bulk_feature_annotation_audit.csv`,
+`bulk_mitochondrial_qc.csv`, `bulk_pca_mt_sensitivity.csv`, and
+`bulk_annotation_readiness.json` before using any mitochondrial metrics for
+QC decisions. The status intentionally remains **provisional** until full
+reference/matrix feature coverage and source compatibility have been evaluated.
+The script refuses mismatched count checksums and incompatible annotation
+namespaces. Phase 2c requires no extra Python packages beyond existing NumPy.
