@@ -189,6 +189,10 @@ def analyze_obs(fields, geo):
                    if name in fields]
     coverage = []
     flag_rows = []
+    original_flag_values = Counter()
+    for flag in flag_cols:
+        for raw in fields[flag]:
+            original_flag_values[(flag, str(text_value(raw)))] += 1
     for key, indices in sorted(categories.items()):
         donor, sample, region, diagnosis, celltype = key
         entry = {"donor": donor, "sample_id": sample, "region": region,
@@ -227,6 +231,10 @@ def analyze_obs(fields, geo):
     design.update({
         "n_nuclei": length, "n_donor_region_celltype_groups": len(coverage),
         "qc_flag_columns": flag_cols,
+        "qc_flag_original_value_counts": [
+            {"flag": flag, "original_value": value, "n_nuclei": count}
+            for (flag, value), count in sorted(original_flag_values.items())
+        ],
         "metrics_present": metric_cols,
         "flag_semantics": "Descriptive only; .keep interpretation requires author source validation.",
         "source_population": "AUTHOR_RETAINED_NUCLEI_ONLY",
