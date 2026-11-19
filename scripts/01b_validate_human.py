@@ -9,7 +9,6 @@ The source datasets and inspection JSONs are never modified.
 
 # %% PATHS AND IMPORTS
 from pathlib import Path
-from collections import Counter
 import csv
 import json
 
