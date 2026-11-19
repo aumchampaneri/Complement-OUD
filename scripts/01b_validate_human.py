@@ -99,10 +99,13 @@ def striatum_samples(report, issues):
                            included_in_h5ad=bool(nuclei)))
     missing = sorted({s["title"] for s in geo} - set(observed))
     unrecognized = sorted(set(observed) - {s["title"] for s in geo})
-    if missing:
-        issues.append(issue("GSE225158", "missing_donor_region_samples",
-                            f"Absent from processed object: {', '.join(missing)}",
-                            "Examine authors' sample QC/exclusion rationale"))
+    documented = {"C-13291", "C-612"}
+    undocumented = sorted(set(missing) - documented)
+    if undocumented:
+        issues.append(issue("GSE225158", "unexpected_donor_region_exclusions",
+                            f"Absent from processed object without documented reason: {', '.join(undocumented)}",
+                            "Investigate unexpected sample exclusions", "block"))
+    documented_present = sorted(set(missing) & documented)
     if unrecognized:
         issues.append(issue("GSE225158", "unknown_object_samples", str(unrecognized),
                             "Resolve sample ID mismatch", "block"))
@@ -116,6 +119,10 @@ def striatum_samples(report, issues):
                             "Reconcile subject diagnosis labels", "block"))
     return output, dict(geo_samples=len(geo), object_samples=len(observed),
                         donors=len(per_donor), missing_sample_ids=missing,
+                        documented_exclusions=documented_present,
+                        documented_exclusion_reason=("GEO sample records: wetting failures; "
+                            "low mean UMI/cell and anomalously high estimated cell count. "
+                            "See GSM7040228 and GSM7040229."),
                         nuclei=sum(observed.values()),
                         raw_count_dimensions=expr.get("raw/X", {}).get("shape"))
 
