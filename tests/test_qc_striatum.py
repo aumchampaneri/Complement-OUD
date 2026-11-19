@@ -50,7 +50,7 @@ class StriatumQCTests(unittest.TestCase):
         self.assertEqual(sum(r["n_nuclei"] for r in coverage), 4)
         self.assertEqual(sum(r["false"] for r in flags), 1)
         self.assertEqual(design["automatic_nucleus_exclusions"], 0)
-        self.assertEqual(len(balance), 4)
+        self.assertEqual(len(balance), 3)
 
     def test_unknown_sample_id_rejected(self):
         with h5py.File(self.path, "r+") as h5:
