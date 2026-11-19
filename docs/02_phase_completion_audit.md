@@ -22,11 +22,14 @@ source checksums remain outside version control.
 
 ## Still required before QC freeze and Phase 3
 
-1. **Inherited striatal flags:** inspect refreshed `striatum_qc_readiness.json`
-   key `qc_flag_original_value_counts`; determine encoding and source-backed
-   meaning of `dropletQC.keep`, `miQC.keep`, `scds.keep`. In prior uploaded
-   output, all 98,848 values per flag appeared as `UNKNOWN` under our boolean
-   parser. Do not equate UNKNOWN with failed or passed QC.
+1. **Inherited striatal flags — encoding resolved, upstream criteria still under review:**
+   the refreshed `striatum_qc_readiness.json` records `dropletQC.keep=cell`,
+   `miQC.keep=keep`, and `scds.keep=keep` for all 98,848 author-retained nuclei.
+   The earlier `UNKNOWN` values arose because our boolean flag parser did not
+   interpret categorical strings; they did **not** indicate failed nuclei.
+   The strings are consistent with retained nuclei, but the original filtering
+   thresholds and counts of rejected droplets are **not recoverable** from this
+   already-filtered object. No additional exclusions are justified by these flags.
 2. **Bulk technical anomalies:** record GSE194368 high mitochondrial fractions,
    especially C.18, and assess the role of library-size denominators and
    composition in multivariate profiles. No sample exclusion approved.
