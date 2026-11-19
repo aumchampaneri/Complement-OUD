@@ -201,3 +201,26 @@ the source TAR and H5 files are never modified.
 
 After reviewing both `02d` and `02e` outputs, conduct the planned
 Phase 2-wide QC decision and code-consolidation review before Phase 3.
+
+## Phase 2 consolidation and scientific gate
+
+Five QC entrypoints (`02a`–`02e`) have been implemented. Repeated
+CSV and checksum logic has been consolidated in `scripts/_qc_common.py`.
+The independent source-inspection script remains necessary for initial
+archival checks and the preexisting full striatal raw-count verification.
+
+**Implementation complete does not mean Phase 2 is scientifically frozen.**
+Review [Phase 2 completion audit](docs/02_phase_completion_audit.md) for the
+completed goals and unresolved QC, donor-level design, annotation provenance,
+and sensitivity-decision requirements before Phase 3.
+
+After pulling any refactor updates, execute the full test suite:
+
+```bash
+pixi run python -m unittest discover -s tests -p 'test_*.py' -v
+pixi run python -m compileall -q scripts tests
+git status
+```
+
+Do not rerun large count-matrix or H5AD workflows merely to test the shared
+I/O helper refactor. Preserve the existing output files for parity checks.
