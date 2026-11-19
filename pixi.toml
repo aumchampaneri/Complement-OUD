@@ -6,3 +6,4 @@ platforms = ["osx-arm64"]
 
 [dependencies]
 python = ">=3.10,<3.13"
+numpy = ">=1.26,<3"
