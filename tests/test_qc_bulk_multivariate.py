@@ -47,6 +47,15 @@ class MultivariateTests(unittest.TestCase):
         self.assertTrue(all(-1.000001 <= row["profile_correlation"] <= 1.000001
                             for row in correlation))
 
+    def test_mitochondrial_sensitivity_does_not_delete_source(self):
+        before = self.path.read_bytes()
+        _, _, selected, report = mod.audit_cohort(
+            self.path, self.rows, "GSE174409", top_n=3,
+            exclude_pca_features={"g1"})
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertEqual(report["pca_only_excluded_features"], 1)
+        self.assertNotIn("g1", {row["feature_id"] for row in selected})
+
     def test_source_order_guard(self):
         with self.path.open(newline="", encoding="utf-8") as f:
             rows = list(csv.reader(f))
