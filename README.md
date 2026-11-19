@@ -151,3 +151,28 @@ QC decisions. The status intentionally remains **provisional** until full
 reference/matrix feature coverage and source compatibility have been evaluated.
 The script refuses mismatched count checksums and incompatible annotation
 namespaces. Phase 2c requires no extra Python packages beyond existing NumPy.
+
+## Phase 2d: GSE225158 inherited single-nucleus QC
+
+The `02d` stage audits the **original author-retained nuclei**, without
+re-filtering or opening the full sparse count matrix. It reads H5AD `obs`
+annotations (donor, donor–region, diagnosis, cell type, inherited QC flags and
+per-nucleus RNA counts/features) and reconciles them with the inspection and
+`01b` GEO donor–region validation table.
+
+```bash
+pixi run python -m unittest discover -s tests -p 'test_qc_striatum.py' -v
+pixi run python scripts/02d_qc_striatum.py
+```
+
+Outputs in ignored `outputs/qc/human/`: `striatum_donor_celltype_qc.csv`,
+`striatum_inherited_flags.csv`, `striatum_donor_coverage.csv` and
+`striatum_qc_readiness.json`. Flag values are *described*, not used to
+exclude nuclei; the meaning of inherited QC flags must still be reconciled
+with the original authors' methods. No pseudobulk, DE, or count modification.
+
+The source is **gzip-compressed H5AD**; opening it requires temporary
+decompression to about **8.8 GB** in the source-data folder. This stage checks
+for at least **13 GB free** and removes its temporary copy automatically.
+For an already decompressed local file, use `--h5ad PATH` instead. Do not
+commit raw data, temporary copies, or generated QC outputs.
