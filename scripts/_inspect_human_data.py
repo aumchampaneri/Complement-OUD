@@ -601,6 +601,13 @@ def main():
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     if args.reconcile_only:
         reconcile_existing_reports()
+        if args.verify_h5ad_raw:
+            archives = sorted((DATA_DIR / "GSE225158").glob("*.h5ad.gz"))
+            if archives:
+                verify_h5ad_raw(archives[0])
+            else:
+                LOG.warning("Cannot verify GSE225158 raw counts: archive not found")
+                return 1
         return 0
 
     failures = 0
