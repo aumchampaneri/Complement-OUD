@@ -212,6 +212,10 @@ def main():
         if len(ids) != source["n_features"]:
             raise ValueError(f"{dataset}: feature count mismatch")
         mapping, audit = map_features(ids, reference, ambiguous, dataset)
+        if len(mapping) / len(ids) < 0.5:
+            raise ValueError(
+                f"{dataset}: fewer than 50% of count features map to the supplied reference; "
+                "check assembly, ID namespace and release before proceeding")
         annotations.extend(audit)
         mt_ids = {key for key, value in mapping.items() if canonical_mito(value["chromosome"])}
         # No exclusions: excluded features affect only this optional PCA sensitivity.
