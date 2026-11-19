@@ -13,6 +13,15 @@ original GSE194368 counting reference. No samples/genes are removed for DE.
 # %% Imports
 from __future__ import annotations
 
+# Shared standard-library I/O; support direct scripts and test imports.
+try:
+    from scripts._qc_common import sha256, read_csv, write_csv
+except ModuleNotFoundError as exc:
+    if exc.name != "scripts":
+        raise
+    from _qc_common import sha256, read_csv, write_csv
+
+
 import argparse
 from collections import Counter
 import csv
@@ -34,24 +43,7 @@ def read_text(path):
     return gzip.open(path, "rt", encoding="utf-8") if path.suffix == ".gz" else path.open("rt", encoding="utf-8")
 
 
-def sha256(path):
-    h = hashlib.sha256()
-    with path.open("rb") as handle:
-        for buf in iter(lambda: handle.read(8 * 1024 * 1024), b""):
-            h.update(buf)
-    return h.hexdigest()
 
-
-def read_csv(path):
-    with path.open(newline="", encoding="utf-8") as handle:
-        return list(csv.DictReader(handle))
-
-
-def write_csv(path, rows, fields):
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(rows)
 
 
 # %% Annotation parsing: preserve ambiguity and assembly/source provenance
