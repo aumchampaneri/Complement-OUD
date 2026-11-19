@@ -11,7 +11,6 @@ Outputs are written under ignored outputs/qc/human/.
 # %% Configuration
 from __future__ import annotations
 
-from collections import Counter
 from pathlib import Path
 import csv
 import gzip
