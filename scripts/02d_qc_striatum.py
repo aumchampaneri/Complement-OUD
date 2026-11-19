@@ -20,9 +20,7 @@ load_csv = read_csv
 
 import argparse
 from collections import Counter, defaultdict
-import csv
 import gzip
-import hashlib
 import json
 import math
 import re
