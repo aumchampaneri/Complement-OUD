@@ -128,17 +128,18 @@ def summarize_10x_h5(path, *, block=CHUNK_COLUMNS):
             if not np.all(np.isfinite(data)) or np.any(data < 0) or np.any(data != np.floor(data)):
                 raise ValueError("10x matrix contains invalid UMI counts")
             active = gene_mask[idx]
+            # Count sums via exact integer accumulation, not float-weighted bincount.
             gene_cols = cols[active]
             gene_data = data[active].astype(np.int64)
-            totals[a:b] = np.bincount(gene_cols, weights=gene_data,
-                                      minlength=b-a).astype(np.int64)
-            detected[a:b] = np.bincount(gene_cols,
-                                        weights=(gene_data > 0).astype(np.int64),
-                                        minlength=b-a).astype(np.int64)
+            np.add.at(totals[a:b], gene_cols, gene_data)
+            # A valid 10x CSC column has unique feature indices.
+            if len(cols):
+                pair_key = cols.astype(np.int64) * n_features + idx.astype(np.int64)
+                if len(np.unique(pair_key)) != len(pair_key):
+                    raise ValueError("Duplicate sparse feature indices within a 10x barcode")
+            np.add.at(detected[a:b], gene_cols, (gene_data > 0).astype(np.int64))
             mt_active = active & mt_mask[idx]
-            mt_counts[a:b] = np.bincount(cols[mt_active],
-                                         weights=data[mt_active],
-                                         minlength=b-a).astype(np.int64)
+            np.add.at(mt_counts[a:b], cols[mt_active], data[mt_active].astype(np.int64))
         if (totals < 0).any() or (detected > int(gene_mask.sum())).any():
             raise ValueError("Invalid 10x barcode metric aggregation")
         fractions = np.divide(mt_counts, totals, out=np.full(n_barcodes, np.nan),
