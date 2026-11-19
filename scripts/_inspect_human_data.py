@@ -363,6 +363,9 @@ def candidate_matches(bulk_samples, nucleus_samples):
         agreements, conflicts, score = [], [], 0
         for old_key, new_key, weight in fields:
             x, y = norm(old.get(old_key)), norm(new.get(new_key))
+            if old_key == "sex":
+                x = {"female": "f", "male": "m"}.get(x, x)
+                y = {"female": "f", "male": "m"}.get(y, y)
             if old_key == "diagnosis":
                 x = "control" if x in ("cont", "none", "unaffected") else x
                 y = "control" if y in ("none", "cont", "unaffected") else y
