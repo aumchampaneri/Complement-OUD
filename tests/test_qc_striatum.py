@@ -52,6 +52,32 @@ class StriatumQCTests(unittest.TestCase):
         self.assertEqual(design["automatic_nucleus_exclusions"], 0)
         self.assertEqual(len(balance), 3)
 
+    def test_numeric_case_1034_point_zero_matches_geo_donor(self):
+        self.assertEqual(qc.canonical_donor_id("1034.0"), "1034")
+        self.assertEqual(qc.canonical_donor_id(1034.0), "1034")
+        self.assertEqual(qc.canonical_donor_id("1034"), "1034")
+        fields = {
+            "Case": np.array(["1034.0", "1034.0"], dtype=object),
+            "ID": np.array(["C-1034", "P-1034"], dtype=object),
+            "Region": np.array(["Caudate", "Putamen"], dtype=object),
+            "Dx_OUD": np.array(["OUD", "OUD"], dtype=object),
+        }
+        geo = [
+            {"sample_id": "C-1034", "subject_id": "1034",
+             "condition": "OUD", "nuclei": "1"},
+            {"sample_id": "P-1034", "subject_id": "1034",
+             "condition": "OUD", "nuclei": "1"},
+        ]
+        design = qc.assert_identifiers(fields, geo)
+        self.assertEqual(design["donors"], 1)
+        self.assertEqual(design["included_sample_ids"], 2)
+
+    def test_reject_noninteger_donor_id(self):
+        with self.assertRaisesRegex(ValueError, "Non-integer donor ID"):
+            qc.canonical_donor_id("1034.5")
+        with self.assertRaisesRegex(ValueError, "Non-integer donor ID"):
+            qc.canonical_donor_id(float("nan"))
+
     def test_unknown_sample_id_rejected(self):
         with h5py.File(self.path, "r+") as h5:
             h5["obs/ID"][0] = b"C-9"
