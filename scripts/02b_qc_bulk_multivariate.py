@@ -60,8 +60,10 @@ def load_annotation(path, dataset):
 
 
 # %% Stream one study at a time
-def audit_cohort(path, samples, dataset, *, top_n=TOP_GENES, annotation=None):
+def audit_cohort(path, samples, dataset, *, top_n=TOP_GENES, annotation=None,
+                 exclude_pca_features=None):
     annotation = annotation or {}
+    exclude_pca_features = set(exclude_pca_features or ())
     sample_ids = [r["matrix_sample"] for r in samples]
     if len(set(sample_ids)) != len(sample_ids):
         raise ValueError("Duplicate sample IDs in earlier QC")
@@ -99,10 +101,11 @@ def audit_cohort(path, samples, dataset, *, top_n=TOP_GENES, annotation=None):
             logcpm = np.log1p(values / totals * 1e6)
             variance = float(logcpm.var())
             item = (variance, gene, logcpm)
-            if len(top) < top_n:
-                heapq.heappush(top, item)
-            elif (variance, gene) > (top[0][0], top[0][1]):
-                heapq.heapreplace(top, item)
+            if gene not in exclude_pca_features:
+                if len(top) < top_n:
+                    heapq.heappush(top, item)
+                elif (variance, gene) > (top[0][0], top[0][1]):
+                    heapq.heapreplace(top, item)
             if gene in annotation:
                 matched_annotations += 1
                 chromosome = annotation[gene]["chromosome"].strip().upper().removeprefix("CHR")
@@ -148,6 +151,7 @@ def audit_cohort(path, samples, dataset, *, top_n=TOP_GENES, annotation=None):
                 for variance, gene, _ in top]
     meta = {
         "dataset": dataset, "n_samples": len(samples), "n_features_read": rows_read,
+        "pca_only_excluded_features": len(exclude_pca_features),
         "n_features_for_unsupervised_pca": len(top),
         "transformation": "log1p(gene_count / total_assigned_gene_counts * 1000000)",
         "pca_variance_explained_first_3": explained[:3],
