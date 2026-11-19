@@ -10,6 +10,15 @@ to a donor. One tar member is materialized at a time to a temporary directory.
 # %% Imports and setup
 from __future__ import annotations
 
+# Shared standard-library I/O; support direct scripts and test imports.
+try:
+    from scripts._qc_common import read_csv, write_csv, sha256
+except ModuleNotFoundError as exc:
+    if exc.name != "scripts":
+        raise
+    from _qc_common import read_csv, write_csv, sha256
+
+
 import argparse
 from collections import Counter
 import csv
@@ -38,24 +47,7 @@ def as_text(values):
     return [x.decode("utf-8", "replace") if isinstance(x, bytes) else str(x) for x in values]
 
 
-def read_csv(path):
-    with path.open(newline="", encoding="utf-8") as handle:
-        return list(csv.DictReader(handle))
 
-
-def write_csv(path, rows, fields):
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def sha256(path):
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(COPY_CHUNK), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def quantiles(values):
