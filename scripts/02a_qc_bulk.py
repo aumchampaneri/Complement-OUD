@@ -21,9 +21,7 @@ except ModuleNotFoundError as exc:
 
 
 from pathlib import Path
-import csv
 import gzip
-import hashlib
 import json
 import math
 import statistics
