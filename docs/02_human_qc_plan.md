@@ -6,6 +6,8 @@
 **Output policy:** Preserve immutable raw inputs; exploratory plots and metrics go into ignored `outputs/qc/human/`; version-control methods, decision records, and code.  
 **Updated:** 2026-11-19.
 
+**Required companion before implementation:** [Source provenance and QC strategy audit](02a_source_provenance_audit.md). It distinguishes sequencer reads, count-generation pipelines, original upstream QC, and author-retained objects. No universal numeric cutoffs should be applied until those provenance issues are triaged.
+
 ## 1. Scientific purpose and inferential boundaries
 
 This phase asks whether each human expression dataset supports reliable **donor-level** comparisons of complement-associated transcription in OUD or opioid overdose, and what quality, sampling, or technical effects must be accounted for. It does **not** establish complement pathway activation at the protein, cleavage, deposition, or functional level.
