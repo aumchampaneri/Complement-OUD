@@ -522,7 +522,10 @@ def reconcile_existing_reports():
 
 # %% OPTIONAL DEEP H5AD COUNT-AND-ANNOTATION VERIFICATION
 def verify_h5ad_raw(archive):
-    """Full sparse-data integrity check; sample individual nuclei for QC agreement."""
+    """Full sparse-data integrity check; sample individual nuclei for QC agreement.
+
+    Counts nonzero expression values, not stored sparse positions, for nFeature_RNA.
+    """
     import numpy as np
 
     result = {"file": archive.name, "note": "Full sparse data scan; per-cell QC tested on distributed rows"}
@@ -564,7 +567,8 @@ def verify_h5ad_raw(archive):
                 errors = []
                 for i in indices:
                     a, b = int(indptr[i]), int(indptr[i+1])
-                    value = float(np.asarray(data[a:b]).sum()) if mode == "sum" else int(b-a)
+                    value = (float(np.asarray(data[a:b]).sum()) if mode == "sum"
+                             else int(np.count_nonzero(np.asarray(data[a:b]))))
                     try:
                         errors.append(abs(value-float(obs[int(i)])))
                     except (ValueError, IndexError):
