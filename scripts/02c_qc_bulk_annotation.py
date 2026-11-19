@@ -82,7 +82,7 @@ def gtf_records(path):
                 records[key] = record
     for key in collisions:
         records.pop(key, None)
-    if not records:
+    if not records and not collisions:
         raise ValueError("No GTF gene records parsed; verify the annotation file")
     return records, collisions
 
