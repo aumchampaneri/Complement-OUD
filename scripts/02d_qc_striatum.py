@@ -109,6 +109,11 @@ def assert_identifiers(fields, geo):
         if sid not in known:
             raise ValueError(f"Object contains unknown donor–region sample: {sid}")
         expected = known[sid]
+        expected_condition = str(expected.get("condition", "")).strip().lower()
+        actual_condition = str(condition).strip().lower()
+        if expected_condition and expected_condition != actual_condition:
+            raise ValueError(f"{sid}: object/GEO diagnosis mismatch: "
+                             f"{condition!r} vs {expected['condition']!r}")
         expected_donor = str(expected["subject_id"])
         if did != expected_donor and did != sid.split("-", 1)[-1]:
             raise ValueError(f"{sid}: donor ID {did} differs from GEO {expected_donor}")
