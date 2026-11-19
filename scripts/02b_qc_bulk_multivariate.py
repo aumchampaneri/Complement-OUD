@@ -20,7 +20,6 @@ checksum = sha256
 import argparse
 import csv
 import gzip
-import hashlib
 import heapq
 import json
 from pathlib import Path
