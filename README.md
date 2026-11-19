@@ -63,3 +63,22 @@ measure complement activation.
 ## Phase 2: QC planning (before filtering)
 
 Begin with the [source provenance and QC-strategy audit](docs/02a_source_provenance_audit.md), then review the [human QC design and decision register](docs/02_human_qc_plan.md). Together they document dataset origins, assay layers and biological replication units, pre-filter diagnostics, candidate exclusions, and downstream consequences of major decisions. **No Phase 2 filtering or DE has been implemented or approved yet.** Review the acceptance gates before implementation.
+
+## Phase 2a: read-only bulk QC
+
+[Preflight specification](docs/02b_qc_preflight.md) defines inputs, metrics,
+non-exclusion outlier flags and manuscript safeguards. Follow the
+[source provenance audit](docs/02a_source_provenance_audit.md) and
+[Phase 2 QC decision register](docs/02_human_qc_plan.md).
+
+```bash
+pixi run python -m unittest discover -s tests -p 'test_qc_bulk.py' -v
+pixi run python scripts/02a_qc_bulk.py
+```
+
+This stage **does not filter, normalize, remove samples, calculate DE or modify
+source data**. It writes `outputs/qc/human/bulk_sample_qc.csv` and
+`outputs/qc/human/bulk_qc_readiness.json` with SHA-256 provenance. Existing
+H5AD and midbrain 10x libraries are reserved for later assay-specific
+read-only QC. Treat all robust-z flags as prompts for review, never automatic
+exclusions.
