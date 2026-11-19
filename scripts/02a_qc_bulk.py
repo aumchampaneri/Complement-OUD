@@ -108,7 +108,7 @@ def audit_matrix(path: Path, accession: str, inspection: dict) -> tuple[list[dic
         counts = [0] * n
         detected = [0] * n
         # Track the top ten count contributions in each sample.
-        top = [[] for _ in range(n)]
+        top = [[] for _ in range(n)]  # (count, feature ID) pairs
         genes = 0
         duplicates = set()
         seen = set()
@@ -135,10 +135,10 @@ def audit_matrix(path: Path, accession: str, inspection: dict) -> tuple[list[dic
                     detected[i] += 1
                     vals = top[i]
                     if len(vals) < MAX_CONTRIBUTORS:
-                        vals.append(v)
+                        vals.append((v, gene))
                         vals.sort()
-                    elif v > vals[0]:
-                        vals[0] = v
+                    elif v > vals[0][0]:
+                        vals[0] = (v, gene)
                         vals.sort()
 
     if genes != matrix["genes"]:
@@ -158,13 +158,25 @@ def audit_matrix(path: Path, accession: str, inspection: dict) -> tuple[list[dic
             "gsm": info.get("geo_accession", ""), "title": info.get("title", ""),
             "region": region, "diagnosis": info.get("dx_oud", info.get("disease_state", info.get("diagnosis", ""))),
             "age": info.get("age", ""), "sex": info.get("sex", ""),
-            "pmi": info.get("pmi", ""), "rin": info.get("rin", ""),
+            "pmi": info.get("pmi", ""), "rin": info.get("rpf_rin", info.get("rin", "")),
             "assigned_gene_counts": counts[i],
             "detected_features": detected[i],
             "zero_feature_fraction": round(1 - detected[i] / genes, 6),
-            "top10_count_fraction": round(sum(top[i]) / counts[i], 6) if counts[i] else None,
+            "top10_count_fraction": round(sum(v for v, _ in top[i]) / counts[i], 6) if counts[i] else None,
+            "_top_features": sorted(top[i], reverse=True),
             "technical_exclusion": "NONE_APPLIED"
         })
+    # Top-gene export is audit metadata, not a gene-exclusion proposal.
+    top_features = []
+    for row in results:
+        for rank, (value, gene) in enumerate(row.pop("_top_features"), 1):
+            top_features.append({"dataset": accession,
+                                 "matrix_sample": row["matrix_sample"],
+                                 "feature_id": gene, "rank": rank,
+                                 "assigned_counts": value,
+                                 "fraction_of_sample": round(value / row["assigned_gene_counts"], 8)
+                                 if row["assigned_gene_counts"] else None})
+    metadata_top_features = top_features
     for field in ("assigned_gene_counts", "detected_features"):
         describe_flags(results, field, grouped=(accession == "GSE174409"))
     metadata = {
@@ -186,6 +198,7 @@ def audit_matrix(path: Path, accession: str, inspection: dict) -> tuple[list[dic
             "OUD-related expression was not tested or used for any QC threshold."
         ]
     }
+    metadata["top_feature_rows"] = metadata_top_features
     return results, metadata
 
 
@@ -194,6 +207,7 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     all_rows = []
     summaries = []
+    feature_rows = []
     for accession in COHORTS:
         report = read_json(INSPECT / f"{accession}_inspection.json")
         name = report["expression"][0]["file"]
@@ -202,6 +216,7 @@ def main() -> None:
             raise FileNotFoundError(f"Expected original matrix missing: {candidate}")
         rows, summary = audit_matrix(candidate, accession, report)
         all_rows.extend(rows)
+        feature_rows.extend(summary.pop("top_feature_rows"))
         summaries.append(summary)
         print(f"{accession}: {summary['n_samples']} samples, "
               f"{summary['n_features']} gene rows; checks match inspection")
@@ -213,6 +228,9 @@ def main() -> None:
         "assigned_gene_counts_robust_z", "assigned_gene_counts_flag",
         "detected_features_robust_z", "detected_features_flag",
         "technical_exclusion"])
+    write_csv(OUT / "bulk_top_features.csv", feature_rows,
+              ["dataset", "matrix_sample", "feature_id", "rank",
+               "assigned_counts", "fraction_of_sample"])
     summary = {
         "phase": "2_read_only_descriptive_bulk_QC",
         "datasets": summaries, "n_rows": len(all_rows),
