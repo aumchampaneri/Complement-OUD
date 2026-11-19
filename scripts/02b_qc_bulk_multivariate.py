@@ -15,7 +15,6 @@ except ModuleNotFoundError as exc:
     if exc.name != "scripts":
         raise
     from _qc_common import read_csv, write_csv, sha256
-checksum = sha256
 
 import argparse
 import csv
@@ -175,7 +174,7 @@ def main():
     for dataset in STUDIES:
         source = by_dataset[dataset]
         path = ROOT / source["source_file"]
-        if checksum(path) != source["source_sha256"]:
+        if sha256(path) != source["source_sha256"]:
             raise ValueError(f"{dataset}: source checksum differs from Phase 2a; STOP")
         samples = [row for row in sample_qc if row["dataset"] == dataset]
         if len(samples) != source["n_samples"]:
