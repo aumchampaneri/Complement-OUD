@@ -170,7 +170,7 @@ def audit_matrix(path: Path, accession: str, inspection: dict) -> tuple[list[dic
     metadata = {
         "accession": accession,
         "data_kind": "submitter_count_matrix" if accession == "GSE174409" else "NCBI_reprocessed_count_matrix",
-        "source_file": str(path.relative_to(ROOT)),
+        "source_file": str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path),
         "source_sha256": sha256(path),
         "n_samples": n, "n_features": genes,
         "sample_id_kind": "GEO_title" if accession == "GSE174409" else "GSM",
