@@ -62,4 +62,4 @@ measure complement activation.
 
 ## Phase 2: QC planning (before filtering)
 
-The [human QC design and decision register](docs/02_human_qc_plan.md) documents dataset origins, assay layers and biological replication units, pre-filter diagnostics, candidate exclusions, and downstream consequences of major decisions. **No Phase 2 filtering or DE has been implemented or approved yet.** Review the acceptance gates before implementation.
+Begin with the [source provenance and QC-strategy audit](docs/02a_source_provenance_audit.md), then review the [human QC design and decision register](docs/02_human_qc_plan.md). Together they document dataset origins, assay layers and biological replication units, pre-filter diagnostics, candidate exclusions, and downstream consequences of major decisions. **No Phase 2 filtering or DE has been implemented or approved yet.** Review the acceptance gates before implementation.
