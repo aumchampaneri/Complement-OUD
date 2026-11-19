@@ -113,9 +113,9 @@ def canonical_donor_id(value):
             raise ValueError(f"Non-integer donor ID: {value!r}")
         return str(int(value))
     token = str(value).strip()
-    if re.fullmatch(r"[0-9]+\\.0+", token):
+    if re.fullmatch(r"[0-9]+\.0+", token):
         return token.split(".", 1)[0]
-    if re.fullmatch(r"[0-9]+\\.[0-9]+", token):
+    if re.fullmatch(r"[0-9]+\.[0-9]+", token):
         raise ValueError(f"Non-integer donor ID: {token!r}")
     if not token or token.lower() in ("none", "nan", "inf"):
         raise ValueError(f"Missing/invalid donor ID: {token!r}")
